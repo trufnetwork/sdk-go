@@ -6,6 +6,7 @@ import (
 
 	"github.com/cockroachdb/apd/v3"
 	"github.com/golang-sql/civil"
+	"github.com/kwilteam/kwil-db/core/types/client"
 	"github.com/kwilteam/kwil-db/core/types/transactions"
 	"github.com/trufnetwork/sdk-go/core/util"
 )
@@ -46,6 +47,11 @@ type StreamIndex = StreamRecord
 type StreamIndexUnix = StreamRecordUnix
 
 type IStream interface {
+	// ExecuteProcedure Executes an arbitrary procedure on the stream. Execute refers to the write calls
+	ExecuteProcedure(ctx context.Context, procedure string, args [][]any) (transactions.TxHash, error)
+	// CallProcedure calls an arbitrary procedure on the stream. Call refers to the read calls
+	CallProcedure(ctx context.Context, procedure string, args []any) (*client.Records, error)
+
 	// InitializeStream initializes the stream. Majority of other methods need the stream to be initialized
 	InitializeStream(ctx context.Context) (transactions.TxHash, error)
 	// GetRecord reads the records of the stream within the given date range
