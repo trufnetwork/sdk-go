@@ -2,7 +2,6 @@ package contractsapi
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"time"
 
