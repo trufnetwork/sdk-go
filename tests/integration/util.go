@@ -75,6 +75,37 @@ func deployTestPrimitiveStreamWithData(
 	waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInsert)
 }
 
+func deployTestPrimitiveStreamUnixWithData(
+	t *testing.T,
+	ctx context.Context,
+	tnClient *tnclient.Client,
+	streamId util.StreamId,
+	data []types.InsertRecordUnixInput,
+) {
+	deployTxHash, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitiveUnix)
+	assertNoErrorOrFail(t, err, "Failed to deploy stream")
+	waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
+
+	address, err := util.NewEthereumAddressFromBytes(tnClient.GetSigner().Identity())
+	assertNoErrorOrFail(t, err, "Failed to create signer address")
+
+	streamLocator := types.StreamLocator{
+		StreamId:     streamId,
+		DataProvider: address,
+	}
+
+	deployedStream, err := tnClient.LoadPrimitiveStream(streamLocator)
+	assertNoErrorOrFail(t, err, "Failed to load stream")
+
+	txHashInit, err := deployedStream.InitializeStream(ctx)
+	assertNoErrorOrFail(t, err, "Failed to initialize stream")
+	waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInit)
+
+	txHashInsert, err := deployedStream.InsertRecordsUnix(ctx, data)
+	assertNoErrorOrFail(t, err, "Failed to insert record")
+	waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInsert)
+}
+
 func deployTestComposedStreamWithTaxonomy(
 	t *testing.T,
 	ctx context.Context,

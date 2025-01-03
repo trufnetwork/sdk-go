@@ -14,6 +14,11 @@ type Taxonomy struct {
 	StartDate     *civil.Date
 }
 
+type TaxonomyUnix struct {
+	TaxonomyItems []TaxonomyItem
+	StartDate     *int
+}
+
 type TaxonomyItem struct {
 	ChildStream StreamLocator
 	Weight      float64
@@ -29,8 +34,12 @@ type IComposedStream interface {
 	IStream
 	// DescribeTaxonomies returns the taxonomy of the stream
 	DescribeTaxonomies(ctx context.Context, params DescribeTaxonomiesParams) (Taxonomy, error)
+	// DescribeTaxonomiesUnix returns the taxonomy of the stream with Unix timestamp
+	DescribeTaxonomiesUnix(ctx context.Context, params DescribeTaxonomiesParams) (TaxonomyUnix, error)
 	// SetTaxonomy sets the taxonomy of the stream
 	SetTaxonomy(ctx context.Context, taxonomies Taxonomy) (transactions.TxHash, error)
+	// SetTaxonomyUnix sets the taxonomy of the stream with Unix timestamp
+	SetTaxonomyUnix(ctx context.Context, taxonomies TaxonomyUnix) (transactions.TxHash, error)
 }
 
 // MarshalJSON Custom marshaler for TaxonomyDefinition

@@ -80,6 +80,17 @@ type DescribeTaxonomiesResult struct {
 	StartDate string `json:"start_date"` // cannot use *string nor *civil.Date as decoding it will cause an error
 }
 
+type DescribeTaxonomiesUnixResult struct {
+	ChildStreamId     util.StreamId `json:"child_stream_id"`
+	ChildDataProvider string        `json:"child_data_provider"`
+	// decimals are received as strings by kwil to avoid precision loss
+	// as decimal are more arbitrary than golang's float64
+	Weight    string `json:"weight"`
+	CreatedAt int    `json:"created_at"`
+	Version   int    `json:"version"`
+	StartDate int    `json:"start_date"`
+}
+
 func (c *ComposedStream) DescribeTaxonomies(ctx context.Context, params types.DescribeTaxonomiesParams) (types.Taxonomy, error) {
 	records, err := c.call(ctx, "describe_taxonomies", []any{params.LatestVersion})
 	if err != nil {
@@ -126,6 +137,48 @@ func (c *ComposedStream) DescribeTaxonomies(ctx context.Context, params types.De
 	}, nil
 }
 
+func (c *ComposedStream) DescribeTaxonomiesUnix(ctx context.Context, params types.DescribeTaxonomiesParams) (types.TaxonomyUnix, error) {
+	records, err := c.call(ctx, "describe_taxonomies", []any{params.LatestVersion})
+	if err != nil {
+		return types.TaxonomyUnix{}, errors.WithStack(err)
+	}
+
+	result, err := DecodeCallResult[DescribeTaxonomiesUnixResult](records)
+	if err != nil {
+		return types.TaxonomyUnix{}, errors.WithStack(err)
+	}
+
+	var taxonomyItems []types.TaxonomyItem
+	for _, r := range result {
+		dpAddress, err := util.NewEthereumAddressFromString(r.ChildDataProvider)
+		if err != nil {
+			return types.TaxonomyUnix{}, errors.WithStack(err)
+		}
+		weight, err := strconv.ParseFloat(r.Weight, 64)
+		if err != nil {
+			return types.TaxonomyUnix{}, errors.WithStack(err)
+		}
+
+		taxonomyItems = append(taxonomyItems, types.TaxonomyItem{
+			ChildStream: types.StreamLocator{
+				StreamId:     r.ChildStreamId,
+				DataProvider: dpAddress,
+			},
+			Weight: weight,
+		})
+	}
+
+	var startDateCivil *int
+	if len(result) > 0 && result[0].StartDate != 0 {
+		startDateCivil = &result[0].StartDate
+	}
+
+	return types.TaxonomyUnix{
+		TaxonomyItems: taxonomyItems,
+		StartDate:     startDateCivil,
+	}, nil
+}
+
 func (c *ComposedStream) SetTaxonomy(ctx context.Context, taxonomies types.Taxonomy) (transactions.TxHash, error) {
 	var (
 		dataProviders []string
@@ -144,6 +197,31 @@ func (c *ComposedStream) SetTaxonomy(ctx context.Context, taxonomies types.Taxon
 	}
 	if taxonomies.StartDate != nil {
 		startDate = taxonomies.StartDate.String()
+	}
+
+	var args [][]any
+	args = append(args, []any{dataProviders, streamIDs.Strings(), weights, startDate})
+	return c.checkedExecute(ctx, "set_taxonomy", args)
+}
+
+func (c *ComposedStream) SetTaxonomyUnix(ctx context.Context, taxonomies types.TaxonomyUnix) (transactions.TxHash, error) {
+	var (
+		dataProviders []string
+		streamIDs     util.StreamIdSlice
+		weights       []string
+		startDate     int
+	)
+
+	for _, taxonomy := range taxonomies.TaxonomyItems {
+		dataProviderHexString := taxonomy.ChildStream.DataProvider.Address()
+		// kwil expects no 0x prefix
+		dataProviderHex := dataProviderHexString[2:]
+		dataProviders = append(dataProviders, fmt.Sprintf("%s", dataProviderHex))
+		streamIDs = append(streamIDs, taxonomy.ChildStream.StreamId)
+		weights = append(weights, fmt.Sprintf("%f", taxonomy.Weight))
+	}
+	if taxonomies.StartDate != nil {
+		startDate = *taxonomies.StartDate
 	}
 
 	var args [][]any
