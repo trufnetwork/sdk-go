@@ -118,6 +118,11 @@ type GetRecordRawOutput struct {
 	Value     string `json:"value"`
 }
 
+type GetRecordUnixRawOutput struct {
+	DateValue int    `json:"date_value"`
+	Value     string `json:"value"`
+}
+
 // transformOrNil returns nil if the value is nil, otherwise it applies the transform function to the value.
 func transformOrNil[T any](value *T, transform func(T) any) any {
 	if value == nil {
@@ -161,7 +166,39 @@ func (s *Stream) GetRecord(ctx context.Context, input types.GetRecordInput) ([]t
 	return outputs, nil
 }
 
+func (s *Stream) GetRecordUnix(ctx context.Context, input types.GetRecordUnixInput) ([]types.StreamRecordUnix, error) {
+	var args []any
+	args = append(args, transformOrNil(input.DateFrom, func(date int) any { return date }))
+	args = append(args, transformOrNil(input.DateTo, func(date int) any { return date }))
+	args = append(args, transformOrNil(input.FrozenAt, func(date time.Time) any { return date.UTC().Format(time.RFC3339) }))
+
+	results, err := s.call(ctx, "get_record", args)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	rawOutputs, err := DecodeCallResult[GetRecordUnixRawOutput](results)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	var outputs []types.StreamRecordUnix
+	for _, rawOutput := range rawOutputs {
+		value, _, err := apd.NewFromString(rawOutput.Value)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		outputs = append(outputs, types.StreamRecordUnix{
+			DateValue: rawOutput.DateValue,
+			Value:     *value,
+		})
+	}
+
+	return outputs, nil
+}
+
 type GetIndexRawOutput = GetRecordRawOutput
+type GetIndexUnixRawOutput = GetRecordUnixRawOutput
 
 func (s *Stream) GetIndex(ctx context.Context, input types.GetIndexInput) ([]types.StreamIndex, error) {
 	var args []any
@@ -192,6 +229,38 @@ func (s *Stream) GetIndex(ctx context.Context, input types.GetIndexInput) ([]typ
 		}
 		outputs = append(outputs, types.StreamIndex{
 			DateValue: dateValue,
+			Value:     *value,
+		})
+	}
+
+	return outputs, nil
+}
+
+func (s *Stream) GetIndexUnix(ctx context.Context, input types.GetIndexUnixInput) ([]types.StreamIndexUnix, error) {
+	var args []any
+	args = append(args, transformOrNil(input.DateFrom, func(date int) any { return date }))
+	args = append(args, transformOrNil(input.DateTo, func(date int) any { return date }))
+	args = append(args, transformOrNil(input.FrozenAt, func(date time.Time) any { return date.UTC().Format(time.RFC3339) }))
+	args = append(args, transformOrNil(input.BaseDate, func(date int) any { return date }))
+
+	results, err := s.call(ctx, "get_index", args)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	rawOutputs, err := DecodeCallResult[GetIndexUnixRawOutput](results)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	var outputs []types.StreamIndexUnix
+	for _, rawOutput := range rawOutputs {
+		value, _, err := apd.NewFromString(rawOutput.Value)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		outputs = append(outputs, types.StreamIndexUnix{
+			DateValue: rawOutput.DateValue,
 			Value:     *value,
 		})
 	}

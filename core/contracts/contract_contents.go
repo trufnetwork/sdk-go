@@ -7,3 +7,9 @@ var PrivateContractContent []byte
 
 //go:embed composed_stream_template.kf
 var ComposedContractContent []byte
+
+//go:embed primitive_stream_unix.kf
+var PrivateUnixContractContent []byte
+
+//go:embed composed_stream_template_unix.kf
+var ComposedUnixContractContent []byte

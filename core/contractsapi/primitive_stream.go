@@ -84,3 +84,23 @@ func (p *PrimitiveStream) InsertRecords(ctx context.Context, inputs []types.Inse
 
 	return p.checkedExecute(ctx, "insert_record", args)
 }
+
+func (p *PrimitiveStream) InsertRecordsUnix(ctx context.Context, inputs []types.InsertRecordUnixInput) (transactions.TxHash, error) {
+	err := p.checkValidPrimitiveStream(ctx)
+	if err != nil {
+		return transactions.TxHash{}, errors.WithStack(err)
+	}
+
+	var args [][]any
+	for _, input := range inputs {
+
+		dateStr := input.DateValue
+
+		args = append(args, []any{
+			dateStr,
+			strconv.Itoa(input.Value),
+		})
+	}
+
+	return p.checkedExecute(ctx, "insert_record", args)
+}

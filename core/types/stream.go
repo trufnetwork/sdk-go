@@ -17,7 +17,15 @@ type GetRecordInput struct {
 	BaseDate *civil.Date
 }
 
+type GetRecordUnixInput struct {
+	DateFrom *int
+	DateTo   *int
+	FrozenAt *time.Time
+	BaseDate *int
+}
+
 type GetIndexInput = GetRecordInput
+type GetIndexUnixInput = GetRecordUnixInput
 
 type GetFirstRecordInput struct {
 	AfterDate *civil.Date
@@ -29,7 +37,13 @@ type StreamRecord struct {
 	Value     apd.Decimal
 }
 
+type StreamRecordUnix struct {
+	DateValue int
+	Value     apd.Decimal
+}
+
 type StreamIndex = StreamRecord
+type StreamIndexUnix = StreamRecordUnix
 
 type IStream interface {
 	// InitializeStream initializes the stream. Majority of other methods need the stream to be initialized
@@ -38,6 +52,10 @@ type IStream interface {
 	GetRecord(ctx context.Context, input GetRecordInput) ([]StreamRecord, error)
 	// GetIndex reads the index of the stream within the given date range
 	GetIndex(ctx context.Context, input GetIndexInput) ([]StreamIndex, error)
+	// GetRecordUnix reads the records of the stream within the given date rang
+	GetRecordUnix(ctx context.Context, input GetRecordUnixInput) ([]StreamRecordUnix, error)
+	// GetIndexUnix reads the index of the stream within the given date range
+	GetIndexUnix(ctx context.Context, input GetIndexUnixInput) ([]StreamIndexUnix, error)
 	// GetType gets the type of the stream -- Primitive or Composed
 	GetType(ctx context.Context) (StreamType, error)
 	// GetFirstRecord gets the first record of the stream
