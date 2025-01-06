@@ -99,7 +99,7 @@ func (p *PrimitiveStream) InsertRecordsUnix(ctx context.Context, inputs []types.
 
 		args = append(args, []any{
 			dateStr,
-			strconv.Itoa(input.Value),
+			fmt.Sprintf("%f", input.Value),
 		})
 	}
 
