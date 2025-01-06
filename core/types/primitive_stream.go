@@ -14,7 +14,7 @@ type InsertRecordInput struct {
 
 type InsertRecordUnixInput struct {
 	DateValue int
-	Value     int
+	Value     float64
 }
 
 type IPrimitiveStream interface {
