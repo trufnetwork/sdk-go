@@ -2,13 +2,14 @@ package types
 
 import (
 	"context"
+
 	"github.com/golang-sql/civil"
 	"github.com/kwilteam/kwil-db/core/types/transactions"
 )
 
 type InsertRecordInput struct {
 	DateValue civil.Date
-	Value     int
+	Value     float64
 }
 
 type InsertRecordUnixInput struct {
