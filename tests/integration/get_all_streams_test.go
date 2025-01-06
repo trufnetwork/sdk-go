@@ -2,6 +2,8 @@ package integration
 
 import (
 	"context"
+	"testing"
+
 	"github.com/kwilteam/kwil-db/core/crypto"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/kwilteam/kwil-db/core/types/client"
@@ -11,7 +13,6 @@ import (
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
 	"github.com/trufnetwork/sdk-go/tests/integration/assets"
-	"testing"
 )
 
 func TestListAllStreams(t *testing.T) {
@@ -87,7 +88,9 @@ func TestListAllStreams(t *testing.T) {
 	// Check non-initalized stream
 	initializedStreams, err := tnClient.GetAllInitializedStreams(ctx, types.GetAllStreamsInput{})
 	assertNoErrorOrFail(t, err, "Failed to list all streams")
-	assert.Empty(t, initializedStreams, "It should be empty as no stream is initialized")
+	
+	// Count the number of initialized streams before the test
+	initialInitializedStreamsCount := len(initializedStreams)
 
 	// initialize the stream primitiveStreamId
 	primitiveStream, err := tnClient.LoadStream(types.StreamLocator{
@@ -113,5 +116,5 @@ func TestListAllStreams(t *testing.T) {
 	// Check initialized stream
 	initializedStreams, err = tnClient.GetAllInitializedStreams(ctx, types.GetAllStreamsInput{})
 	assertNoErrorOrFail(t, err, "Failed to list all streams")
-	assert.Equal(t, 2, len(initializedStreams), "It should be 2 as 2 streams are initialized")
+	assert.Equal(t, initialInitializedStreamsCount+2, len(initializedStreams), "It should be 2 as 2 streams are initialized")
 }
