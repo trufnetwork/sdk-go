@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/kwilteam/kwil-db/core/types/client"
 	"github.com/kwilteam/kwil-db/core/types/transactions"
 	"github.com/pkg/errors"
 	"github.com/trufnetwork/sdk-go/core/types"
@@ -57,16 +58,16 @@ func (p *PrimitiveStream) checkValidPrimitiveStream(ctx context.Context) error {
 	return nil
 }
 
-func (p *PrimitiveStream) checkedExecute(ctx context.Context, method string, args [][]any) (transactions.TxHash, error) {
+func (p *PrimitiveStream) checkedExecute(ctx context.Context, method string, args [][]any, opts ...client.TxOpt) (transactions.TxHash, error) {
 	err := p.checkValidPrimitiveStream(ctx)
 	if err != nil {
 		return transactions.TxHash{}, errors.WithStack(err)
 	}
 
-	return p._client.Execute(ctx, p.DBID, method, args)
+	return p._client.Execute(ctx, p.DBID, method, args, opts...)
 }
 
-func (p *PrimitiveStream) InsertRecords(ctx context.Context, inputs []types.InsertRecordInput) (transactions.TxHash, error) {
+func (p *PrimitiveStream) InsertRecords(ctx context.Context, inputs []types.InsertRecordInput, opts ...client.TxOpt) (transactions.TxHash, error) {
 	err := p.checkValidPrimitiveStream(ctx)
 	if err != nil {
 		return transactions.TxHash{}, errors.WithStack(err)
@@ -83,10 +84,10 @@ func (p *PrimitiveStream) InsertRecords(ctx context.Context, inputs []types.Inse
 		})
 	}
 
-	return p.checkedExecute(ctx, "insert_record", args)
+	return p.checkedExecute(ctx, "insert_record", args, opts...)
 }
 
-func (p *PrimitiveStream) InsertRecordsUnix(ctx context.Context, inputs []types.InsertRecordUnixInput) (transactions.TxHash, error) {
+func (p *PrimitiveStream) InsertRecordsUnix(ctx context.Context, inputs []types.InsertRecordUnixInput, opts ...client.TxOpt) (transactions.TxHash, error) {
 	err := p.checkValidPrimitiveStream(ctx)
 	if err != nil {
 		return transactions.TxHash{}, errors.WithStack(err)
@@ -103,5 +104,5 @@ func (p *PrimitiveStream) InsertRecordsUnix(ctx context.Context, inputs []types.
 		})
 	}
 
-	return p.checkedExecute(ctx, "insert_record", args)
+	return p.checkedExecute(ctx, "insert_record", args, opts...)
 }
