@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/golang-sql/civil"
+	"github.com/kwilteam/kwil-db/core/types/client"
 	"github.com/kwilteam/kwil-db/core/types/transactions"
 )
 
@@ -21,7 +22,7 @@ type IPrimitiveStream interface {
 	// IStream methods are also available in IPrimitiveStream
 	IStream
 	// InsertRecords inserts records into the stream
-	InsertRecords(ctx context.Context, inputs []InsertRecordInput) (transactions.TxHash, error)
+	InsertRecords(ctx context.Context, inputs []InsertRecordInput, opts ...client.TxOpt) (transactions.TxHash, error)
 	// InsertRecordsUnix inserts records into the stream
-	InsertRecordsUnix(ctx context.Context, inputs []InsertRecordUnixInput) (transactions.TxHash, error)
+	InsertRecordsUnix(ctx context.Context, inputs []InsertRecordUnixInput, opts ...client.TxOpt) (transactions.TxHash, error)
 }
