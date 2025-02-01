@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"strings"
+
 	"github.com/kwilteam/kwil-db/core/types"
 	"github.com/kwilteam/kwil-db/core/types/client"
 	"github.com/kwilteam/kwil-db/core/types/transactions"
@@ -11,7 +13,6 @@ import (
 	"github.com/pkg/errors"
 	tntypes "github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
-	"strings"
 )
 
 // ## Initializations
@@ -207,7 +208,12 @@ func (s *Stream) checkDeployed(ctx context.Context) error {
 }
 
 func (s *Stream) call(ctx context.Context, method string, args []any) (*client.Records, error) {
-	return s._client.Call(ctx, s.DBID, method, args)
+	result, err := s._client.Call(ctx, s.DBID, method, args)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return result.Records, nil
 }
 
 func (s *Stream) execute(ctx context.Context, method string, args [][]any) (transactions.TxHash, error) {
