@@ -24,3 +24,7 @@ go.work
 # IDE files
 .idea
 .vscode
+.cursorrules
+
+# temporary development files
+gitignore

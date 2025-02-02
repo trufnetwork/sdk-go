@@ -6,10 +6,11 @@ require (
 	github.com/cockroachdb/apd/v3 v3.2.1
 	github.com/go-playground/validator/v10 v10.22.0
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9
-	github.com/kwilteam/kwil-db/core v0.2.2-0.20240731225936-dc8d6befe577
-	github.com/kwilteam/kwil-db/parse v0.2.4-0.20240731225936-dc8d6befe577
+	github.com/kwilteam/kwil-db/core v0.3.1-0.20241118220427-bd35ded7db55
+	github.com/kwilteam/kwil-db/parse v0.3.1-0.20241118220427-bd35ded7db55
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.9.0
+	go.uber.org/zap v1.27.0
 )
 
 require (
@@ -28,6 +29,7 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/holiman/uint256 v1.2.4 // indirect
+	github.com/jrick/logrotate v1.1.2 // indirect
 	github.com/klauspost/compress v1.17.8 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
@@ -41,7 +43,6 @@ require (
 	github.com/supranational/blst v0.3.12 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.24.0 // indirect
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
 	golang.org/x/net v0.25.0 // indirect
