@@ -12,6 +12,7 @@ const (
 	StreamTypePrimitive     StreamType = "primitive"
 	StreamTypeComposedUnix  StreamType = "composed_unix"
 	StreamTypePrimitiveUnix StreamType = "primitive_unix"
+	StreamTypeHelper        StreamType = "helper"
 )
 
 type MetadataKey string

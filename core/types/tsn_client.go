@@ -23,6 +23,8 @@ type Client interface {
 	LoadPrimitiveStream(stream StreamLocator) (IPrimitiveStream, error)
 	// LoadComposedStream loads a already deployed composed stream, permitting its API usage
 	LoadComposedStream(stream StreamLocator) (IComposedStream, error)
+	// LoadHelperStream loads a already deployed helper stream, permitting its API usage
+	LoadHelperStream(stream StreamLocator) (IHelperStream, error)
 	/*
 	 * utils for the client
 	 */

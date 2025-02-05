@@ -13,3 +13,6 @@ var PrivateUnixContractContent []byte
 
 //go:embed composed_stream_template_unix.kf
 var ComposedUnixContractContent []byte
+
+//go:embed helper_stream.kf
+var HelperContractContent []byte
