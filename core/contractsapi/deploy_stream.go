@@ -47,6 +47,8 @@ func GetContractContent(input DeployStreamInput) ([]byte, error) {
 		return contracts.ComposedUnixContractContent, nil
 	case types.StreamTypePrimitiveUnix:
 		return contracts.PrivateUnixContractContent, nil
+	case types.StreamTypeHelper:
+		return contracts.HelperContractContent, nil
 	default:
 		return nil, errors.New(fmt.Sprintf("unknown stream type: %v", input.StreamType))
 	}

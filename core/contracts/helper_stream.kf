@@ -1,0 +1,48 @@
+// This file is intended to have functions that contains helper functions for other contracts.
+// For example: instead of issuing multiple transactions to insert records for each individual stream, we're able to
+// create a helper here that inserts records for a stream at once.
+
+database helper_contract;
+
+foreign procedure ext_insert_record($date_value text, $value decimal(36,18))
+
+foreign procedure ext_insert_record_unix($date_value int, $value decimal(36,18))
+
+procedure get_dbid($data_provider text, $stream_id text) private view returns (result text) {
+    $starts_with_0x bool := false;
+    for $row in SELECT $data_provider LIKE '0x%' as a {
+        $starts_with_0x := $row.a;
+    }
+
+    $data_provider_without_0x text;
+
+    if $starts_with_0x == true {
+        $data_provider_without_0x := substring($data_provider, 3);
+    } else {
+        $data_provider_without_0x := $data_provider;
+    }
+
+    return generate_dbid($stream_id, decode($data_provider_without_0x, 'hex'));
+}
+
+procedure insert_records_unix($data_providers text[], $stream_ids text[], $date_values int[], $values decimal(36,18)[]) public {
+    if array_length($data_providers) != array_length($stream_ids) OR array_length($data_providers) != array_length($date_values) OR array_length($data_providers) != array_length($values) {
+        error('The number of data providers, stream IDs, date values(int), and values must match');
+    }
+
+    for $i in 1..array_length($data_providers) {
+        $dbid text := get_dbid($data_providers[$i], $stream_ids[$i]);
+        ext_insert_record_unix[$dbid, 'insert_record']($date_values[$i], $values[$i]);
+    }
+}
+
+procedure insert_records($data_providers text[], $stream_ids text[], $date_values text[], $values decimal(36,18)[]) public {
+    if array_length($data_providers) != array_length($stream_ids) OR array_length($data_providers) != array_length($date_values) OR array_length($data_providers) != array_length($values) {
+        error('The number of data providers, stream IDs, date values(text), and values must match');
+    }
+
+    for $i in 1..array_length($data_providers) {
+        $dbid text := get_dbid($data_providers[$i], $stream_ids[$i]);
+        ext_insert_record[$dbid, 'insert_record']($date_values[$i], $values[$i]);
+    }
+}

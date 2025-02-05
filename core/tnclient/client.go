@@ -139,3 +139,11 @@ func (c *Client) Address() util.EthereumAddress {
 	}
 	return address
 }
+
+func (c *Client) LoadHelperStream(streamLocator clientType.StreamLocator) (clientType.IHelperStream, error) {
+	return tn_api.LoadHelperStream(tn_api.NewStreamOptions{
+		Client:   c.kwilClient,
+		StreamId: streamLocator.StreamId,
+		Deployer: streamLocator.DataProvider.Bytes(),
+	})
+}
