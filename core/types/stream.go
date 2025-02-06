@@ -33,6 +33,11 @@ type GetFirstRecordInput struct {
 	FrozenAt  *time.Time
 }
 
+type GetFirstRecordUnixInput struct {
+	AfterDate *int
+	FrozenAt  *time.Time
+}
+
 type StreamRecord struct {
 	DateValue civil.Date
 	Value     apd.Decimal
