@@ -297,7 +297,7 @@ func (s *Stream) GetFirstRecord(ctx context.Context, input types.GetFirstRecordI
 	}
 
 	if len(rawOutputs) == 0 {
-		return nil, ErrorRecordNotFound
+		return nil, nil
 	}
 
 	rawOutput := rawOutputs[0]
@@ -312,6 +312,37 @@ func (s *Stream) GetFirstRecord(ctx context.Context, input types.GetFirstRecordI
 
 	return &types.StreamRecord{
 		DateValue: dateValue,
+		Value:     *value,
+	}, nil
+}
+
+func (s *Stream) GetFirstRecordUnix(ctx context.Context, input types.GetFirstRecordUnixInput) (*types.StreamRecordUnix, error) {
+	var args []any
+	args = append(args, transformOrNil(input.AfterDate, func(date int) any { return date }))
+	args = append(args, transformOrNil(input.FrozenAt, func(date time.Time) any { return date.UTC().Format(time.RFC3339) }))
+
+	results, err := s.call(ctx, "get_first_record", args)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	rawOutputs, err := DecodeCallResult[GetRecordUnixRawOutput](results)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	if len(rawOutputs) == 0 {
+		return nil, nil
+	}
+
+	rawOutput := rawOutputs[0]
+	value, _, err := apd.NewFromString(rawOutput.Value)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return &types.StreamRecordUnix{
+		DateValue: rawOutput.DateValue,
 		Value:     *value,
 	}, nil
 }

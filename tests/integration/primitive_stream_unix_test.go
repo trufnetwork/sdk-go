@@ -2,13 +2,14 @@ package integration
 
 import (
 	"context"
+	"testing"
+
 	"github.com/kwilteam/kwil-db/core/crypto"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/trufnetwork/sdk-go/core/tnclient"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
-	"testing"
 )
 
 // TestPrimitiveStreamUnix demonstrates the process of deploying, initializing, writing to,
@@ -42,25 +43,34 @@ func TestPrimitiveStreamUnix(t *testing.T) {
 		waitTxToBeMinedWithSuccess(t, ctx, tnClient, destroyResult)
 	})
 
-	// Subtest for deploying, initializing, writing to, and reading from a primitive stream
+	// Deploy and initialize stream once for all subtests
+	deployTxHash, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitiveUnix)
+	assertNoErrorOrFail(t, err, "Failed to deploy stream")
+	waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
+
+	deployedPrimitiveStream, err := tnClient.LoadPrimitiveStream(streamLocator)
+	assertNoErrorOrFail(t, err, "Failed to load stream")
+
+	txHashInit, err := deployedPrimitiveStream.InitializeStream(ctx)
+	assertNoErrorOrFail(t, err, "Failed to initialize stream")
+	waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInit)
+
+	t.Run("EmptyStreamOperations", func(t *testing.T) {
+		// Query first record from empty stream
+		firstRecord, err := deployedPrimitiveStream.GetFirstRecordUnix(ctx, types.GetFirstRecordUnixInput{})
+		assertNoErrorOrFail(t, err, "Failed to query first record")
+		assert.Nil(t, firstRecord, "Expected nil record from empty stream")
+
+		// Query first record with after date from empty stream
+		afterDate := 1
+		firstRecordAfter, err := deployedPrimitiveStream.GetFirstRecordUnix(ctx, types.GetFirstRecordUnixInput{
+			AfterDate: &afterDate,
+		})
+		assertNoErrorOrFail(t, err, "Failed to query first record with after date")
+		assert.Nil(t, firstRecordAfter, "Expected nil record from empty stream with after date")
+	})
+
 	t.Run("DeploymentWriteAndReadOperations", func(t *testing.T) {
-		// Deploy a primitive stream
-		// This creates the stream contract on the TN
-		deployTxHash, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitiveUnix)
-		assertNoErrorOrFail(t, err, "Failed to deploy stream")
-		waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
-
-		// Load the deployed stream
-		// This step is necessary to interact with the stream after deployment
-		deployedPrimitiveStream, err := tnClient.LoadPrimitiveStream(streamLocator)
-		assertNoErrorOrFail(t, err, "Failed to load stream")
-
-		// Initialize the stream
-		// This step prepares the stream for data operations
-		txHashInit, err := deployedPrimitiveStream.InitializeStream(ctx)
-		assertNoErrorOrFail(t, err, "Failed to initialize stream")
-		waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInit)
-
 		// Insert a record into the stream
 		// This demonstrates how to write data to the stream
 		txHash, err := deployedPrimitiveStream.InsertRecordsUnix(ctx, []types.InsertRecordUnixInput{
@@ -87,6 +97,15 @@ func TestPrimitiveStreamUnix(t *testing.T) {
 		assert.Len(t, records, 1, "Expected exactly one record")
 		assert.Equal(t, "1.000000000000000000", records[0].Value.String(), "Unexpected record value")
 		assert.Equal(t, 1, records[0].DateValue, "Unexpected record date")
+
+		// Query the first record from the stream
+		firstRecord, err := deployedPrimitiveStream.GetFirstRecordUnix(ctx, types.GetFirstRecordUnixInput{})
+		assertNoErrorOrFail(t, err, "Failed to query first record")
+
+		// Verify the first record's content
+		assert.NotNil(t, firstRecord, "Expected non-nil record")
+		assert.Equal(t, "1.000000000000000000", firstRecord.Value.String(), "Unexpected first record value")
+		assert.Equal(t, 1, firstRecord.DateValue, "Unexpected first record date")
 
 		// Query index from the stream
 		index, err := deployedPrimitiveStream.GetIndexUnix(ctx, types.GetIndexUnixInput{

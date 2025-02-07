@@ -25,4 +25,6 @@ type IPrimitiveStream interface {
 	InsertRecords(ctx context.Context, inputs []InsertRecordInput, opts ...client.TxOpt) (transactions.TxHash, error)
 	// InsertRecordsUnix inserts records into the stream
 	InsertRecordsUnix(ctx context.Context, inputs []InsertRecordUnixInput, opts ...client.TxOpt) (transactions.TxHash, error)
+	// GetFirstRecordUnix gets the first record of the stream with Unix timestamp
+	GetFirstRecordUnix(ctx context.Context, input GetFirstRecordUnixInput) (*StreamRecordUnix, error)
 }

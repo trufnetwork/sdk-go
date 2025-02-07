@@ -3,7 +3,9 @@ package contractsapi
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/cockroachdb/apd/v3"
 	"github.com/kwilteam/kwil-db/core/types/client"
 	"github.com/kwilteam/kwil-db/core/types/transactions"
 	"github.com/pkg/errors"
@@ -105,4 +107,40 @@ func (p *PrimitiveStream) InsertRecordsUnix(ctx context.Context, inputs []types.
 	}
 
 	return p.checkedExecute(ctx, "insert_record", args, opts...)
+}
+
+func (p *PrimitiveStream) GetFirstRecordUnix(ctx context.Context, input types.GetFirstRecordUnixInput) (*types.StreamRecordUnix, error) {
+	err := p.checkValidPrimitiveStream(ctx)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	var args []any
+	args = append(args, transformOrNil(input.AfterDate, func(date int) any { return date }))
+	args = append(args, transformOrNil(input.FrozenAt, func(date time.Time) any { return date.UTC().Format(time.RFC3339) }))
+
+	results, err := p.call(ctx, "get_first_record", args)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	rawOutputs, err := DecodeCallResult[GetRecordUnixRawOutput](results)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	if len(rawOutputs) == 0 {
+		return nil, nil
+	}
+
+	rawOutput := rawOutputs[0]
+	value, _, err := apd.NewFromString(rawOutput.Value)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return &types.StreamRecordUnix{
+		DateValue: rawOutput.DateValue,
+		Value:     *value,
+	}, nil
 }
