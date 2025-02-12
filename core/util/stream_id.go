@@ -42,6 +42,10 @@ func NewStreamId(s string) (*StreamId, error) {
 	return &id, nil
 }
 
+func NewRawStreamId(s string) *StreamId {
+	return &StreamId{id: s}
+}
+
 func (s *StreamId) Validate() error {
 	// verify if the string is a valid stream id
 	if len(s.id) != 32 || s.id[:2] != "st" {
