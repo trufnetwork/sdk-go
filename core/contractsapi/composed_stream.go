@@ -78,6 +78,7 @@ type DescribeTaxonomiesResult struct {
 	CreatedAt int    `json:"created_at"`
 	Version   int    `json:"version"`
 	StartDate string `json:"start_date"` // cannot use *string nor *civil.Date as decoding it will cause an error
+	EndDate   string `json:"end_date"`   // cannot use *string nor *civil.Date as decoding it will cause an error
 }
 
 type DescribeTaxonomiesUnixResult struct {
@@ -89,6 +90,7 @@ type DescribeTaxonomiesUnixResult struct {
 	CreatedAt int    `json:"created_at"`
 	Version   int    `json:"version"`
 	StartDate int    `json:"start_date"`
+	EndDate   int    `json:"end_date"`
 }
 
 func (c *ComposedStream) DescribeTaxonomies(ctx context.Context, params types.DescribeTaxonomiesParams) (types.Taxonomy, error) {
@@ -131,9 +133,19 @@ func (c *ComposedStream) DescribeTaxonomies(ctx context.Context, params types.De
 		startDateCivil = &parsedDate
 	}
 
+	var endDateCivil *civil.Date
+	if len(result) > 0 && result[0].EndDate != "" {
+		parsedDate, err := civil.ParseDate(result[0].EndDate)
+		if err != nil {
+			return types.Taxonomy{}, err
+		}
+		endDateCivil = &parsedDate
+	}
+
 	return types.Taxonomy{
 		TaxonomyItems: taxonomyItems,
 		StartDate:     startDateCivil,
+		EndDate:       endDateCivil,
 	}, nil
 }
 
@@ -173,9 +185,15 @@ func (c *ComposedStream) DescribeTaxonomiesUnix(ctx context.Context, params type
 		startDateCivil = &result[0].StartDate
 	}
 
+	var endDateCivil *int
+	if len(result) > 0 && result[0].EndDate != 0 {
+		endDateCivil = &result[0].EndDate
+	}
+
 	return types.TaxonomyUnix{
 		TaxonomyItems: taxonomyItems,
 		StartDate:     startDateCivil,
+		EndDate:       endDateCivil,
 	}, nil
 }
 
@@ -185,6 +203,7 @@ func (c *ComposedStream) SetTaxonomy(ctx context.Context, taxonomies types.Taxon
 		streamIDs     util.StreamIdSlice
 		weights       []string
 		startDate     string // null string is not able to be encoded by kwil, so lets left it empty by default
+		endDate       string // null string is not able to be encoded by kwil, so lets left it empty by default
 	)
 
 	for _, taxonomy := range taxonomies.TaxonomyItems {
@@ -198,9 +217,12 @@ func (c *ComposedStream) SetTaxonomy(ctx context.Context, taxonomies types.Taxon
 	if taxonomies.StartDate != nil {
 		startDate = taxonomies.StartDate.String()
 	}
+	if taxonomies.EndDate != nil {
+		endDate = taxonomies.EndDate.String()
+	}
 
 	var args [][]any
-	args = append(args, []any{dataProviders, streamIDs.Strings(), weights, startDate})
+	args = append(args, []any{dataProviders, streamIDs.Strings(), weights, startDate, endDate})
 	return c.checkedExecute(ctx, "set_taxonomy", args)
 }
 
@@ -210,6 +232,7 @@ func (c *ComposedStream) SetTaxonomyUnix(ctx context.Context, taxonomies types.T
 		streamIDs     util.StreamIdSlice
 		weights       []string
 		startDate     int
+		endDate       int
 	)
 
 	for _, taxonomy := range taxonomies.TaxonomyItems {
@@ -223,8 +246,11 @@ func (c *ComposedStream) SetTaxonomyUnix(ctx context.Context, taxonomies types.T
 	if taxonomies.StartDate != nil {
 		startDate = *taxonomies.StartDate
 	}
+	if taxonomies.EndDate != nil {
+		endDate = *taxonomies.EndDate
+	}
 
 	var args [][]any
-	args = append(args, []any{dataProviders, streamIDs.Strings(), weights, startDate})
+	args = append(args, []any{dataProviders, streamIDs.Strings(), weights, startDate, endDate})
 	return c.checkedExecute(ctx, "set_taxonomy", args)
 }

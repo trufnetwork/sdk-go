@@ -12,7 +12,8 @@ table taxonomies {
     created_at          int     notnull,    //  block height
     disabled_at         int,                //  block height
     version             int     notnull,
-    start_date          text // indicates the start date of when the taxonomy is valid. i.e. when the weight starts to be used
+    start_date          text, // indicates the start date of when the taxonomy is valid. i.e. when the weight starts to be used
+    end_date            text // indicates the end date of when the taxonomy is valid. i.e. when the weight stops to be used
 }
 
 table metadata {
@@ -802,7 +803,7 @@ procedure get_current_version($show_disabled bool) private view returns (result 
 // - gets an array of values for each properties, zipping them as needed
 // - increases the version
 // - adds taxonomy records in batch
-procedure set_taxonomy($data_providers text[], $stream_ids text[], $weights decimal(36,18)[], $start_date text) public {
+procedure set_taxonomy($data_providers text[], $stream_ids text[], $weights decimal(36,18)[], $start_date text, $end_date text) public {
     stream_owner_only();
 
     $next_version int := get_current_version(true) + 1;
@@ -822,8 +823,8 @@ procedure set_taxonomy($data_providers text[], $stream_ids text[], $weights deci
     for $i in 1..$length {
         $current_uuid :=  uuid_generate_v5($current_uuid, @txid);
 
-        INSERT INTO taxonomies (taxonomy_id, child_stream_id, child_data_provider, weight, created_at, version, start_date)
-            VALUES ($current_uuid, $stream_ids[$i], $data_providers[$i], $weights[$i], $block_height, $next_version, $start_date);
+        INSERT INTO taxonomies (taxonomy_id, child_stream_id, child_data_provider, weight, created_at, version, start_date, end_date)
+            VALUES ($current_uuid, $stream_ids[$i], $data_providers[$i], $weights[$i], $block_height, $next_version, $start_date, $end_date);
     }
 }
 
@@ -833,7 +834,8 @@ procedure describe_taxonomies($latest_version bool) public view returns table(
         weight decimal(36,18),
         created_at int,
         version int,
-        start_date text
+        start_date text,
+        end_date text
         ) {
 
         if $latest_version == true {
@@ -844,7 +846,8 @@ procedure describe_taxonomies($latest_version bool) public view returns table(
                 weight,
                 created_at,
                 version,
-                start_date
+                start_date,
+                end_date
             FROM taxonomies
             WHERE version = get_current_version(false) AND disabled_at IS NULL
             ORDER BY created_at DESC;
@@ -855,7 +858,8 @@ procedure describe_taxonomies($latest_version bool) public view returns table(
                 weight,
                 created_at,
                 version,
-                start_date
+                start_date,
+                end_date
             FROM taxonomies
             WHERE disabled_at IS NULL
             ORDER BY version DESC;
@@ -1088,6 +1092,7 @@ procedure get_dynamic_weight($stream_id text, $date_value text) private view ret
     FROM taxonomies
     WHERE child_stream_id = $stream_id
     AND (start_date IS NULL OR start_date = '' OR start_date <= $date_value)
+    AND (end_date IS NULL OR end_date = '' OR end_date >= $date_value)
     ORDER BY start_date DESC
     LIMIT 1 {
         return $row.weight;
