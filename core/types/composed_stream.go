@@ -12,11 +12,13 @@ import (
 type Taxonomy struct {
 	TaxonomyItems []TaxonomyItem
 	StartDate     *civil.Date
+	EndDate       *civil.Date
 }
 
 type TaxonomyUnix struct {
 	TaxonomyItems []TaxonomyItem
 	StartDate     *int
+	EndDate       *int
 }
 
 type TaxonomyItem struct {

@@ -111,6 +111,7 @@ func TestComposedStream(t *testing.T) {
 					Weight: 2,
 				}},
 			StartDate: unsafeParseDate("2020-01-30"),
+			EndDate:   unsafeParseDate("2020-12-31"),
 		})
 		assertNoErrorOrFail(t, err, "Failed to set taxonomies")
 		waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashTaxonomies)
@@ -122,6 +123,7 @@ func TestComposedStream(t *testing.T) {
 		assertNoErrorOrFail(t, err, "Failed to describe taxonomies")
 		assert.Equal(t, 2, len(taxonomies.TaxonomyItems))
 		assert.Equal(t, time.Date(2020, 1, 30, 0, 0, 0, 0, time.UTC).Format(time.DateOnly), taxonomies.StartDate.String())
+		assert.Equal(t, time.Date(2020, 12, 31, 0, 0, 0, 0, time.UTC).Format(time.DateOnly), taxonomies.EndDate.String())
 
 		// Step 5: Query the composed stream for records
 		// Query records within a specific date range

@@ -94,6 +94,7 @@ func TestComposedStreamUnix(t *testing.T) {
 		// Step 4: Set taxonomies for the composed stream
 		// Taxonomies define the structure of the composed stream
 		mockStartDate := 3
+		mockEndDate := 99
 		txHashTaxonomies, err := deployedComposedStream.SetTaxonomyUnix(ctx, types.TaxonomyUnix{
 			TaxonomyItems: []types.TaxonomyItem{
 				{
@@ -111,6 +112,7 @@ func TestComposedStreamUnix(t *testing.T) {
 					Weight: 2,
 				}},
 			StartDate: &mockStartDate,
+			EndDate:   &mockEndDate,
 		})
 		assertNoErrorOrFail(t, err, "Failed to set taxonomies")
 		waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashTaxonomies)
@@ -122,6 +124,7 @@ func TestComposedStreamUnix(t *testing.T) {
 		assertNoErrorOrFail(t, err, "Failed to describe taxonomies")
 		assert.Equal(t, 2, len(taxonomies.TaxonomyItems))
 		assert.Equal(t, 3, *taxonomies.StartDate)
+		assert.Equal(t, 99, *taxonomies.EndDate)
 
 		// Step 5: Query the composed stream for records
 		// Query records within a specific date range
