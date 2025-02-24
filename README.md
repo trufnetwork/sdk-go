@@ -48,8 +48,23 @@ func main() {
 
 	// Load an existing stream
 	streamId := util.GenerateStreamId("your-stream-name")
-	// if we intend to use streams from another provider, we create locators using the provider's address
+
+	// For streamLocator creation, we have two options:
+	// 1. Use the data provider's address
+	// This option is used when we intend to use streams from another provider (i.e. Truflation's public address)
+	// 2. Use the current provider's address
+	// This option is used when we intend to use streams from the current provider (i.e. the address of the signer)
+
+	// if we intend to use streams from the current provider, we create locators using the current provider's address
 	streamLocator := tnClient.OwnStreamLocator(streamId)
+	
+	// if we intend to use streams from another provider, we create locators using the provider's address
+	//dataProvider, _ := util.NewEthereumAddressFromString("<provider-address>")
+	//streamLocator := types.StreamLocator{
+	//	StreamId:     streamId,
+	//	DataProvider: dataProvider,
+	//}
+	
 	stream, err := tnClient.LoadPrimitiveStream(streamLocator)
 	if err != nil {
 		panic(err)
