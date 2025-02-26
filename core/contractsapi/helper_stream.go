@@ -2,11 +2,12 @@ package contractsapi
 
 import (
 	"context"
+	"strings"
+
 	"github.com/kwilteam/kwil-db/core/types/transactions"
 	"github.com/pkg/errors"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
-	"strings"
 )
 
 // HelperStream implements the IAdminContract interface
@@ -95,4 +96,40 @@ func (c *HelperStream) InsertRecordsUnix(ctx context.Context, inputs types.TnRec
 	}
 
 	return c._client.Execute(ctx, c.DBID, "insert_records_unix", [][]any{inputArgs})
+}
+
+// FilterInitialized filters out non-initialized streams
+func (c *HelperStream) FilterInitialized(ctx context.Context, inputs types.FilterInitializedInput) ([]types.FilterInitializedResult, error) {
+	inputArgs, err := util.StructAsArgs(types.RawFilterInitializedInput{
+		DataProvider: inputs.DataProviders,
+		StreamID:     inputs.StreamIDs,
+	})
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	results, err := c.call(ctx, "filter_initialized", inputArgs)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	type rawResult struct {
+		DataProvider string `json:"data_provider"`
+		StreamID     string `json:"stream_id"`
+	}
+
+	rawResults, err := DecodeCallResult[rawResult](results)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	var output []types.FilterInitializedResult
+	for _, result := range rawResults {
+		output = append(output, types.FilterInitializedResult{
+			DataProvider: result.DataProvider,
+			StreamID:     result.StreamID,
+		})
+	}
+
+	return output, nil
 }

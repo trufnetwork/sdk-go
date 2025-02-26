@@ -7,6 +7,15 @@ database helper_contract;
 foreign procedure ext_insert_record($date_value text, $value decimal(36,18))
 
 foreign procedure ext_insert_record_unix($date_value int, $value decimal(36,18))
+foreign procedure ext_get_metadata($key text, $only_latest bool, $ref text) returns table(
+    row_id uuid,
+    value_i int,
+    value_f decimal(36,18),
+    value_b bool,
+    value_s text,
+    value_ref text,
+    created_at int
+)
 
 procedure get_dbid($data_provider text, $stream_id text) private view returns (result text) {
     $starts_with_0x bool := false;
@@ -23,6 +32,24 @@ procedure get_dbid($data_provider text, $stream_id text) private view returns (r
     }
 
     return generate_dbid($stream_id, decode($data_provider_without_0x, 'hex'));
+}
+
+procedure filter_initialized($data_providers text[], $stream_ids text[]) public view returns table(
+    data_provider text,
+    stream_id text
+) {
+    if array_length($data_providers) != array_length($stream_ids) {
+        error('The number of data providers and stream IDs must match');
+    }
+
+    for $i in 1..array_length($data_providers) {
+        $dbid text := get_dbid($data_providers[$i], $stream_ids[$i]);
+        // Check if the stream has been initialized by checking for 'type' metadata
+        for $row in SELECT * FROM ext_get_metadata[$dbid, 'get_metadata']('type', true, null) {
+            // If we found any results, the stream exists and is initialized
+            return next $data_providers[$i], $stream_ids[$i];
+        }
+    }
 }
 
 procedure insert_records_unix($data_providers text[], $stream_ids text[], $date_values int[], $values decimal(36,18)[]) public {
