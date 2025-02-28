@@ -2,20 +2,16 @@ package integration
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/golang-sql/civil"
 	"github.com/kwilteam/kwil-db/core/types/transactions"
 	"github.com/stretchr/testify/assert"
 	"github.com/trufnetwork/sdk-go/core/tnclient"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
-	"testing"
-	"time"
 )
-
-// ## Constants
-
-const TestPrivateKey = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-const TestKwilProvider = "http://localhost:8484"
 
 // ## Helper functions
 

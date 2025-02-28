@@ -3,6 +3,7 @@ package types
 import (
 	"context"
 	_ "embed"
+
 	"github.com/kwilteam/kwil-db/core/types/transactions"
 )
 
@@ -16,6 +17,8 @@ type IHelperStream interface {
 	InsertRecords(ctx context.Context, inputs TnRecordBatch) (transactions.TxHash, error)
 	// InsertRecordsUnix inserts records into the stream
 	InsertRecordsUnix(ctx context.Context, inputs TnRecordUnixBatch) (transactions.TxHash, error)
+	// FilterInitialized filters out non-initialized streams
+	FilterInitialized(ctx context.Context, inputs FilterInitializedInput) ([]FilterInitializedResult, error)
 }
 
 // TNRecordRow represents a row in the TN record batch
@@ -58,4 +61,26 @@ type RawInsertRecordsUnixInput struct {
 	StreamID     []string `validate:"required"`
 	DateValue    []string `validate:"required"`
 	Value        []string `validate:"required"`
+}
+
+// FilterInitializedInput represents the input for filter_initialized call
+type FilterInitializedInput struct {
+	// DataProviders is a list of data provider addresses
+	DataProviders []string `validate:"required"`
+	// StreamIDs is a list of stream ids
+	StreamIDs []string `validate:"required"`
+}
+
+// RawFilterInitializedInput represents the raw input for filter_initialized call
+type RawFilterInitializedInput struct {
+	DataProvider []string `validate:"required"`
+	StreamID     []string `validate:"required"`
+}
+
+// FilterInitializedResult represents a result from filter_initialized call
+type FilterInitializedResult struct {
+	// DataProvider is the data provider address
+	DataProvider string
+	// StreamID is the stream id
+	StreamID string
 }
