@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	clientTypes "github.com/kwilteam/kwil-db/core/client/types"
 	"github.com/kwilteam/kwil-db/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
 )
@@ -12,7 +13,7 @@ type Client interface {
 	// WaitForTx waits for the transaction to be mined by TN
 	WaitForTx(ctx context.Context, txHash types.Hash, interval time.Duration) (*types.TxQueryResponse, error)
 	// GetKwilClient returns the kwil client used by the client
-	GetKwilClient() *types.Client
+	GetKwilClient() *clientTypes.Client
 	// DeployStream deploys a new stream
 	DeployStream(ctx context.Context, streamId util.StreamId, streamType StreamType) (types.Hash, error)
 	// DestroyStream destroys a stream

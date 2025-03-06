@@ -54,7 +54,7 @@ type IStream interface {
 	// ExecuteProcedure Executes an arbitrary procedure on the stream. Execute refers to the write calls
 	ExecuteProcedure(ctx context.Context, procedure string, args [][]any) (types.Hash, error)
 	// CallProcedure calls an arbitrary procedure on the stream. Call refers to the read calls
-	CallProcedure(ctx context.Context, procedure string, args []any) (*types.Records, error)
+	CallProcedure(ctx context.Context, procedure string, args []any) (*types.QueryResult, error)
 
 	// InitializeStream initializes the stream. Majority of other methods need the stream to be initialized
 	InitializeStream(ctx context.Context) (types.Hash, error)
