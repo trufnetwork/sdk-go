@@ -2,21 +2,21 @@ package types
 
 import (
 	"context"
-	kwilClientPkg "github.com/kwilteam/kwil-db/core/client"
-	"github.com/kwilteam/kwil-db/core/types/transactions"
-	"github.com/trufnetwork/sdk-go/core/util"
 	"time"
+
+	"github.com/kwilteam/kwil-db/core/types"
+	"github.com/trufnetwork/sdk-go/core/util"
 )
 
 type Client interface {
 	// WaitForTx waits for the transaction to be mined by TN
-	WaitForTx(ctx context.Context, txHash transactions.TxHash, interval time.Duration) (*transactions.TcTxQueryResponse, error)
+	WaitForTx(ctx context.Context, txHash types.TxHash, interval time.Duration) (*types.TcTxQueryResponse, error)
 	// GetKwilClient returns the kwil client used by the client
-	GetKwilClient() *kwilClientPkg.Client
+	GetKwilClient() *types.Client
 	// DeployStream deploys a new stream
-	DeployStream(ctx context.Context, streamId util.StreamId, streamType StreamType) (transactions.TxHash, error)
+	DeployStream(ctx context.Context, streamId util.StreamId, streamType StreamType) (types.TxHash, error)
 	// DestroyStream destroys a stream
-	DestroyStream(ctx context.Context, streamId util.StreamId) (transactions.TxHash, error)
+	DestroyStream(ctx context.Context, streamId util.StreamId) (types.TxHash, error)
 	// LoadStream loads a already deployed stream, permitting its API usage
 	LoadStream(stream StreamLocator) (IStream, error)
 	// LoadPrimitiveStream loads a already deployed primitive stream, permitting its API usage

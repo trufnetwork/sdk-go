@@ -4,7 +4,7 @@ import (
 	"context"
 	_ "embed"
 
-	"github.com/kwilteam/kwil-db/core/types/transactions"
+	"github.com/kwilteam/kwil-db/core/types"
 )
 
 const HelperContractName = "helper_contract"
@@ -14,9 +14,9 @@ const HelperContractName = "helper_contract"
 // IHelperStream defines the interface for helper contract operations
 type IHelperStream interface {
 	// InsertRecords inserts records into the stream
-	InsertRecords(ctx context.Context, inputs TnRecordBatch) (transactions.TxHash, error)
+	InsertRecords(ctx context.Context, inputs TnRecordBatch) (types.TxHash, error)
 	// InsertRecordsUnix inserts records into the stream
-	InsertRecordsUnix(ctx context.Context, inputs TnRecordUnixBatch) (transactions.TxHash, error)
+	InsertRecordsUnix(ctx context.Context, inputs TnRecordUnixBatch) (types.TxHash, error)
 	// FilterInitialized filters out non-initialized streams
 	FilterInitialized(ctx context.Context, inputs FilterInitializedInput) ([]FilterInitializedResult, error)
 }

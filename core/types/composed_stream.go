@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/golang-sql/civil"
-	"github.com/kwilteam/kwil-db/core/types/transactions"
+	"github.com/kwilteam/kwil-db/core/types"
 	"github.com/pkg/errors"
 )
 
@@ -39,9 +39,9 @@ type IComposedStream interface {
 	// DescribeTaxonomiesUnix returns the taxonomy of the stream with Unix timestamp
 	DescribeTaxonomiesUnix(ctx context.Context, params DescribeTaxonomiesParams) (TaxonomyUnix, error)
 	// SetTaxonomy sets the taxonomy of the stream
-	SetTaxonomy(ctx context.Context, taxonomies Taxonomy) (transactions.TxHash, error)
+	SetTaxonomy(ctx context.Context, taxonomies Taxonomy) (types.TxHash, error)
 	// SetTaxonomyUnix sets the taxonomy of the stream with Unix timestamp
-	SetTaxonomyUnix(ctx context.Context, taxonomies TaxonomyUnix) (transactions.TxHash, error)
+	SetTaxonomyUnix(ctx context.Context, taxonomies TaxonomyUnix) (types.TxHash, error)
 }
 
 // MarshalJSON Custom marshaler for TaxonomyDefinition
