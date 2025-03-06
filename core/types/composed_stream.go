@@ -39,9 +39,9 @@ type IComposedStream interface {
 	// DescribeTaxonomiesUnix returns the taxonomy of the stream with Unix timestamp
 	DescribeTaxonomiesUnix(ctx context.Context, params DescribeTaxonomiesParams) (TaxonomyUnix, error)
 	// SetTaxonomy sets the taxonomy of the stream
-	SetTaxonomy(ctx context.Context, taxonomies Taxonomy) (types.TxHash, error)
+	SetTaxonomy(ctx context.Context, taxonomies Taxonomy) (types.Hash, error)
 	// SetTaxonomyUnix sets the taxonomy of the stream with Unix timestamp
-	SetTaxonomyUnix(ctx context.Context, taxonomies TaxonomyUnix) (types.TxHash, error)
+	SetTaxonomyUnix(ctx context.Context, taxonomies TaxonomyUnix) (types.Hash, error)
 }
 
 // MarshalJSON Custom marshaler for TaxonomyDefinition

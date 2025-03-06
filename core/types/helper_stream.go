@@ -14,9 +14,9 @@ const HelperContractName = "helper_contract"
 // IHelperStream defines the interface for helper contract operations
 type IHelperStream interface {
 	// InsertRecords inserts records into the stream
-	InsertRecords(ctx context.Context, inputs TnRecordBatch) (types.TxHash, error)
+	InsertRecords(ctx context.Context, inputs TnRecordBatch) (types.Hash, error)
 	// InsertRecordsUnix inserts records into the stream
-	InsertRecordsUnix(ctx context.Context, inputs TnRecordUnixBatch) (types.TxHash, error)
+	InsertRecordsUnix(ctx context.Context, inputs TnRecordUnixBatch) (types.Hash, error)
 	// FilterInitialized filters out non-initialized streams
 	FilterInitialized(ctx context.Context, inputs FilterInitializedInput) ([]FilterInitializedResult, error)
 }

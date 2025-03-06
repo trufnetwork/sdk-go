@@ -10,13 +10,13 @@ import (
 
 type Client interface {
 	// WaitForTx waits for the transaction to be mined by TN
-	WaitForTx(ctx context.Context, txHash types.TxHash, interval time.Duration) (*types.TcTxQueryResponse, error)
+	WaitForTx(ctx context.Context, txHash types.Hash, interval time.Duration) (*types.TxQueryResponse, error)
 	// GetKwilClient returns the kwil client used by the client
 	GetKwilClient() *types.Client
 	// DeployStream deploys a new stream
-	DeployStream(ctx context.Context, streamId util.StreamId, streamType StreamType) (types.TxHash, error)
+	DeployStream(ctx context.Context, streamId util.StreamId, streamType StreamType) (types.Hash, error)
 	// DestroyStream destroys a stream
-	DestroyStream(ctx context.Context, streamId util.StreamId) (types.TxHash, error)
+	DestroyStream(ctx context.Context, streamId util.StreamId) (types.Hash, error)
 	// LoadStream loads a already deployed stream, permitting its API usage
 	LoadStream(stream StreamLocator) (IStream, error)
 	// LoadPrimitiveStream loads a already deployed primitive stream, permitting its API usage

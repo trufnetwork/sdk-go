@@ -52,12 +52,12 @@ type StreamIndexUnix = StreamRecordUnix
 
 type IStream interface {
 	// ExecuteProcedure Executes an arbitrary procedure on the stream. Execute refers to the write calls
-	ExecuteProcedure(ctx context.Context, procedure string, args [][]any) (types.TxHash, error)
+	ExecuteProcedure(ctx context.Context, procedure string, args [][]any) (types.Hash, error)
 	// CallProcedure calls an arbitrary procedure on the stream. Call refers to the read calls
 	CallProcedure(ctx context.Context, procedure string, args []any) (*types.Records, error)
 
 	// InitializeStream initializes the stream. Majority of other methods need the stream to be initialized
-	InitializeStream(ctx context.Context) (types.TxHash, error)
+	InitializeStream(ctx context.Context) (types.Hash, error)
 	// GetRecord reads the records of the stream within the given date range
 	GetRecord(ctx context.Context, input GetRecordInput) ([]StreamRecord, error)
 	// GetIndex reads the index of the stream within the given date range
@@ -72,22 +72,22 @@ type IStream interface {
 	GetFirstRecord(ctx context.Context, input GetFirstRecordInput) (*StreamRecord, error)
 
 	// SetReadVisibility sets the read visibility of the stream -- Private or Public
-	SetReadVisibility(ctx context.Context, visibility util.VisibilityEnum) (types.TxHash, error)
+	SetReadVisibility(ctx context.Context, visibility util.VisibilityEnum) (types.Hash, error)
 	// GetReadVisibility gets the read visibility of the stream -- Private or Public
 	GetReadVisibility(ctx context.Context) (*util.VisibilityEnum, error)
 	// SetComposeVisibility sets the compose visibility of the stream -- Private or Public
-	SetComposeVisibility(ctx context.Context, visibility util.VisibilityEnum) (types.TxHash, error)
+	SetComposeVisibility(ctx context.Context, visibility util.VisibilityEnum) (types.Hash, error)
 	// GetComposeVisibility gets the compose visibility of the stream -- Private or Public
 	GetComposeVisibility(ctx context.Context) (*util.VisibilityEnum, error)
 
 	// AllowReadWallet allows a wallet to read the stream, if reading is private
-	AllowReadWallet(ctx context.Context, wallet util.EthereumAddress) (types.TxHash, error)
+	AllowReadWallet(ctx context.Context, wallet util.EthereumAddress) (types.Hash, error)
 	// DisableReadWallet disables a wallet from reading the stream
-	DisableReadWallet(ctx context.Context, wallet util.EthereumAddress) (types.TxHash, error)
+	DisableReadWallet(ctx context.Context, wallet util.EthereumAddress) (types.Hash, error)
 	// AllowComposeStream allows a stream to use this stream as child, if composing is private
-	AllowComposeStream(ctx context.Context, locator StreamLocator) (types.TxHash, error)
+	AllowComposeStream(ctx context.Context, locator StreamLocator) (types.Hash, error)
 	// DisableComposeStream disables a stream from using this stream as child
-	DisableComposeStream(ctx context.Context, locator StreamLocator) (types.TxHash, error)
+	DisableComposeStream(ctx context.Context, locator StreamLocator) (types.Hash, error)
 
 	// GetAllowedReadWallets gets the wallets allowed to read the stream
 	GetAllowedReadWallets(ctx context.Context) ([]util.EthereumAddress, error)
@@ -95,5 +95,5 @@ type IStream interface {
 	GetAllowedComposeStreams(ctx context.Context) ([]StreamLocator, error)
 
 	// SetDefaultBaseDate insert a metadata row with `default_base_date` key
-	SetDefaultBaseDate(ctx context.Context, baseDate string) (types.TxHash, error)
+	SetDefaultBaseDate(ctx context.Context, baseDate string) (types.Hash, error)
 }
