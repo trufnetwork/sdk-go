@@ -6,8 +6,8 @@ require (
 	github.com/cockroachdb/apd/v3 v3.2.1
 	github.com/go-playground/validator/v10 v10.22.0
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9
-	github.com/kwilteam/kwil-db/core v0.3.1-0.20241118220427-bd35ded7db55
-	github.com/kwilteam/kwil-db/parse v0.3.1-0.20241118220427-bd35ded7db55
+	github.com/kwilteam/kwil-db v0.10.0-rc.1
+	github.com/kwilteam/kwil-db/core v0.4.0-rc.1
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/zap v1.27.0
