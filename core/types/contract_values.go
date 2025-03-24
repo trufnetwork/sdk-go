@@ -8,12 +8,16 @@ import (
 type StreamType string
 
 const (
-	StreamTypeComposed      StreamType = "composed"
-	StreamTypePrimitive     StreamType = "primitive"
-	StreamTypeComposedUnix  StreamType = "composed_unix"
-	StreamTypePrimitiveUnix StreamType = "primitive_unix"
-	StreamTypeHelper        StreamType = "helper"
+	StreamTypeComposed  StreamType = "composed"
+	StreamTypePrimitive StreamType = "primitive"
+	//StreamTypeComposedUnix  StreamType = "composed_unix"
+	//StreamTypePrimitiveUnix StreamType = "primitive_unix"
+	//StreamTypeHelper        StreamType = "helper"
 )
+
+func (s StreamType) String() string {
+	return string(s)
+}
 
 type MetadataKey string
 

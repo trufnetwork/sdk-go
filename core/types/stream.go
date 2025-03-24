@@ -81,13 +81,13 @@ type IStream interface {
 	GetComposeVisibility(ctx context.Context) (*util.VisibilityEnum, error)
 
 	// AllowReadWallet allows a wallet to read the stream, if reading is private
-	AllowReadWallet(ctx context.Context, wallet util.EthereumAddress) (types.Hash, error)
+	//AllowReadWallet(ctx context.Context, wallet util.EthereumAddress) (types.Hash, error)
 	// DisableReadWallet disables a wallet from reading the stream
-	DisableReadWallet(ctx context.Context, wallet util.EthereumAddress) (types.Hash, error)
+	//DisableReadWallet(ctx context.Context, wallet util.EthereumAddress) (types.Hash, error)
 	// AllowComposeStream allows a stream to use this stream as child, if composing is private
-	AllowComposeStream(ctx context.Context, locator StreamLocator) (types.Hash, error)
+	//AllowComposeStream(ctx context.Context, locator StreamLocator) (types.Hash, error)
 	// DisableComposeStream disables a stream from using this stream as child
-	DisableComposeStream(ctx context.Context, locator StreamLocator) (types.Hash, error)
+	//DisableComposeStream(ctx context.Context, locator StreamLocator) (types.Hash, error)
 
 	// GetAllowedReadWallets gets the wallets allowed to read the stream
 	GetAllowedReadWallets(ctx context.Context) ([]util.EthereumAddress, error)
