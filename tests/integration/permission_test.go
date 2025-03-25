@@ -73,8 +73,8 @@ package integration
 //
 //	// Define input for reading records
 //	readInput := types.GetRecordInput{
-//		DateFrom: &civil.Date{Year: 2020, Month: 1, Day: 1},
-//		DateTo:   &civil.Date{Year: 2020, Month: 1, Day: 1},
+//		From: &civil.Date{Year: 2020, Month: 1, Day: 1},
+//		To:   &civil.Date{Year: 2020, Month: 1, Day: 1},
 //	}
 //
 //	// Test primitive stream wallet read permissions

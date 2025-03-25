@@ -96,8 +96,8 @@ package integration
 //		dateTo := baseTimestamp + (numBatches * 86400)
 //
 //		records, err := deployedStream.GetRecordUnix(ctx, types.GetRecordUnixInput{
-//			DateFrom: &dateFrom,
-//			DateTo:   &dateTo,
+//			From: &dateFrom,
+//			To:   &dateTo,
 //		})
 //		assertNoErrorOrFail(t, err, "Failed to query records")
 //		assert.Equal(t, totalRecords, len(records), "Unexpected number of records")
@@ -168,8 +168,8 @@ package integration
 //		dateTo := baseTimestamp + (numBatches * 86400)
 //
 //		records, err := deployedStream.GetRecordUnix(ctx, types.GetRecordUnixInput{
-//			DateFrom: &dateFrom,
-//			DateTo:   &dateTo,
+//			From: &dateFrom,
+//			To:   &dateTo,
 //		})
 //		assertNoErrorOrFail(t, err, "Failed to query records")
 //		assert.Equal(t, totalRecords, len(records), "Unexpected number of records")
@@ -236,8 +236,8 @@ package integration
 //		dateTo := baseTimestamp + (numRecords * 3600)
 //
 //		records, err := deployedStream.GetRecordUnix(ctx, types.GetRecordUnixInput{
-//			DateFrom: &dateFrom,
-//			DateTo:   &dateTo,
+//			From: &dateFrom,
+//			To:   &dateTo,
 //		})
 //		assertNoErrorOrFail(t, err, "Failed to query records")
 //		assert.Equal(t, numRecords, len(records), "Unexpected number of records")

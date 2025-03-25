@@ -135,8 +135,8 @@ package integration
 //		mockedDateFromUnix := 1
 //		mockedDateToUnix := 1
 //		records, err := deployedPrimitiveStream.GetRecordUnix(ctx, types.GetRecordUnixInput{
-//			DateFrom: &mockedDateFromUnix,
-//			DateTo:   &mockedDateToUnix,
+//			From: &mockedDateFromUnix,
+//			To:   &mockedDateToUnix,
 //		})
 //		assertNoErrorOrFail(t, err, "Failed to query records")
 //
@@ -147,8 +147,8 @@ package integration
 //		assert.Equal(t, 1, records[0].EventTime, "Unexpected record date")
 //
 //		records2, err := deployedPrimitiveStream2.GetRecordUnix(ctx, types.GetRecordUnixInput{
-//			DateFrom: &mockedDateFromUnix,
-//			DateTo:   &mockedDateToUnix,
+//			From: &mockedDateFromUnix,
+//			To:   &mockedDateToUnix,
 //		})
 //		assertNoErrorOrFail(t, err, "Failed to query records")
 //
@@ -158,8 +158,8 @@ package integration
 //
 //		// Query index from the stream
 //		index, err := deployedPrimitiveStream.GetIndexUnix(ctx, types.GetIndexUnixInput{
-//			DateFrom: &mockedDateFromUnix,
-//			DateTo:   &mockedDateToUnix,
+//			From: &mockedDateFromUnix,
+//			To:   &mockedDateToUnix,
 //		})
 //		assertNoErrorOrFail(t, err, "Failed to query index")
 //
@@ -170,8 +170,8 @@ package integration
 //		assert.Equal(t, 1, index[0].EventTime, "Unexpected index date")
 //
 //		index2, err := deployedPrimitiveStream2.GetIndexUnix(ctx, types.GetIndexUnixInput{
-//			DateFrom: &mockedDateFromUnix,
-//			DateTo:   &mockedDateToUnix,
+//			From: &mockedDateFromUnix,
+//			To:   &mockedDateToUnix,
 //		})
 //
 //		assertNoErrorOrFail(t, err, "Failed to query index")
