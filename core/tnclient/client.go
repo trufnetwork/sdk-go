@@ -91,17 +91,12 @@ func (c *Client) DeployStream(ctx context.Context, streamId util.StreamId, strea
 	})
 }
 
-//func (c *Client) DestroyStream(ctx context.Context, streamId util.StreamId) (kwiltypes.Hash, error) {
-//	out, err := tn_api.DestroyStream(ctx, tn_api.DestroyStreamInput{
-//		StreamId:   streamId,
-//		KwilClient: c.kwilClient,
-//	})
-//	if err != nil {
-//		return kwiltypes.Hash{}, errors.WithStack(err)
-//	}
-//
-//	return out.TxHash, nil
-//}
+func (c *Client) DestroyStream(ctx context.Context, streamId util.StreamId) (types.Hash, error) {
+	return tn_api.DestroyStream(ctx, tn_api.DestroyStreamInput{
+		StreamId:   streamId,
+		KwilClient: c.GetKwilClient(),
+	})
+}
 
 //func (c *Client) LoadStream(streamLocator clientType.StreamLocator) (clientType.IStream, error) {
 //	return tn_api.LoadStream(tn_api.NewStreamOptions{

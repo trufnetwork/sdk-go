@@ -30,14 +30,14 @@ func TestListAllStreams(t *testing.T) {
 	//notAStreamName := "not_a_stream"
 
 	// Cleanup function to destroy the streams and contracts after test completion
-	//t.Cleanup(func() {
-	//	allStreamIds := []util.StreamId{primitiveStreamId, composedStreamId}
-	//	for _, id := range allStreamIds {
-	//		destroyResult, err := tnClient.DestroyStream(ctx, id)
-	//		assertNoErrorOrFail(t, err, "Failed to destroy stream")
-	//		waitTxToBeMinedWithSuccess(t, ctx, tnClient, destroyResult)
-	//	}
-	//})
+	t.Cleanup(func() {
+		allStreamIds := []util.StreamId{primitiveStreamId, composedStreamId}
+		for _, id := range allStreamIds {
+			destroyResult, err := tnClient.DestroyStream(ctx, id)
+			assertNoErrorOrFail(t, err, "Failed to destroy stream")
+			waitTxToBeMinedWithSuccess(t, ctx, tnClient, destroyResult)
+		}
+	})
 
 	// Deploy a primitive stream
 	deployTxHash, err := tnClient.DeployStream(ctx, primitiveStreamId, types.StreamTypePrimitive)

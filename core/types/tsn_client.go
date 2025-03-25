@@ -17,7 +17,7 @@ type Client interface {
 	// DeployStream deploys a new stream
 	DeployStream(ctx context.Context, streamId util.StreamId, streamType StreamType) (types.Hash, error)
 	// DestroyStream destroys a stream
-	//DestroyStream(ctx context.Context, streamId util.StreamId) (types.Hash, error)
+	DestroyStream(ctx context.Context, streamId util.StreamId) (types.Hash, error)
 	// LoadStream loads a already deployed stream, permitting its API usage
 	//LoadStream(stream StreamLocator) (IStream, error)
 	// LoadPrimitiveStream loads a already deployed primitive stream, permitting its API usage
