@@ -54,7 +54,7 @@ package integration
 //	deployTestPrimitiveStreamWithData(t, ctx, ownerTnClient, primitiveStreamId, []types.InsertRecordInput{
 //		{
 //			Value:     1,
-//			DateValue: civil.Date{Year: 2020, Month: 1, Day: 1},
+//			EventTime: civil.Date{Year: 2020, Month: 1, Day: 1},
 //		},
 //	})
 //
@@ -62,13 +62,13 @@ package integration
 //	var checkRecords = func(t *testing.T, rec []types.StreamRecord) {
 //		assert.Equal(t, 1, len(rec))
 //		assert.Equal(t, "1.000000000000000000", rec[0].Value.String())
-//		assert.Equal(t, civil.Date{Year: 2020, Month: 1, Day: 1}, rec[0].DateValue)
+//		assert.Equal(t, civil.Date{Year: 2020, Month: 1, Day: 1}, rec[0].EventTime)
 //	}
 //
 //	// Load the primitive stream for both owner and reader
-//	ownerPrimitiveStream, err := ownerTnClient.LoadPrimitiveStream(primitiveStreamLocator)
+//	ownerPrimitiveStream, err := ownerTnClient.LoadPrimitiveActions(primitiveStreamLocator)
 //	assertNoErrorOrFail(t, err, "Failed to load stream")
-//	readerPrimitiveStream, err := readerTnClient.LoadPrimitiveStream(primitiveStreamLocator)
+//	readerPrimitiveStream, err := readerTnClient.LoadPrimitiveActions(primitiveStreamLocator)
 //	assertNoErrorOrFail(t, err, "Failed to load stream")
 //
 //	// Define input for reading records

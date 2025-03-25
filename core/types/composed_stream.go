@@ -32,8 +32,8 @@ type DescribeTaxonomiesParams struct {
 }
 
 type IComposedStream interface {
-	// IStream methods are also available in IPrimitiveStream
-	IStream
+	// IActions methods are also available in IPrimitiveActions
+	IActions
 	// DescribeTaxonomies returns the taxonomy of the stream
 	DescribeTaxonomies(ctx context.Context, params DescribeTaxonomiesParams) (Taxonomy, error)
 	// DescribeTaxonomiesUnix returns the taxonomy of the stream with Unix timestamp

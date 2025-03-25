@@ -89,7 +89,7 @@ package integration
 //
 //	// insert a record to primitiveStreamId and primitiveStreamId2
 //	// Load the primitive stream
-//	primitiveStream, err := tnClient.LoadPrimitiveStream(tnClient.OwnStreamLocator(primitiveStreamId))
+//	primitiveStream, err := tnClient.LoadPrimitiveActions(tnClient.OwnStreamLocator(primitiveStreamId))
 //	assertNoErrorOrFail(t, err, "Failed to load primitive stream")
 //
 //	// Initialize the stream primitiveStreamId
@@ -100,7 +100,7 @@ package integration
 //	// insert a record to primitiveStreamId
 //	insertTxHash, err := primitiveStream.InsertRecords(ctx, []types.InsertRecordInput{
 //		{
-//			DateValue: civil.DateOf(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
+//			EventTime: civil.DateOf(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 //			Value:     10,
 //		},
 //	})
@@ -108,7 +108,7 @@ package integration
 //	waitTxToBeMinedWithSuccess(t, ctx, tnClient, insertTxHash)
 //
 //	// Load the second primitive stream
-//	primitiveStream2, err := tnClient.LoadPrimitiveStream(tnClient.OwnStreamLocator(primitiveStreamId2))
+//	primitiveStream2, err := tnClient.LoadPrimitiveActions(tnClient.OwnStreamLocator(primitiveStreamId2))
 //	assertNoErrorOrFail(t, err, "Failed to load primitive stream")
 //
 //	// Initialize the stream primitiveStreamId2
@@ -119,7 +119,7 @@ package integration
 //	// insert a record to primitiveStreamId2
 //	insertTxHash, err = primitiveStream2.InsertRecords(ctx, []types.InsertRecordInput{
 //		{
-//			DateValue: civil.DateOf(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
+//			EventTime: civil.DateOf(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 //			Value:     20,
 //		},
 //	})

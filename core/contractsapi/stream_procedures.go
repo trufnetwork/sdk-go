@@ -123,12 +123,12 @@ package contractsapi
 //}
 //
 //type GetRecordRawOutput struct {
-//	DateValue string `json:"date_value"`
+//	EventTime string `json:"date_value"`
 //	Value     string `json:"value"`
 //}
 //
 //type GetRecordUnixRawOutput struct {
-//	DateValue int    `json:"date_value"`
+//	EventTime int    `json:"date_value"`
 //	Value     string `json:"value"`
 //}
 //
@@ -167,12 +167,12 @@ package contractsapi
 //		if err != nil {
 //			return nil, errors.WithStack(err)
 //		}
-//		dateValue, err := civil.ParseDate(rawOutput.DateValue)
+//		dateValue, err := civil.ParseDate(rawOutput.EventTime)
 //		if err != nil {
 //			return nil, errors.WithStack(err)
 //		}
 //		outputs = append(outputs, types.StreamRecord{
-//			DateValue: dateValue,
+//			EventTime: dateValue,
 //			Value:     *value,
 //		})
 //	}
@@ -203,7 +203,7 @@ package contractsapi
 //			return nil, errors.WithStack(err)
 //		}
 //		outputs = append(outputs, types.StreamRecordUnix{
-//			DateValue: rawOutput.DateValue,
+//			EventTime: rawOutput.EventTime,
 //			Value:     *value,
 //		})
 //	}
@@ -237,12 +237,12 @@ package contractsapi
 //		if err != nil {
 //			return nil, errors.WithStack(err)
 //		}
-//		dateValue, err := civil.ParseDate(rawOutput.DateValue)
+//		dateValue, err := civil.ParseDate(rawOutput.EventTime)
 //		if err != nil {
 //			return nil, errors.WithStack(err)
 //		}
 //		outputs = append(outputs, types.StreamIndex{
-//			DateValue: dateValue,
+//			EventTime: dateValue,
 //			Value:     *value,
 //		})
 //	}
@@ -274,7 +274,7 @@ package contractsapi
 //			return nil, errors.WithStack(err)
 //		}
 //		outputs = append(outputs, types.StreamIndexUnix{
-//			DateValue: rawOutput.DateValue,
+//			EventTime: rawOutput.EventTime,
 //			Value:     *value,
 //		})
 //	}
@@ -307,13 +307,13 @@ package contractsapi
 //	if err != nil {
 //		return nil, errors.WithStack(err)
 //	}
-//	dateValue, err := civil.ParseDate(rawOutput.DateValue)
+//	dateValue, err := civil.ParseDate(rawOutput.EventTime)
 //	if err != nil {
 //		return nil, errors.WithStack(err)
 //	}
 //
 //	return &types.StreamRecord{
-//		DateValue: dateValue,
+//		EventTime: dateValue,
 //		Value:     *value,
 //	}, nil
 //}
@@ -344,7 +344,7 @@ package contractsapi
 //	}
 //
 //	return &types.StreamRecordUnix{
-//		DateValue: rawOutput.DateValue,
+//		EventTime: rawOutput.EventTime,
 //		Value:     *value,
 //	}, nil
 //}

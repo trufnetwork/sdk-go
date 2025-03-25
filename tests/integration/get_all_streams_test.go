@@ -27,7 +27,6 @@ func TestListAllStreams(t *testing.T) {
 	// Generate unique stream IDs and locators
 	primitiveStreamId := util.GenerateStreamId("test-allstreams-primitive-stream")
 	composedStreamId := util.GenerateStreamId("test-allstreams-composed-stream")
-	//notAStreamName := "not_a_stream"
 
 	// Cleanup function to destroy the streams and contracts after test completion
 	t.Cleanup(func() {
@@ -49,20 +48,6 @@ func TestListAllStreams(t *testing.T) {
 	assertNoErrorOrFail(t, err, "Failed to deploy composed stream")
 	waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
 
-	// Deploy a non-stream contract
-	//notAStreamSchema, err := parse.Parse(assets.NotAStreamContent)
-	//notAStreamSchema.Name = notAStreamName
-	//assertNoErrorOrFail(t, err, "Failed to parse non-stream contract content")
-	//
-	//// Cleanup function to destroy the non-stream contract after test completion
-	//t.Cleanup(func() {
-	//	_, err := tnClient.GetKwilClient().DropDatabase(ctx, notAStreamName, client.WithSyncBroadcast(true))
-	//	assertNoErrorOrFail(t, err, "Failed to destroy non-stream contract")
-	//})
-	//
-	//_, err = tnClient.GetKwilClient().DeployDatabase(ctx, notAStreamSchema, client.WithSyncBroadcast(true))
-	//assertNoErrorOrFail(t, err, "Failed to deploy non-stream contract")
-	//
 	//// List all streams
 	//streams, err := tnClient.GetAllStreams(ctx, types.GetAllStreamsInput{})
 	//assertNoErrorOrFail(t, err, "Failed to list all streams")
@@ -90,7 +75,7 @@ func TestListAllStreams(t *testing.T) {
 	//initialInitializedStreamsCount := len(initializedStreams)
 	//
 	//// initialize the stream primitiveStreamId
-	//primitiveStream, err := tnClient.LoadStream(types.StreamLocator{
+	//primitiveStream, err := tnClient.LoadActions(types.StreamLocator{
 	//	StreamId:     primitiveStreamId,
 	//	DataProvider: tnClient.Address(),
 	//})
@@ -100,7 +85,7 @@ func TestListAllStreams(t *testing.T) {
 	//waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHash)
 	//
 	//// initialize the stream composedStreamId
-	//composedStream, err := tnClient.LoadStream(types.StreamLocator{
+	//composedStream, err := tnClient.LoadActions(types.StreamLocator{
 	//	StreamId:     composedStreamId,
 	//	DataProvider: tnClient.Address(),
 	//})

@@ -30,8 +30,8 @@ package contractsapi
 //	}, nil
 //}
 //
-//func LoadComposedStream(opts NewStreamOptions) (*ComposedStream, error) {
-//	stream, err := LoadStream(opts)
+//func LoadComposedStream(opts NewActionOptions) (*ComposedStream, error) {
+//	stream, err := LoadActions(opts)
 //	if err != nil {
 //		return nil, errors.WithStack(err)
 //	}

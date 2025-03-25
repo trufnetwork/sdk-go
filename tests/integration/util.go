@@ -60,7 +60,7 @@ func deployTestPrimitiveStreamWithData(
 	//	DataProvider: address,
 	//}
 
-	//deployedStream, err := tnClient.LoadPrimitiveStream(streamLocator)
+	//deployedStream, err := tnClient.LoadPrimitiveActions(streamLocator)
 	//assertNoErrorOrFail(t, err, "Failed to load stream")
 	//
 	//txHashInit, err := deployedStream.InitializeStream(ctx)
@@ -91,7 +91,7 @@ func deployTestPrimitiveStreamWithData(
 //		DataProvider: address,
 //	}
 //
-//	deployedStream, err := tnClient.LoadPrimitiveStream(streamLocator)
+//	deployedStream, err := tnClient.LoadPrimitiveActions(streamLocator)
 //	assertNoErrorOrFail(t, err, "Failed to load stream")
 //
 //	txHashInit, err := deployedStream.InitializeStream(ctx)

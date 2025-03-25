@@ -68,7 +68,7 @@ package integration
 //
 //		// Load the deployed stream
 //		// This step is necessary to interact with the stream after deployment
-//		deployedPrimitiveStream, err := tnClient.LoadPrimitiveStream(streamLocator)
+//		deployedPrimitiveStream, err := tnClient.LoadPrimitiveActions(streamLocator)
 //		assertNoErrorOrFail(t, err, "Failed to load stream")
 //
 //		// Initialize the stream
@@ -82,7 +82,7 @@ package integration
 //		assertNoErrorOrFail(t, err, "Failed to deploy stream")
 //		waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash2)
 //
-//		deployedPrimitiveStream2, err := tnClient.LoadPrimitiveStream(streamLocator2)
+//		deployedPrimitiveStream2, err := tnClient.LoadPrimitiveActions(streamLocator2)
 //		assertNoErrorOrFail(t, err, "Failed to load stream")
 //
 //		txHashInit2, err := deployedPrimitiveStream2.InitializeStream(ctx)
@@ -94,7 +94,7 @@ package integration
 //		//txHash, err := deployedPrimitiveStream.InsertRecordsUnix(ctx, []types.InsertRecordUnixInput{
 //		//	{
 //		//		Value:     1,
-//		//		DateValue: 1,
+//		//		EventTime: 1,
 //		//	},
 //		//})
 //		//assertNoErrorOrFail(t, err, "Failed to insert record")
@@ -114,13 +114,13 @@ package integration
 //		txHashInsertHelper, err := deployedHelperStream.InsertRecordsUnix(ctx, types.TnRecordUnixBatch{
 //			Rows: []types.TNRecordUnixRow{
 //				{
-//					DateValue:    "1",
+//					EventTime:    "1",
 //					Value:        "1",
 //					StreamID:     streamId.String(),
 //					DataProvider: dataProvider.Address(),
 //				},
 //				{
-//					DateValue:    "1",
+//					EventTime:    "1",
 //					Value:        "2",
 //					StreamID:     streamId2.String(),
 //					DataProvider: dataProvider.Address(),
@@ -144,7 +144,7 @@ package integration
 //		// This ensures that the inserted data matches what we expect
 //		assert.Len(t, records, 1, "Expected exactly one record")
 //		assert.Equal(t, "1.000000000000000000", records[0].Value.String(), "Unexpected record value")
-//		assert.Equal(t, 1, records[0].DateValue, "Unexpected record date")
+//		assert.Equal(t, 1, records[0].EventTime, "Unexpected record date")
 //
 //		records2, err := deployedPrimitiveStream2.GetRecordUnix(ctx, types.GetRecordUnixInput{
 //			DateFrom: &mockedDateFromUnix,
@@ -154,7 +154,7 @@ package integration
 //
 //		assert.Len(t, records2, 1, "Expected exactly one record")
 //		assert.Equal(t, "2.000000000000000000", records2[0].Value.String(), "Unexpected record value")
-//		assert.Equal(t, 1, records2[0].DateValue, "Unexpected record date")
+//		assert.Equal(t, 1, records2[0].EventTime, "Unexpected record date")
 //
 //		// Query index from the stream
 //		index, err := deployedPrimitiveStream.GetIndexUnix(ctx, types.GetIndexUnixInput{
@@ -167,7 +167,7 @@ package integration
 //		// This ensures that the inserted data matches what we expect
 //		assert.Len(t, index, 1, "Expected exactly one index")
 //		assert.Equal(t, "100.000000000000000000", index[0].Value.String(), "Unexpected index value")
-//		assert.Equal(t, 1, index[0].DateValue, "Unexpected index date")
+//		assert.Equal(t, 1, index[0].EventTime, "Unexpected index date")
 //
 //		index2, err := deployedPrimitiveStream2.GetIndexUnix(ctx, types.GetIndexUnixInput{
 //			DateFrom: &mockedDateFromUnix,
@@ -177,7 +177,7 @@ package integration
 //		assertNoErrorOrFail(t, err, "Failed to query index")
 //		assert.Len(t, index2, 1, "Expected exactly one index")
 //		assert.Equal(t, "100.000000000000000000", index2[0].Value.String(), "Unexpected index value")
-//		assert.Equal(t, 1, index2[0].DateValue, "Unexpected index date")
+//		assert.Equal(t, 1, index2[0].EventTime, "Unexpected index date")
 //	})
 //}
 //
@@ -239,7 +239,7 @@ package integration
 //	waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
 //
 //	// Load and initialize the first stream
-//	firstStream, err := tnClient.LoadPrimitiveStream(firstStreamLocator)
+//	firstStream, err := tnClient.LoadPrimitiveActions(firstStreamLocator)
 //	assertNoErrorOrFail(t, err, "Failed to load first stream")
 //	txHash, err := firstStream.InitializeStream(ctx)
 //	assertNoErrorOrFail(t, err, "Failed to initialize first stream")
@@ -251,7 +251,7 @@ package integration
 //	waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
 //
 //	// Load and initialize the second stream
-//	secondStream, err := tnClient.LoadPrimitiveStream(secondStreamLocator)
+//	secondStream, err := tnClient.LoadPrimitiveActions(secondStreamLocator)
 //	assertNoErrorOrFail(t, err, "Failed to load second stream")
 //	txHash, err = secondStream.InitializeStream(ctx)
 //	assertNoErrorOrFail(t, err, "Failed to initialize second stream")
@@ -263,7 +263,7 @@ package integration
 //	waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
 //
 //	// Load the third stream but don't initialize it
-//	_, err = tnClient.LoadPrimitiveStream(thirdStreamLocator)
+//	_, err = tnClient.LoadPrimitiveActions(thirdStreamLocator)
 //	assertNoErrorOrFail(t, err, "Failed to load third stream")
 //	// Intentionally not initializing the third stream
 //
@@ -352,7 +352,7 @@ package integration
 //	waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
 //
 //	// Load and initialize the existing stream
-//	existingStream, err := tnClient.LoadPrimitiveStream(existingStreamLocator)
+//	existingStream, err := tnClient.LoadPrimitiveActions(existingStreamLocator)
 //	assertNoErrorOrFail(t, err, "Failed to load existing stream")
 //	txHash, err := existingStream.InitializeStream(ctx)
 //	assertNoErrorOrFail(t, err, "Failed to initialize existing stream")

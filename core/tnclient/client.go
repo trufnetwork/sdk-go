@@ -98,24 +98,20 @@ func (c *Client) DestroyStream(ctx context.Context, streamId util.StreamId) (typ
 	})
 }
 
-//func (c *Client) LoadStream(streamLocator clientType.StreamLocator) (clientType.IStream, error) {
-//	return tn_api.LoadStream(tn_api.NewStreamOptions{
-//		Client:   c.kwilClient,
-//		StreamId: streamLocator.StreamId,
-//		Deployer: streamLocator.DataProvider.Bytes(),
-//	})
-//}
+func (c *Client) LoadActions() (clientType.IActions, error) {
+	return tn_api.LoadStream(tn_api.NewActionOptions{
+		Client: c.kwilClient,
+	})
+}
 
-//func (c *Client) LoadPrimitiveStream(streamLocator clientType.StreamLocator) (clientType.IPrimitiveStream, error) {
-//	return tn_api.LoadPrimitiveStream(tn_api.NewStreamOptions{
-//		Client:   c.kwilClient,
-//		StreamId: streamLocator.StreamId,
-//		Deployer: streamLocator.DataProvider.Bytes(),
-//	})
-//}
-//
+func (c *Client) LoadPrimitiveActions() (clientType.IPrimitiveActions, error) {
+	return tn_api.LoadPrimitiveActions(tn_api.NewActionOptions{
+		Client: c.kwilClient,
+	})
+}
+
 //func (c *Client) LoadComposedStream(streamLocator clientType.StreamLocator) (clientType.IComposedStream, error) {
-//	return tn_api.LoadComposedStream(tn_api.NewStreamOptions{
+//	return tn_api.LoadComposedStream(tn_api.NewActionOptions{
 //		Client:   c.kwilClient,
 //		StreamId: streamLocator.StreamId,
 //		Deployer: streamLocator.DataProvider.Bytes(),

@@ -95,7 +95,7 @@ package tnclient
 //			}
 //
 //			// check if the stream is initialized by trying to load it and get its type
-//			deployedStream, err := c.LoadStream(streamLocator)
+//			deployedStream, err := c.LoadActions(streamLocator)
 //			if err != nil {
 //				// in case of error, we just continue to the next stream
 //				logging.Logger.Warn("skipping stream due to error on load", zap.String("streamId", streamId.String()), zap.Error(err))
