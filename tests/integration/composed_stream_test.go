@@ -78,19 +78,19 @@ package integration
 //		// | 2020-01-02 | 2      | 4      |
 //
 //		deployTestPrimitiveStreamWithData(t, ctx, tnClient, childAStreamId, []types.InsertRecordInput{
-//			{Value: 1, DateValue: *unsafeParseDate("2020-01-01")},
-//			{Value: 2, DateValue: *unsafeParseDate("2020-01-02")},
-//			{Value: 3, DateValue: *unsafeParseDate("2020-01-30")},
-//			{Value: 4, DateValue: *unsafeParseDate("2020-02-01")},
-//			{Value: 5, DateValue: *unsafeParseDate("2020-02-02")},
+//			{Value: 1, EventTime: *unsafeParseDate("2020-01-01")},
+//			{Value: 2, EventTime: *unsafeParseDate("2020-01-02")},
+//			{Value: 3, EventTime: *unsafeParseDate("2020-01-30")},
+//			{Value: 4, EventTime: *unsafeParseDate("2020-02-01")},
+//			{Value: 5, EventTime: *unsafeParseDate("2020-02-02")},
 //		})
 //
 //		deployTestPrimitiveStreamWithData(t, ctx, tnClient, childBStreamId, []types.InsertRecordInput{
-//			{Value: 3, DateValue: *unsafeParseDate("2020-01-01")},
-//			{Value: 4, DateValue: *unsafeParseDate("2020-01-02")},
-//			{Value: 5, DateValue: *unsafeParseDate("2020-01-30")},
-//			{Value: 6, DateValue: *unsafeParseDate("2020-02-01")},
-//			{Value: 7, DateValue: *unsafeParseDate("2020-02-02")},
+//			{Value: 3, EventTime: *unsafeParseDate("2020-01-01")},
+//			{Value: 4, EventTime: *unsafeParseDate("2020-01-02")},
+//			{Value: 5, EventTime: *unsafeParseDate("2020-01-30")},
+//			{Value: 6, EventTime: *unsafeParseDate("2020-02-01")},
+//			{Value: 7, EventTime: *unsafeParseDate("2020-02-02")},
 //		})
 //
 //		// Step 4: Set taxonomies for the composed stream
@@ -184,6 +184,6 @@ package integration
 //		firstRecord, err := deployedComposedStream.GetFirstRecord(ctx, types.GetFirstRecordInput{})
 //		assertNoErrorOrFail(t, err, "Failed to get first record")
 //		checkRecord(*firstRecord, 2.3333333333333335)
-//		assert.Equal(t, "2020-01-01", firstRecord.DateValue.String())
+//		assert.Equal(t, "2020-01-01", firstRecord.EventTime.String())
 //	})
 //}

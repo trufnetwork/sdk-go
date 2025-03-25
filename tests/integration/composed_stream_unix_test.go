@@ -77,19 +77,19 @@ package integration
 //		// | 2020-01-02 | 2      | 4      |
 //
 //		deployTestPrimitiveStreamUnixWithData(t, ctx, tnClient, childAStreamId, []types.InsertRecordUnixInput{
-//			{Value: 1, DateValue: 1},
-//			{Value: 2, DateValue: 2},
-//			{Value: 3, DateValue: 3},
-//			{Value: 4, DateValue: 4},
-//			{Value: 5, DateValue: 5},
+//			{Value: 1, EventTime: 1},
+//			{Value: 2, EventTime: 2},
+//			{Value: 3, EventTime: 3},
+//			{Value: 4, EventTime: 4},
+//			{Value: 5, EventTime: 5},
 //		})
 //
 //		deployTestPrimitiveStreamUnixWithData(t, ctx, tnClient, childBStreamId, []types.InsertRecordUnixInput{
-//			{Value: 3, DateValue: 1},
-//			{Value: 4, DateValue: 2},
-//			{Value: 5, DateValue: 3},
-//			{Value: 6, DateValue: 4},
-//			{Value: 7, DateValue: 5},
+//			{Value: 3, EventTime: 1},
+//			{Value: 4, EventTime: 2},
+//			{Value: 5, EventTime: 3},
+//			{Value: 6, EventTime: 4},
+//			{Value: 7, EventTime: 5},
 //		})
 //
 //		// Step 4: Set taxonomies for the composed stream

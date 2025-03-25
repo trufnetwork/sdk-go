@@ -1,13 +1,10 @@
 package types
 
 import (
-	"context"
 	"time"
 
 	"github.com/cockroachdb/apd/v3"
 	"github.com/golang-sql/civil"
-	"github.com/kwilteam/kwil-db/core/types"
-	"github.com/trufnetwork/sdk-go/core/util"
 )
 
 type GetRecordInput struct {
@@ -50,35 +47,35 @@ type StreamRecordUnix struct {
 type StreamIndex = StreamRecord
 type StreamIndexUnix = StreamRecordUnix
 
-type IStream interface {
+type IActions interface {
 	// ExecuteProcedure Executes an arbitrary procedure on the stream. Execute refers to the write calls
-	ExecuteProcedure(ctx context.Context, procedure string, args [][]any) (types.Hash, error)
+	//ExecuteProcedure(ctx context.Context, procedure string, args [][]any) (types.Hash, error)
 	// CallProcedure calls an arbitrary procedure on the stream. Call refers to the read calls
-	CallProcedure(ctx context.Context, procedure string, args []any) (*types.QueryResult, error)
+	//CallProcedure(ctx context.Context, procedure string, args []any) (*types.QueryResult, error)
 
 	// InitializeStream initializes the stream. Majority of other methods need the stream to be initialized
-	InitializeStream(ctx context.Context) (types.Hash, error)
+	//InitializeStream(ctx context.Context) (types.Hash, error)
 	// GetRecord reads the records of the stream within the given date range
-	GetRecord(ctx context.Context, input GetRecordInput) ([]StreamRecord, error)
+	//GetRecord(ctx context.Context, input GetRecordInput) ([]StreamRecord, error)
 	// GetIndex reads the index of the stream within the given date range
-	GetIndex(ctx context.Context, input GetIndexInput) ([]StreamIndex, error)
-	// GetRecordUnix reads the records of the stream within the given date rang
-	GetRecordUnix(ctx context.Context, input GetRecordUnixInput) ([]StreamRecordUnix, error)
+	//GetIndex(ctx context.Context, input GetIndexInput) ([]StreamIndex, error)
+	//GetRecordUnix reads the records of the stream within the given date rang
+	//GetRecordUnix(ctx context.Context, input GetRecordUnixInput) ([]StreamRecordUnix, error)
 	// GetIndexUnix reads the index of the stream within the given date range
-	GetIndexUnix(ctx context.Context, input GetIndexUnixInput) ([]StreamIndexUnix, error)
+	//GetIndexUnix(ctx context.Context, input GetIndexUnixInput) ([]StreamIndexUnix, error)
 	// GetType gets the type of the stream -- Primitive or Composed
-	GetType(ctx context.Context) (StreamType, error)
+	//GetType(ctx context.Context) (StreamType, error)
 	// GetFirstRecord gets the first record of the stream
-	GetFirstRecord(ctx context.Context, input GetFirstRecordInput) (*StreamRecord, error)
+	//GetFirstRecord(ctx context.Context, input GetFirstRecordInput) (*StreamRecord, error)
 
 	// SetReadVisibility sets the read visibility of the stream -- Private or Public
-	SetReadVisibility(ctx context.Context, visibility util.VisibilityEnum) (types.Hash, error)
+	//SetReadVisibility(ctx context.Context, visibility util.VisibilityEnum) (types.Hash, error)
 	// GetReadVisibility gets the read visibility of the stream -- Private or Public
-	GetReadVisibility(ctx context.Context) (*util.VisibilityEnum, error)
+	//GetReadVisibility(ctx context.Context) (*util.VisibilityEnum, error)
 	// SetComposeVisibility sets the compose visibility of the stream -- Private or Public
-	SetComposeVisibility(ctx context.Context, visibility util.VisibilityEnum) (types.Hash, error)
+	//SetComposeVisibility(ctx context.Context, visibility util.VisibilityEnum) (types.Hash, error)
 	// GetComposeVisibility gets the compose visibility of the stream -- Private or Public
-	GetComposeVisibility(ctx context.Context) (*util.VisibilityEnum, error)
+	//GetComposeVisibility(ctx context.Context) (*util.VisibilityEnum, error)
 
 	// AllowReadWallet allows a wallet to read the stream, if reading is private
 	//AllowReadWallet(ctx context.Context, wallet util.EthereumAddress) (types.Hash, error)
@@ -90,10 +87,10 @@ type IStream interface {
 	//DisableComposeStream(ctx context.Context, locator StreamLocator) (types.Hash, error)
 
 	// GetAllowedReadWallets gets the wallets allowed to read the stream
-	GetAllowedReadWallets(ctx context.Context) ([]util.EthereumAddress, error)
+	//GetAllowedReadWallets(ctx context.Context) ([]util.EthereumAddress, error)
 	// GetAllowedComposeStreams gets the streams allowed to compose this stream
-	GetAllowedComposeStreams(ctx context.Context) ([]StreamLocator, error)
+	//GetAllowedComposeStreams(ctx context.Context) ([]StreamLocator, error)
 
 	// SetDefaultBaseDate insert a metadata row with `default_base_date` key
-	SetDefaultBaseDate(ctx context.Context, baseDate string) (types.Hash, error)
+	//SetDefaultBaseDate(ctx context.Context, baseDate string) (types.Hash, error)
 }

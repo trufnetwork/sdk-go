@@ -23,8 +23,8 @@ package contractsapi
 //	}, nil
 //}
 //
-////func LoadHelperStream(options NewStreamOptions) (*HelperStream, error) {
-////	stream, err := LoadStream(options)
+////func LoadHelperStream(options NewActionOptions) (*HelperStream, error) {
+////	stream, err := LoadActions(options)
 ////	if err != nil {
 ////		return nil, errors.WithStack(err)
 ////	}
@@ -54,14 +54,14 @@ package contractsapi
 //	for _, instruction := range inputs.Rows {
 //		dataProviderStr = append(dataProviderStr, instruction.DataProvider)
 //		streamIdStr = append(streamIdStr, instruction.StreamID)
-//		dateValueStr = append(dateValueStr, instruction.DateValue)
+//		dateValueStr = append(dateValueStr, instruction.EventTime)
 //		valueStr = append(valueStr, instruction.Value)
 //	}
 //
 //	inputArgs, err := util.StructAsArgs(types.RawInsertRecordsInput{
 //		DataProvider: dataProviderStr,
 //		StreamID:     streamIdStr,
-//		DateValue:    dateValueStr,
+//		EventTime:    dateValueStr,
 //		Value:        valueStr,
 //	})
 //	if err != nil {
@@ -81,14 +81,14 @@ package contractsapi
 //	for _, instruction := range inputs.Rows {
 //		dataProviderStr = append(dataProviderStr, instruction.DataProvider)
 //		streamIdStr = append(streamIdStr, instruction.StreamID)
-//		dateValueStr = append(dateValueStr, instruction.DateValue)
+//		dateValueStr = append(dateValueStr, instruction.EventTime)
 //		valueStr = append(valueStr, instruction.Value)
 //	}
 //
 //	inputArgs, err := util.StructAsArgs(types.RawInsertRecordsUnixInput{
 //		DataProvider: dataProviderStr,
 //		StreamID:     streamIdStr,
-//		DateValue:    dateValueStr,
+//		EventTime:    dateValueStr,
 //		Value:        valueStr,
 //	})
 //	if err != nil {

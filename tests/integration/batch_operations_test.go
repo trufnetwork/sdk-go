@@ -47,7 +47,7 @@ package integration
 //		assertNoErrorOrFail(t, err, "Failed to deploy stream")
 //		waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
 //
-//		deployedStream, err := tnClient.LoadPrimitiveStream(streamLocator)
+//		deployedStream, err := tnClient.LoadPrimitiveActions(streamLocator)
 //		assertNoErrorOrFail(t, err, "Failed to load stream")
 //
 //		txHashInit, err := deployedStream.InitializeStream(ctx)
@@ -66,7 +66,7 @@ package integration
 //			records := make([]types.InsertRecordUnixInput, recordsPerBatch)
 //			for i := 0; i < recordsPerBatch; i++ {
 //				records[i] = types.InsertRecordUnixInput{
-//					DateValue: baseTimestamp + (batch * 86400) + (i * 3600),
+//					EventTime: baseTimestamp + (batch * 86400) + (i * 3600),
 //					Value:     float64(batch*100 + i),
 //				}
 //			}
@@ -119,7 +119,7 @@ package integration
 //		assertNoErrorOrFail(t, err, "Failed to deploy stream")
 //		waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
 //
-//		deployedStream, err := tnClient.LoadPrimitiveStream(streamLocator)
+//		deployedStream, err := tnClient.LoadPrimitiveActions(streamLocator)
 //		assertNoErrorOrFail(t, err, "Failed to load stream")
 //
 //		txHashInit, err := deployedStream.InitializeStream(ctx)
@@ -138,7 +138,7 @@ package integration
 //			records := make([]types.InsertRecordUnixInput, recordsPerBatch)
 //			for i := 0; i < recordsPerBatch; i++ {
 //				records[i] = types.InsertRecordUnixInput{
-//					DateValue: baseTimestamp + (batch * 86400) + (i * 300), // 5-minute intervals
+//					EventTime: baseTimestamp + (batch * 86400) + (i * 300), // 5-minute intervals
 //					Value:     float64(batch*1000 + i),
 //				}
 //			}
@@ -191,7 +191,7 @@ package integration
 //		assertNoErrorOrFail(t, err, "Failed to deploy stream")
 //		waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
 //
-//		deployedStream, err := tnClient.LoadPrimitiveStream(streamLocator)
+//		deployedStream, err := tnClient.LoadPrimitiveActions(streamLocator)
 //		assertNoErrorOrFail(t, err, "Failed to load stream")
 //
 //		txHashInit, err := deployedStream.InitializeStream(ctx)
@@ -208,7 +208,7 @@ package integration
 //		for i := 0; i < numRecords; i++ {
 //			records := []types.InsertRecordUnixInput{
 //				{
-//					DateValue: baseTimestamp + (i * 3600),
+//					EventTime: baseTimestamp + (i * 3600),
 //					Value:     float64(i),
 //				},
 //			}

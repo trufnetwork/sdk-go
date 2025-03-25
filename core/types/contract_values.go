@@ -10,8 +10,6 @@ type StreamType string
 const (
 	StreamTypeComposed  StreamType = "composed"
 	StreamTypePrimitive StreamType = "primitive"
-	//StreamTypeComposedUnix  StreamType = "composed_unix"
-	//StreamTypePrimitiveUnix StreamType = "primitive_unix"
 	//StreamTypeHelper        StreamType = "helper"
 )
 

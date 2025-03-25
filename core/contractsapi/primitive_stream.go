@@ -1,117 +1,98 @@
 package contractsapi
 
-//
-//import (
-//	"context"
-//	"fmt"
-//	client "github.com/kwilteam/kwil-db/core/client/types"
-//	kwiltypes "github.com/kwilteam/kwil-db/core/types"
-//	"time"
-//
-//	"github.com/cockroachdb/apd/v3"
-//	// "github.com/kwilteam/kwil-db/core/types/client"
-//	// "github.com/kwilteam/kwil-db/core/types/transactions"
-//	"github.com/pkg/errors"
-//	"github.com/trufnetwork/sdk-go/core/types"
-//)
-//
-//type PrimitiveStream struct {
-//	Stream
-//}
-//
-//var _ types.IPrimitiveStream = (*PrimitiveStream)(nil)
-//
-//var (
-//	ErrorStreamNotPrimitive = errors.New("stream is not a primitive stream")
-//)
-//
-//func PrimitiveStreamFromStream(stream Stream) (*PrimitiveStream, error) {
-//	return &PrimitiveStream{
-//		Stream: stream,
-//	}, nil
-//}
-//
-//func LoadPrimitiveStream(options NewStreamOptions) (*PrimitiveStream, error) {
-//	stream, err := LoadStream(options)
-//	if err != nil {
-//		return nil, errors.WithStack(err)
-//	}
-//	return PrimitiveStreamFromStream(*stream)
-//}
-//
-//// checkValidPrimitiveStream checks if the stream is a valid primitive stream
-//// and returns an error if it is not. Valid means:
-//// - the stream is initialized
-//// - the stream is a primitive stream
-//func (p *PrimitiveStream) checkValidPrimitiveStream(ctx context.Context) error {
-//	// first check if is initialized
-//	err := p.checkInitialized(ctx)
-//	if err != nil {
-//		return errors.WithStack(err)
-//	}
-//
-//	// then check if is primitive
-//	streamType, err := p.GetType(ctx)
-//	if err != nil {
-//		return errors.WithStack(err)
-//	}
-//
-//	if streamType != types.StreamTypePrimitive {
-//		return ErrorStreamNotPrimitive
-//	}
-//
-//	return nil
-//}
-//
-//func (p *PrimitiveStream) checkedExecute(ctx context.Context, method string, args [][]any, opts ...client.TxOpt) (kwiltypes.Hash, error) {
-//	err := p.checkValidPrimitiveStream(ctx)
-//	if err != nil {
-//		return kwiltypes.Hash{}, errors.WithStack(err)
-//	}
-//
-//	return p._client.Execute(ctx, p.DBID, method, args, opts...)
-//}
-//
-//func (p *PrimitiveStream) InsertRecords(ctx context.Context, inputs []types.InsertRecordInput, opts ...client.TxOpt) (kwiltypes.Hash, error) {
-//	err := p.checkValidPrimitiveStream(ctx)
-//	if err != nil {
-//		return kwiltypes.Hash{}, errors.WithStack(err)
-//	}
-//
+import (
+	"context"
+	client "github.com/kwilteam/kwil-db/core/client/types"
+	kwiltypes "github.com/kwilteam/kwil-db/core/types"
+	"github.com/pkg/errors"
+	"github.com/trufnetwork/sdk-go/core/types"
+	"strconv"
+)
+
+type PrimitiveStream struct {
+	Stream
+}
+
+var _ types.IPrimitiveActions = (*PrimitiveStream)(nil)
+
+var (
+	ErrorStreamNotPrimitive = errors.New("stream is not a primitive stream")
+)
+
+func PrimitiveStreamFromStream(stream Stream) (*PrimitiveStream, error) {
+	return &PrimitiveStream{
+		Stream: stream,
+	}, nil
+}
+
+func LoadPrimitiveActions(options NewActionOptions) (*PrimitiveStream, error) {
+	stream, err := LoadStream(options)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return PrimitiveStreamFromStream(*stream)
+}
+
+// checkValidPrimitiveStream checks if the stream is a valid primitive stream
+// and returns an error if it is not. Valid means:
+// - the stream is initialized
+// - the stream is a primitive stream
+func (p *PrimitiveStream) checkValidPrimitiveStream(ctx context.Context) error {
+	// first check if is initialized
+	//err := p.checkInitialized(ctx)
+	//if err != nil {
+	//	return errors.WithStack(err)
+	//}
+	//
+	//// then check if is primitive
+	//streamType, err := p.GetType(ctx)
+	//if err != nil {
+	//	return errors.WithStack(err)
+	//}
+	//
+	//if streamType != types.StreamTypePrimitive {
+	//	return ErrorStreamNotPrimitive
+	//}
+
+	return nil
+}
+
+func (p *PrimitiveStream) checkedExecute(ctx context.Context, method string, args [][]any, opts ...client.TxOpt) (kwiltypes.Hash, error) {
+	err := p.checkValidPrimitiveStream(ctx)
+	if err != nil {
+		return kwiltypes.Hash{}, errors.WithStack(err)
+	}
+
+	return p._client.Execute(ctx, "", method, args, opts...)
+}
+
+func (p *PrimitiveStream) InsertRecord(ctx context.Context, input types.InsertRecordInput, opts ...client.TxOpt) (kwiltypes.Hash, error) {
+	valueNumeric, err := kwiltypes.ParseDecimalExplicit(strconv.FormatFloat(input.Value, 'f', -1, 64), 36, 18)
+	if err != nil {
+		return kwiltypes.Hash{}, errors.WithStack(err)
+	}
+
+	return p.checkedExecute(ctx, "insert_record", [][]any{{
+		input.DataProvider,
+		input.StreamId,
+		input.EventTime,
+		valueNumeric,
+	}}, opts...)
+}
+
+//func (p *PrimitiveStream) InsertRecords(ctx context.Context, inputs []types.InsertRecordsInput, opts ...client.TxOpt) (kwiltypes.Hash, error) {
 //	var args [][]any
 //	for _, input := range inputs {
-//
-//		dateStr := input.DateValue.String()
-//
+//		dateStr := input.EventTime
 //		args = append(args, []any{
 //			dateStr,
 //			fmt.Sprintf("%f", input.Value),
 //		})
 //	}
 //
-//	return p.checkedExecute(ctx, "insert_record", args, opts...)
+//	return p.checkedExecute(ctx, "insert_records", args, opts...)
 //}
-//
-//func (p *PrimitiveStream) InsertRecordsUnix(ctx context.Context, inputs []types.InsertRecordUnixInput, opts ...client.TxOpt) (kwiltypes.Hash, error) {
-//	err := p.checkValidPrimitiveStream(ctx)
-//	if err != nil {
-//		return kwiltypes.Hash{}, errors.WithStack(err)
-//	}
-//
-//	var args [][]any
-//	for _, input := range inputs {
-//
-//		dateStr := input.DateValue
-//
-//		args = append(args, []any{
-//			dateStr,
-//			fmt.Sprintf("%f", input.Value),
-//		})
-//	}
-//
-//	return p.checkedExecute(ctx, "insert_record", args, opts...)
-//}
-//
+
 //func (p *PrimitiveStream) GetFirstRecordUnix(ctx context.Context, input types.GetFirstRecordUnixInput) (*types.StreamRecordUnix, error) {
 //	err := p.checkValidPrimitiveStream(ctx)
 //	if err != nil {
@@ -143,7 +124,7 @@ package contractsapi
 //	}
 //
 //	return &types.StreamRecordUnix{
-//		DateValue: rawOutput.DateValue,
+//		EventTime: rawOutput.EventTime,
 //		Value:     *value,
 //	}, nil
 //}

@@ -14,14 +14,14 @@ package tnclient
 //func (c *Client) DeployComposedStreamWithTaxonomy(ctx context.Context, streamId util.StreamId, taxonomy types.Taxonomy) error {
 //	// check if the stream on taxonomies is already deployed
 //	for _, item := range taxonomy.TaxonomyItems {
-//		_, err := c.LoadStream(item.ChildStream)
+//		_, err := c.LoadActions(item.ChildStream)
 //		if err != nil {
 //			return errors.WithStack(err)
 //		}
 //	}
 //
 //	// check if the stream is already deployed
-//	_, err := c.LoadStream(c.OwnStreamLocator(streamId))
+//	_, err := c.LoadActions(c.OwnStreamLocator(streamId))
 //	if err == nil {
 //		return errors.New("stream already deployed")
 //	}
