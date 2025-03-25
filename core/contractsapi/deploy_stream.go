@@ -15,10 +15,6 @@ type DeployStreamInput struct {
 	Deployer   []byte           `validate:"required"`
 }
 
-type DeployStreamOutput struct {
-	TxHash kwilTypes.Hash
-}
-
 // DeployStream deploys a stream to TN
 func DeployStream(ctx context.Context, input DeployStreamInput) (kwilTypes.Hash, error) {
 	return input.KwilClient.Execute(ctx, "", "create_stream", [][]any{{
