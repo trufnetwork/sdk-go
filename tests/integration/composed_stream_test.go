@@ -129,8 +129,8 @@ package integration
 //		// Step 5: Query the composed stream for records
 //		// Query records within a specific date range
 //		records, err := deployedComposedStream.GetRecord(ctx, types.GetRecordInput{
-//			DateFrom: unsafeParseDate("2020-02-01"),
-//			DateTo:   unsafeParseDate("2020-02-02"),
+//			From: unsafeParseDate("2020-02-01"),
+//			To:   unsafeParseDate("2020-02-02"),
 //		})
 //
 //		assertNoErrorOrFail(t, err, "Failed to get records")
@@ -138,8 +138,8 @@ package integration
 //
 //		// Query the records before the set start date
 //		recordsBefore, errBefore := deployedComposedStream.GetRecord(ctx, types.GetRecordInput{
-//			DateFrom: unsafeParseDate("2020-01-01"),
-//			DateTo:   unsafeParseDate("2020-01-02"),
+//			From: unsafeParseDate("2020-01-01"),
+//			To:   unsafeParseDate("2020-01-02"),
 //		})
 //		assertNoErrorOrFail(t, errBefore, "Failed to get records before start date")
 //		assert.NotNil(t, recordsBefore, "Records before start date should not be nil")
@@ -161,8 +161,8 @@ package integration
 //		// Step 6: Query the composed stream for index
 //		// Query the index within a specific date range
 //		index, err := deployedComposedStream.GetIndex(ctx, types.GetIndexInput{
-//			DateFrom: unsafeParseDate("2020-01-30"),
-//			DateTo:   unsafeParseDate("2020-02-01"),
+//			From: unsafeParseDate("2020-01-30"),
+//			To:   unsafeParseDate("2020-02-01"),
 //			BaseDate: unsafeParseDate("2020-01-30"),
 //		})
 //
@@ -173,8 +173,8 @@ package integration
 //
 //		// Query the index before the set start date
 //		indexBefore, errBefore := deployedComposedStream.GetIndex(ctx, types.GetIndexInput{
-//			DateFrom: unsafeParseDate("2020-01-01"),
-//			DateTo:   unsafeParseDate("2020-01-02"),
+//			From: unsafeParseDate("2020-01-01"),
+//			To:   unsafeParseDate("2020-01-02"),
 //		})
 //		assertNoErrorOrFail(t, errBefore, "Failed to get index before start date")
 //		assert.NotNil(t, indexBefore, "Index before start date should not be nil")

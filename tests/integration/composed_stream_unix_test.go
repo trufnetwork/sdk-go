@@ -132,8 +132,8 @@ package integration
 //		mockDateFrom := 4
 //		mockDateTo := 5
 //		records, err := deployedComposedStream.GetRecordUnix(ctx, types.GetRecordUnixInput{
-//			DateFrom: &mockDateFrom,
-//			DateTo:   &mockDateTo,
+//			From: &mockDateFrom,
+//			To:   &mockDateTo,
 //		})
 //
 //		assertNoErrorOrFail(t, err, "Failed to get records")
@@ -143,8 +143,8 @@ package integration
 //		mockDateFrom2 := 1
 //		mockDateTo2 := 2
 //		recordsBefore, errBefore := deployedComposedStream.GetRecordUnix(ctx, types.GetRecordUnixInput{
-//			DateFrom: &mockDateFrom2,
-//			DateTo:   &mockDateTo2,
+//			From: &mockDateFrom2,
+//			To:   &mockDateTo2,
 //		})
 //		assertNoErrorOrFail(t, errBefore, "Failed to get records before start date")
 //		assert.NotNil(t, recordsBefore, "Records before start date should not be nil")
@@ -169,8 +169,8 @@ package integration
 //		mockDateTo3 := 4
 //		mockBaseDate := 3
 //		index, err := deployedComposedStream.GetIndexUnix(ctx, types.GetIndexUnixInput{
-//			DateFrom: &mockDateFrom3,
-//			DateTo:   &mockDateTo3,
+//			From: &mockDateFrom3,
+//			To:   &mockDateTo3,
 //			BaseDate: &mockBaseDate,
 //		})
 //
@@ -183,8 +183,8 @@ package integration
 //		mockDateFrom4 := 4
 //		mockDateTo4 := 5
 //		indexBefore, errBefore := deployedComposedStream.GetIndexUnix(ctx, types.GetIndexUnixInput{
-//			DateFrom: &mockDateFrom4,
-//			DateTo:   &mockDateTo4,
+//			From: &mockDateFrom4,
+//			To:   &mockDateTo4,
 //		})
 //		assertNoErrorOrFail(t, errBefore, "Failed to get index before start date")
 //		assert.NotNil(t, indexBefore, "Index before start date should not be nil")

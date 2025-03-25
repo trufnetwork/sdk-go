@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"github.com/stretchr/testify/assert"
 	"testing"
 
 	"github.com/kwilteam/kwil-db/core/crypto"
@@ -79,19 +80,21 @@ func TestPrimitiveActions(t *testing.T) {
 
 		// Query records from the stream
 		// This demonstrates how to read data from the stream
-		//mockedDateFromUnix := 1
-		//mockedDateToUnix := 1
-		//records, err := deployedPrimitiveStream.GetRecordUnix(ctx, types.GetRecordUnixInput{
-		//	DateFrom: &mockedDateFromUnix,
-		//	DateTo:   &mockedDateToUnix,
-		//})
-		//assertNoErrorOrFail(t, err, "Failed to query records")
+		mockedDateFromUnix := 1
+		mockedDateToUnix := 1
+		records, err := deployedPrimitiveStream.GetRecord(ctx, types.GetRecordInput{
+			DataProvider: addr,
+			StreamId:     streamId.String(),
+			From:         &mockedDateFromUnix,
+			To:           &mockedDateToUnix,
+		})
+		assertNoErrorOrFail(t, err, "Failed to query records")
 
 		// Verify the record's content
 		// This ensures that the inserted data matches what we expect
-		//assert.Len(t, records, 1, "Expected exactly one record")
-		//assert.Equal(t, "1.000000000000000000", records[0].Value.String(), "Unexpected record value")
-		//assert.Equal(t, 1, records[0].EventTime, "Unexpected record date")
+		assert.Len(t, records, 1, "Expected exactly one record")
+		assert.Equal(t, "1.000000000000000000", records[0].Value.String(), "Unexpected record value")
+		assert.Equal(t, 1, records[0].EventTime, "Unexpected record date")
 
 		// Query the first record from the stream
 		//firstRecord, err := deployedPrimitiveStream.GetFirstRecordUnix(ctx, types.GetFirstRecordUnixInput{})
@@ -104,8 +107,8 @@ func TestPrimitiveActions(t *testing.T) {
 
 		// Query index from the stream
 		//index, err := deployedPrimitiveStream.GetIndexUnix(ctx, types.GetIndexUnixInput{
-		//	DateFrom: &mockedDateFromUnix,
-		//	DateTo:   &mockedDateToUnix,
+		//	From: &mockedDateFromUnix,
+		//	To:   &mockedDateToUnix,
 		//})
 		//assertNoErrorOrFail(t, err, "Failed to query index")
 

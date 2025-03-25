@@ -1,6 +1,7 @@
 package types
 
 import (
+	"context"
 	"time"
 
 	"github.com/cockroachdb/apd/v3"
@@ -8,21 +9,15 @@ import (
 )
 
 type GetRecordInput struct {
-	DateFrom *civil.Date
-	DateTo   *civil.Date
-	FrozenAt *time.Time
-	BaseDate *civil.Date
-}
-
-type GetRecordUnixInput struct {
-	DateFrom *int
-	DateTo   *int
-	FrozenAt *time.Time
-	BaseDate *int
+	DataProvider string
+	StreamId     string
+	From         *int
+	To           *int
+	FrozenAt     *int
+	BaseDate     *int
 }
 
 type GetIndexInput = GetRecordInput
-type GetIndexUnixInput = GetRecordUnixInput
 
 type GetFirstRecordInput struct {
 	AfterDate *civil.Date
@@ -35,17 +30,11 @@ type GetFirstRecordUnixInput struct {
 }
 
 type StreamRecord struct {
-	DateValue civil.Date
-	Value     apd.Decimal
-}
-
-type StreamRecordUnix struct {
-	DateValue int
+	EventTime int
 	Value     apd.Decimal
 }
 
 type StreamIndex = StreamRecord
-type StreamIndexUnix = StreamRecordUnix
 
 type IActions interface {
 	// ExecuteProcedure Executes an arbitrary procedure on the stream. Execute refers to the write calls
@@ -53,10 +42,8 @@ type IActions interface {
 	// CallProcedure calls an arbitrary procedure on the stream. Call refers to the read calls
 	//CallProcedure(ctx context.Context, procedure string, args []any) (*types.QueryResult, error)
 
-	// InitializeStream initializes the stream. Majority of other methods need the stream to be initialized
-	//InitializeStream(ctx context.Context) (types.Hash, error)
 	// GetRecord reads the records of the stream within the given date range
-	//GetRecord(ctx context.Context, input GetRecordInput) ([]StreamRecord, error)
+	GetRecord(ctx context.Context, input GetRecordInput) ([]StreamRecord, error)
 	// GetIndex reads the index of the stream within the given date range
 	//GetIndex(ctx context.Context, input GetIndexInput) ([]StreamIndex, error)
 	//GetRecordUnix reads the records of the stream within the given date rang
