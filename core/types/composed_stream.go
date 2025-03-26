@@ -11,6 +11,8 @@ import (
 type Taxonomy struct {
 	ParentStream  StreamLocator
 	TaxonomyItems []TaxonomyItem
+	CreatedAt     int
+	GroupSequence int
 	StartDate     *int
 }
 
@@ -20,6 +22,7 @@ type TaxonomyItem struct {
 }
 
 type DescribeTaxonomiesParams struct {
+	Stream StreamLocator
 	// LatestVersion if true, will return the latest version of the taxonomy only
 	LatestVersion bool
 }

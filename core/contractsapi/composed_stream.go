@@ -2,7 +2,6 @@ package contractsapi
 
 import (
 	"context"
-	"fmt"
 	kwiltypes "github.com/kwilteam/kwil-db/core/types"
 
 	// "github.com/kwilteam/kwil-db/core/types/transactions"
@@ -65,38 +64,28 @@ func (c *ComposedAction) checkedExecute(ctx context.Context, method string, args
 }
 
 type DescribeTaxonomiesResult struct {
-	ChildStreamId     util.StreamId `json:"child_stream_id"`
+	DataProvider      string        `json:"data_provider"`
+	StreamId          util.StreamId `json:"stream_id"`
 	ChildDataProvider string        `json:"child_data_provider"`
+	ChildStreamId     util.StreamId `json:"child_stream_id"`
 	// decimals are received as strings by kwil to avoid precision loss
 	// as decimal are more arbitrary than golang's float64
-	Weight    string `json:"weight"`
-	CreatedAt int    `json:"created_at"`
-	Version   int    `json:"version"`
-	StartDate string `json:"start_date"` // cannot use *string nor *civil.Date as decoding it will cause an error
-	EndDate   string `json:"end_date"`   // cannot use *string nor *civil.Date as decoding it will cause an error
-}
-
-type DescribeTaxonomiesUnixResult struct {
-	ChildStreamId     util.StreamId `json:"child_stream_id"`
-	ChildDataProvider string        `json:"child_data_provider"`
-	// decimals are received as strings by kwil to avoid precision loss
-	// as decimal are more arbitrary than golang's float64
-	Weight    string `json:"weight"`
-	CreatedAt int    `json:"created_at"`
-	Version   int    `json:"version"`
-	StartDate int    `json:"start_date"`
-	EndDate   int    `json:"end_date"`
+	Weight        string `json:"weight"`
+	CreatedAt     string `json:"created_at"`
+	GroupSequence string `json:"group_sequence"`
+	StartDate     string `json:"start_date"`
 }
 
 func (c *ComposedAction) DescribeTaxonomies(ctx context.Context, params types.DescribeTaxonomiesParams) (types.Taxonomy, error) {
-	// TODO: Implement this according to the new architecture
-	return types.Taxonomy{}, nil
-	records, err := c.call(ctx, "describe_taxonomies", []any{params.LatestVersion})
+	records, err := c.call(ctx, "describe_taxonomies", []any{
+		params.Stream.DataProvider.Address(),
+		params.Stream.StreamId.String(),
+		params.LatestVersion})
 	if err != nil {
 		return types.Taxonomy{}, errors.WithStack(err)
 	}
 
-	result, err := DecodeCallResult[DescribeTaxonomiesUnixResult](records)
+	result, err := DecodeCallResult[DescribeTaxonomiesResult](records)
 	if err != nil {
 		return types.Taxonomy{}, errors.WithStack(err)
 	}
@@ -121,14 +110,46 @@ func (c *ComposedAction) DescribeTaxonomies(ctx context.Context, params types.De
 		})
 	}
 
-	var startDateCivil *int
-	if len(result) > 0 && result[0].StartDate != 0 {
-		startDateCivil = &result[0].StartDate
+	var (
+		startDate     *int
+		createdAt     int
+		groupSequence int
+	)
+	if len(result) > 0 {
+		if result[0].StartDate != "" {
+			startDateInt, err := strconv.Atoi(result[0].StartDate)
+			if err != nil {
+				return types.Taxonomy{}, errors.WithStack(err)
+			}
+
+			startDate = &startDateInt
+		}
+
+		if result[0].CreatedAt != "" {
+			createdAtInt, err := strconv.Atoi(result[0].CreatedAt)
+			if err != nil {
+				return types.Taxonomy{}, errors.WithStack(err)
+			}
+
+			createdAt = createdAtInt
+		}
+
+		if result[0].GroupSequence != "" {
+			groupSequenceInt, err := strconv.Atoi(result[0].GroupSequence)
+			if err != nil {
+				return types.Taxonomy{}, errors.WithStack(err)
+			}
+
+			groupSequence = groupSequenceInt
+		}
 	}
 
 	return types.Taxonomy{
+		ParentStream:  types.StreamLocator{StreamId: params.Stream.StreamId, DataProvider: params.Stream.DataProvider},
 		TaxonomyItems: taxonomyItems,
-		StartDate:     startDateCivil,
+		CreatedAt:     createdAt,
+		GroupSequence: groupSequence,
+		StartDate:     startDate,
 	}, nil
 }
 
@@ -144,8 +165,7 @@ func (c *ComposedAction) InsertTaxonomy(ctx context.Context, taxonomies types.Ta
 	// kwil expects no 0x prefix
 	//parentDataProviderHex := parentDataProviderHexString[2:]
 	for _, taxonomy := range taxonomies.TaxonomyItems {
-		childDataProviderString := taxonomy.ChildStream.DataProvider.Address()
-		childDataProviders = append(childDataProviders, fmt.Sprintf("%s", childDataProviderString))
+		childDataProviders = append(childDataProviders, taxonomy.ChildStream.DataProvider.Address())
 		childStreamIDs = append(childStreamIDs, taxonomy.ChildStream.StreamId)
 		weightNumeric, err := kwiltypes.ParseDecimalExplicit(strconv.FormatFloat(taxonomy.Weight, 'f', -1, 64), 36, 18)
 		if err != nil {

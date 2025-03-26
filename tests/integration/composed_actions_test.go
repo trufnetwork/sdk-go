@@ -2,7 +2,6 @@ package integration
 
 import (
 	"context"
-	"fmt"
 	"github.com/kwilteam/kwil-db/core/crypto"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/stretchr/testify/assert"
@@ -31,8 +30,9 @@ func TestComposedActions(t *testing.T) {
 	assertNoErrorOrFail(t, err, "Failed to create client")
 
 	signerAddressString, err := auth.EthSecp256k1Authenticator{}.Identifier(signer.CompactID())
-	signerAddress, err := util.NewEthereumAddressFromString(signerAddressString)
 	assertNoErrorOrFail(t, err, "Failed to create signer address")
+	signerAddress, err := util.NewEthereumAddressFromString(signerAddressString)
+	assertNoErrorOrFail(t, err, "Failed to create signer address from string")
 
 	// Generate a unique stream ID and locator for the composed stream and its child streams
 	streamId := util.GenerateStreamId("test-composed-stream-unix")
@@ -116,20 +116,26 @@ func TestComposedActions(t *testing.T) {
 		waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashTaxonomies)
 
 		// Describe the taxonomies of the composed stream
-		//taxonomies, err := deployedComposedStream.DescribeTaxonomiesUnix(ctx, types.DescribeTaxonomiesParams{
-		//	LatestVersion: true,
-		//})
-		//assertNoErrorOrFail(t, err, "Failed to describe taxonomies")
-		//assert.Equal(t, 2, len(taxonomies.TaxonomyItems))
-		//assert.Equal(t, 3, *taxonomies.StartDate)
-		//assert.Equal(t, 99, *taxonomies.EndDate)
+		taxonomies, err := deployedComposedStream.DescribeTaxonomies(ctx, types.DescribeTaxonomiesParams{
+			Stream:        types.StreamLocator{StreamId: streamId, DataProvider: signerAddress},
+			LatestVersion: true,
+		})
+		assertNoErrorOrFail(t, err, "Failed to describe taxonomies")
+		assert.Equal(t, 2, len(taxonomies.TaxonomyItems))
+		assert.Equal(t, 3, *taxonomies.StartDate)
+		assert.Equal(t, 1, taxonomies.GroupSequence)
+		assert.True(t, taxonomies.CreatedAt > 0)
+		assert.Equal(t, streamId.String(), taxonomies.ParentStream.StreamId.String())
+		assert.Equal(t, signerAddress.Address(), taxonomies.ParentStream.DataProvider.Address())
+		assert.Equal(t, childAStreamId.String(), taxonomies.TaxonomyItems[0].ChildStream.StreamId.String())
+		assert.Equal(t, signerAddress.Address(), taxonomies.TaxonomyItems[0].ChildStream.DataProvider.Address())
+		assert.Equal(t, 1.0, taxonomies.TaxonomyItems[0].Weight)
+		assert.Equal(t, mockStartDate, *taxonomies.StartDate)
 
 		// Step 4: Query the composed stream for records
 		// Query records within a specific date range
 		mockDateFrom := 4
 		mockDateTo := 5
-		fmt.Println("data provider", signerAddress.Address())
-		fmt.Println("stream id", streamId.String())
 		records, err := deployedComposedStream.GetRecord(ctx, types.GetRecordInput{
 			DataProvider: signerAddress.Address(),
 			StreamId:     streamId.String(),
@@ -150,10 +156,7 @@ func TestComposedActions(t *testing.T) {
 			To:           &mockDateTo2,
 		})
 		assertNoErrorOrFail(t, errBefore, "Failed to get records before start date")
-		fmt.Println("records before", recordsBefore)
-		// TODO: it should not be nil, but it is nil, meaning it didn't fetch the nearest record after the start date
-		// For more details why it happen see: https://github.com/trufnetwork/node/pull/868#issue-2944342647
-		//assert.NotNil(t, recordsBefore, "Records before start date should not be nil")
+		assert.Nil(t, recordsBefore, "Records before start date should not be nil as there is no active record before the start date")
 
 		// Function to check the record values
 		var checkRecord = func(record types.StreamRecord, expectedValue float64) {
