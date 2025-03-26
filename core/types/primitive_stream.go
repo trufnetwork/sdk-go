@@ -21,9 +21,9 @@ type InsertRecordsInput struct {
 	Value        []float64
 }
 
-type IPrimitiveActions interface {
-	// IActions methods are also available in IPrimitiveActions
-	IActions
+type IPrimitiveAction interface {
+	// IAction methods are also available in IPrimitiveAction
+	IAction
 	// InsertRecord insert a recors into the stream
 	InsertRecord(ctx context.Context, inputs InsertRecordInput, opts ...kwilClientType.TxOpt) (types.Hash, error)
 	// InsertRecords inserts records into the stream

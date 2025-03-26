@@ -19,11 +19,11 @@ type Client interface {
 	// DestroyStream destroys a stream
 	DestroyStream(ctx context.Context, streamId util.StreamId) (types.Hash, error)
 	// LoadStream loads a already deployed stream, permitting its API usage
-	LoadActions() (IActions, error)
+	LoadActions() (IAction, error)
 	// LoadPrimitiveStream loads a already deployed primitive stream, permitting its API usage
-	LoadPrimitiveActions() (IPrimitiveActions, error)
-	// LoadComposedStream loads a already deployed composed stream, permitting its API usage
-	//LoadComposedStream(stream StreamLocator) (IComposedStream, error)
+	LoadPrimitiveActions() (IPrimitiveAction, error)
+	// LoadComposedActions loads a already deployed composed stream, permitting its API usage
+	LoadComposedActions() (IComposedAction, error)
 	// LoadHelperStream loads a already deployed helper stream, permitting its API usage
 	//LoadHelperStream(stream StreamLocator) (IHelperStream, error)
 	/*

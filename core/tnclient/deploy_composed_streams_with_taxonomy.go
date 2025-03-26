@@ -40,7 +40,7 @@ package tnclient
 //
 //	// load the stream
 //	streamLocator := c.OwnStreamLocator(streamId)
-//	stream, err := c.LoadComposedStream(streamLocator)
+//	stream, err := c.LoadComposedActions(streamLocator)
 //	if err != nil {
 //		return errors.WithStack(err)
 //	}
@@ -58,7 +58,7 @@ package tnclient
 //	logging.Logger.Info("Initialized stream", zap.String("streamId", streamId.String()), zap.String("txHash", txHashInit.Hex()))
 //
 //	// set the taxonomy
-//	txHashSet, err := stream.SetTaxonomy(ctx, taxonomy)
+//	txHashSet, err := stream.InsertTaxonomy(ctx, taxonomy)
 //	if err != nil {
 //		return errors.WithStack(err)
 //	}

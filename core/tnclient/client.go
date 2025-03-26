@@ -98,25 +98,23 @@ func (c *Client) DestroyStream(ctx context.Context, streamId util.StreamId) (typ
 	})
 }
 
-func (c *Client) LoadActions() (clientType.IActions, error) {
-	return tn_api.LoadStream(tn_api.NewActionOptions{
+func (c *Client) LoadActions() (clientType.IAction, error) {
+	return tn_api.LoadAction(tn_api.NewActionOptions{
 		Client: c.kwilClient,
 	})
 }
 
-func (c *Client) LoadPrimitiveActions() (clientType.IPrimitiveActions, error) {
+func (c *Client) LoadPrimitiveActions() (clientType.IPrimitiveAction, error) {
 	return tn_api.LoadPrimitiveActions(tn_api.NewActionOptions{
 		Client: c.kwilClient,
 	})
 }
 
-//func (c *Client) LoadComposedStream(streamLocator clientType.StreamLocator) (clientType.IComposedStream, error) {
-//	return tn_api.LoadComposedStream(tn_api.NewActionOptions{
-//		Client:   c.kwilClient,
-//		StreamId: streamLocator.StreamId,
-//		Deployer: streamLocator.DataProvider.Bytes(),
-//	})
-//}
+func (c *Client) LoadComposedActions() (clientType.IComposedAction, error) {
+	return tn_api.LoadComposedActions(tn_api.NewActionOptions{
+		Client: c.kwilClient,
+	})
+}
 
 func (c *Client) OwnStreamLocator(streamId util.StreamId) clientType.StreamLocator {
 	return clientType.StreamLocator{

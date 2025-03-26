@@ -11,11 +11,11 @@ import (
 
 // ## Initializations
 
-type Stream struct {
+type Action struct {
 	_client *client.Client
 }
 
-var _ tntypes.IActions = (*Stream)(nil)
+var _ tntypes.IAction = (*Action)(nil)
 
 type NewActionOptions struct {
 	Client *client.Client
@@ -28,28 +28,28 @@ var (
 )
 
 // NewStream creates a new stream, it is straightforward and only requires the stream id and the deployer
-//func NewStream(options NewActionOptions) (*Stream, error) {
-//	return &Stream{
+//func NewStream(options NewActionOptions) (*Action, error) {
+//	return &Action{
 //		_client: options.Client,
 //	}, nil
 //}
 
-// LoadStream loads an existing stream, so it also checks if the stream is deployed
-func LoadStream(options NewActionOptions) (*Stream, error) {
-	return &Stream{
+// LoadAction loads an existing stream, so it also checks if the stream is deployed
+func LoadAction(options NewActionOptions) (*Action, error) {
+	return &Action{
 		_client: options.Client,
 	}, nil
 }
 
-//func (s *Stream) ToComposedStream() (*ComposedStream, error) {
+//func (s *Action) ToComposedStream() (*ComposedAction, error) {
 //	return ComposedStreamFromStream(*s)
 //}
 
-func (s *Stream) ToPrimitiveStream() (*PrimitiveStream, error) {
+func (s *Action) ToPrimitiveStream() (*PrimitiveAction, error) {
 	return PrimitiveStreamFromStream(*s)
 }
 
-//func (s *Stream) GetType(ctx context.Context) (tntypes.StreamType, error) {
+//func (s *Action) GetType(ctx context.Context) (tntypes.StreamType, error) {
 //	if s._type != "" {
 //		return s._type, nil
 //	}
@@ -83,7 +83,7 @@ func (s *Stream) ToPrimitiveStream() (*PrimitiveStream, error) {
 //	return s._type, nil
 //}
 
-//func (s *Stream) GetStreamOwner(ctx context.Context) ([]byte, error) {
+//func (s *Action) GetStreamOwner(ctx context.Context) ([]byte, error) {
 //	if s._owner != nil {
 //		return s._owner, nil
 //	}
@@ -109,7 +109,7 @@ func (s *Stream) ToPrimitiveStream() (*PrimitiveStream, error) {
 //	return s._owner, nil
 //}
 
-//func (s *Stream) checkInitialized(ctx context.Context) error {
+//func (s *Action) checkInitialized(ctx context.Context) error {
 //	// check if is deployed
 //	err := s.checkDeployed(ctx)
 //
@@ -126,7 +126,7 @@ func (s *Stream) ToPrimitiveStream() (*PrimitiveStream, error) {
 //	return nil
 //}
 
-//func (s *Stream) checkDeployed(ctx context.Context) error {
+//func (s *Action) checkDeployed(ctx context.Context) error {
 //	if s._deployed {
 //		return nil
 //	}
@@ -144,7 +144,7 @@ func (s *Stream) ToPrimitiveStream() (*PrimitiveStream, error) {
 //	return nil
 //}
 
-func (s *Stream) call(ctx context.Context, method string, args []any) (*types.QueryResult, error) {
+func (s *Action) call(ctx context.Context, method string, args []any) (*types.QueryResult, error) {
 	result, err := s._client.Call(ctx, "", method, args)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -153,13 +153,13 @@ func (s *Stream) call(ctx context.Context, method string, args []any) (*types.Qu
 	return result.QueryResult, nil
 }
 
-func (s *Stream) execute(ctx context.Context, method string, args [][]any) (types.Hash, error) {
+func (s *Action) execute(ctx context.Context, method string, args [][]any) (types.Hash, error) {
 	return s._client.Execute(ctx, "", method, args)
 }
 
 // except for init, all write methods should be checked for initialization
 // this prevents unknown errors when trying to execute a method on a stream that is not initialized
-//func (s *Stream) checkedExecute(ctx context.Context, method string, args [][]any) (types.Hash, error) {
+//func (s *Action) checkedExecute(ctx context.Context, method string, args [][]any) (types.Hash, error) {
 //	err := s.checkInitialized(ctx)
 //	if err != nil {
 //		return types.Hash{}, errors.WithStack(err)

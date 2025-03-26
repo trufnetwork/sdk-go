@@ -9,24 +9,24 @@ import (
 	"strconv"
 )
 
-type PrimitiveStream struct {
-	Stream
+type PrimitiveAction struct {
+	Action
 }
 
-var _ types.IPrimitiveActions = (*PrimitiveStream)(nil)
+var _ types.IPrimitiveAction = (*PrimitiveAction)(nil)
 
 var (
 	ErrorStreamNotPrimitive = errors.New("stream is not a primitive stream")
 )
 
-func PrimitiveStreamFromStream(stream Stream) (*PrimitiveStream, error) {
-	return &PrimitiveStream{
-		Stream: stream,
+func PrimitiveStreamFromStream(stream Action) (*PrimitiveAction, error) {
+	return &PrimitiveAction{
+		Action: stream,
 	}, nil
 }
 
-func LoadPrimitiveActions(options NewActionOptions) (*PrimitiveStream, error) {
-	stream, err := LoadStream(options)
+func LoadPrimitiveActions(options NewActionOptions) (*PrimitiveAction, error) {
+	stream, err := LoadAction(options)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -37,7 +37,7 @@ func LoadPrimitiveActions(options NewActionOptions) (*PrimitiveStream, error) {
 // and returns an error if it is not. Valid means:
 // - the stream is initialized
 // - the stream is a primitive stream
-func (p *PrimitiveStream) checkValidPrimitiveStream(ctx context.Context) error {
+func (p *PrimitiveAction) checkValidPrimitiveStream(ctx context.Context) error {
 	// first check if is initialized
 	//err := p.checkInitialized(ctx)
 	//if err != nil {
@@ -57,7 +57,7 @@ func (p *PrimitiveStream) checkValidPrimitiveStream(ctx context.Context) error {
 	return nil
 }
 
-func (p *PrimitiveStream) checkedExecute(ctx context.Context, method string, args [][]any, opts ...client.TxOpt) (kwiltypes.Hash, error) {
+func (p *PrimitiveAction) checkedExecute(ctx context.Context, method string, args [][]any, opts ...client.TxOpt) (kwiltypes.Hash, error) {
 	err := p.checkValidPrimitiveStream(ctx)
 	if err != nil {
 		return kwiltypes.Hash{}, errors.WithStack(err)
@@ -66,7 +66,7 @@ func (p *PrimitiveStream) checkedExecute(ctx context.Context, method string, arg
 	return p._client.Execute(ctx, "", method, args, opts...)
 }
 
-func (p *PrimitiveStream) InsertRecord(ctx context.Context, input types.InsertRecordInput, opts ...client.TxOpt) (kwiltypes.Hash, error) {
+func (p *PrimitiveAction) InsertRecord(ctx context.Context, input types.InsertRecordInput, opts ...client.TxOpt) (kwiltypes.Hash, error) {
 	valueNumeric, err := kwiltypes.ParseDecimalExplicit(strconv.FormatFloat(input.Value, 'f', -1, 64), 36, 18)
 	if err != nil {
 		return kwiltypes.Hash{}, errors.WithStack(err)
@@ -80,7 +80,7 @@ func (p *PrimitiveStream) InsertRecord(ctx context.Context, input types.InsertRe
 	}}, opts...)
 }
 
-//func (p *PrimitiveStream) InsertRecords(ctx context.Context, inputs []types.InsertRecordsInput, opts ...client.TxOpt) (kwiltypes.Hash, error) {
+//func (p *PrimitiveAction) InsertRecords(ctx context.Context, inputs []types.InsertRecordsInput, opts ...client.TxOpt) (kwiltypes.Hash, error) {
 //	var args [][]any
 //	for _, input := range inputs {
 //		dateStr := input.EventTime
@@ -93,7 +93,7 @@ func (p *PrimitiveStream) InsertRecord(ctx context.Context, input types.InsertRe
 //	return p.checkedExecute(ctx, "insert_records", args, opts...)
 //}
 
-//func (p *PrimitiveStream) GetFirstRecordUnix(ctx context.Context, input types.GetFirstRecordUnixInput) (*types.StreamRecordUnix, error) {
+//func (p *PrimitiveAction) GetFirstRecordUnix(ctx context.Context, input types.GetFirstRecordUnixInput) (*types.StreamRecordUnix, error) {
 //	err := p.checkValidPrimitiveStream(ctx)
 //	if err != nil {
 //		return nil, errors.WithStack(err)

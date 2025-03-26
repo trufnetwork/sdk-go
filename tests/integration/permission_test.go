@@ -142,9 +142,9 @@ package integration
 //			}})
 //
 //		// Load the composed stream for both owner and reader
-//		ownerComposedStream, err := ownerTnClient.LoadComposedStream(ownerTnClient.OwnStreamLocator(composedStreamId))
+//		ownerComposedStream, err := ownerTnClient.LoadComposedActions(ownerTnClient.OwnStreamLocator(composedStreamId))
 //		assertNoErrorOrFail(t, err, "Failed to load stream")
-//		readerComposedStream, err := readerTnClient.LoadComposedStream(ownerTnClient.OwnStreamLocator(composedStreamId))
+//		readerComposedStream, err := readerTnClient.LoadComposedActions(ownerTnClient.OwnStreamLocator(composedStreamId))
 //		assertNoErrorOrFail(t, err, "Failed to load stream")
 //
 //		// Test wallet read permissions for the composed stream

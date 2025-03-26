@@ -10,26 +10,26 @@ package contractsapi
 //	"github.com/trufnetwork/sdk-go/core/util"
 //)
 //
-//func (s *Stream) AllowReadWallet(ctx context.Context, wallet util.EthereumAddress) (kwiltypes.Hash, error) {
+//func (s *Action) AllowReadWallet(ctx context.Context, wallet util.EthereumAddress) (kwiltypes.Hash, error) {
 //	return s.insertMetadata(ctx, types.AllowReadWalletKey, types.NewMetadataValue(wallet.Address()))
 //}
 //
-//func (s *Stream) DisableReadWallet(ctx context.Context, wallet util.EthereumAddress) (kwiltypes.Hash, error) {
+//func (s *Action) DisableReadWallet(ctx context.Context, wallet util.EthereumAddress) (kwiltypes.Hash, error) {
 //	return s.disableMetadataByRef(ctx, types.AllowReadWalletKey, wallet.Address())
 //}
 //
-////func (s *Stream) AllowComposeStream(ctx context.Context, locator types.StreamLocator) (kwiltypes.Hash, error) {
+////func (s *Action) AllowComposeStream(ctx context.Context, locator types.StreamLocator) (kwiltypes.Hash, error) {
 ////	streamId := locator.StreamId
 ////	dbid := utils.GenerateDBID(streamId.String(), locator.DataProvider.Bytes())
 ////	return s.insertMetadata(ctx, types.AllowComposeStreamKey, types.NewMetadataValue(dbid))
 ////}
 //
-////func (s *Stream) DisableComposeStream(ctx context.Context, locator types.StreamLocator) (kwiltypes.Hash, error) {
+////func (s *Action) DisableComposeStream(ctx context.Context, locator types.StreamLocator) (kwiltypes.Hash, error) {
 ////	dbid := utils.GenerateDBID(locator.StreamId.String(), locator.DataProvider.Bytes())
 ////	return s.disableMetadataByRef(ctx, types.AllowComposeStreamKey, dbid)
 ////}
 //
-//func (s *Stream) GetComposeVisibility(ctx context.Context) (*util.VisibilityEnum, error) {
+//func (s *Action) GetComposeVisibility(ctx context.Context) (*util.VisibilityEnum, error) {
 //	results, err := s.getMetadata(ctx, getMetadataParams{
 //		Key:        types.ComposeVisibilityKey,
 //		OnlyLatest: true,
@@ -58,11 +58,11 @@ package contractsapi
 //	return &visibility, nil
 //}
 //
-//func (s *Stream) SetComposeVisibility(ctx context.Context, visibility util.VisibilityEnum) (kwiltypes.Hash, error) {
+//func (s *Action) SetComposeVisibility(ctx context.Context, visibility util.VisibilityEnum) (kwiltypes.Hash, error) {
 //	return s.insertMetadata(ctx, types.ComposeVisibilityKey, types.NewMetadataValue(int(visibility)))
 //}
 //
-//func (s *Stream) GetReadVisibility(ctx context.Context) (*util.VisibilityEnum, error) {
+//func (s *Action) GetReadVisibility(ctx context.Context) (*util.VisibilityEnum, error) {
 //	values, err := s.getMetadata(ctx, getMetadataParams{
 //		Key:        types.ReadVisibilityKey,
 //		OnlyLatest: true,
@@ -86,7 +86,7 @@ package contractsapi
 //	return &visibility, nil
 //}
 //
-//func (s *Stream) GetAllowedReadWallets(ctx context.Context) ([]util.EthereumAddress, error) {
+//func (s *Action) GetAllowedReadWallets(ctx context.Context) ([]util.EthereumAddress, error) {
 //	results, err := s.getMetadata(ctx, getMetadataParams{
 //		Key: types.AllowReadWalletKey,
 //	})
@@ -113,7 +113,7 @@ package contractsapi
 //	return wallets, nil
 //}
 //
-////func (s *Stream) GetAllowedComposeStreams(ctx context.Context) ([]types.StreamLocator, error) {
+////func (s *Action) GetAllowedComposeStreams(ctx context.Context) ([]types.StreamLocator, error) {
 ////	results, err := s.getMetadata(ctx, getMetadataParams{
 ////		Key: types.AllowComposeStreamKey,
 ////	})
@@ -160,17 +160,17 @@ package contractsapi
 ////	return streams, nil
 ////}
 //
-//func (s *Stream) SetReadVisibility(ctx context.Context, visibility util.VisibilityEnum) (kwiltypes.Hash, error) {
+//func (s *Action) SetReadVisibility(ctx context.Context, visibility util.VisibilityEnum) (kwiltypes.Hash, error) {
 //	return s.insertMetadata(ctx, types.ReadVisibilityKey, types.NewMetadataValue(int(visibility)))
 //}
 //
-//func (s *Stream) SetDefaultBaseDate(ctx context.Context, baseDate string) (kwiltypes.Hash, error) {
+//func (s *Action) SetDefaultBaseDate(ctx context.Context, baseDate string) (kwiltypes.Hash, error) {
 //	return s.insertMetadata(ctx, types.DefaultBaseDateKey, types.NewMetadataValue(baseDate))
 //}
 //
 //var MetadataValueNotFound = errors.New("metadata value not found")
 //
-//func (s *Stream) disableMetadataByRef(ctx context.Context, key types.MetadataKey, ref string) (kwiltypes.Hash, error) {
+//func (s *Action) disableMetadataByRef(ctx context.Context, key types.MetadataKey, ref string) (kwiltypes.Hash, error) {
 //	metadataList, err := s.getMetadata(ctx, getMetadataParams{
 //		Key:        key,
 //		OnlyLatest: true,
