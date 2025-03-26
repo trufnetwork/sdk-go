@@ -17,15 +17,14 @@ type EthereumAddress struct {
 }
 
 func NewEthereumAddressFromString(address string) (EthereumAddress, error) {
-	hexAddress := strings.ToLower(address)
 	// check if it has 0x prefix, normalize otherwise
-	if !strings.HasPrefix(hexAddress, "0x") {
-		hexAddress = "0x" + hexAddress
+	if !strings.HasPrefix(address, "0x") {
+		address = "0x" + address
 	}
 
 	ethereumAddress := EthereumAddress{
 		correctlyCreated: true,
-		hex:              hexAddress,
+		hex:              address,
 	}
 
 	if err := ethereumAddress.validate(); err != nil {

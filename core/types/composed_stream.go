@@ -4,21 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/golang-sql/civil"
 	"github.com/kwilteam/kwil-db/core/types"
 	"github.com/pkg/errors"
 )
 
 type Taxonomy struct {
-	TaxonomyItems []TaxonomyItem
-	StartDate     *civil.Date
-	EndDate       *civil.Date
-}
-
-type TaxonomyUnix struct {
+	ParentStream  StreamLocator
 	TaxonomyItems []TaxonomyItem
 	StartDate     *int
-	EndDate       *int
 }
 
 type TaxonomyItem struct {
@@ -31,17 +24,13 @@ type DescribeTaxonomiesParams struct {
 	LatestVersion bool
 }
 
-type IComposedStream interface {
-	// IActions methods are also available in IPrimitiveActions
-	IActions
-	// DescribeTaxonomies returns the taxonomy of the stream
+type IComposedAction interface {
+	// IAction methods are also available in IPrimitiveAction
+	IAction
+	// DescribeTaxonomies returns the taxonomy of the stream with Unix timestamp
 	DescribeTaxonomies(ctx context.Context, params DescribeTaxonomiesParams) (Taxonomy, error)
-	// DescribeTaxonomiesUnix returns the taxonomy of the stream with Unix timestamp
-	DescribeTaxonomiesUnix(ctx context.Context, params DescribeTaxonomiesParams) (TaxonomyUnix, error)
-	// SetTaxonomy sets the taxonomy of the stream
-	SetTaxonomy(ctx context.Context, taxonomies Taxonomy) (types.Hash, error)
 	// SetTaxonomyUnix sets the taxonomy of the stream with Unix timestamp
-	SetTaxonomyUnix(ctx context.Context, taxonomies TaxonomyUnix) (types.Hash, error)
+	InsertTaxonomy(ctx context.Context, taxonomies Taxonomy) (types.Hash, error)
 }
 
 // MarshalJSON Custom marshaler for TaxonomyDefinition

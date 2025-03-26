@@ -36,7 +36,7 @@ type StreamRecord struct {
 
 type StreamIndex = StreamRecord
 
-type IActions interface {
+type IAction interface {
 	// ExecuteProcedure Executes an arbitrary procedure on the stream. Execute refers to the write calls
 	//ExecuteProcedure(ctx context.Context, procedure string, args [][]any) (types.Hash, error)
 	// CallProcedure calls an arbitrary procedure on the stream. Call refers to the read calls

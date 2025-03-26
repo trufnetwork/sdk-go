@@ -127,7 +127,7 @@ package integration
 //	waitTxToBeMinedWithSuccess(t, ctx, tnClient, insertTxHash)
 //
 //	// Load the composed stream
-//	composedStream, err := tnClient.LoadComposedStream(tnClient.OwnStreamLocator(composedStreamId))
+//	composedStream, err := tnClient.LoadComposedActions(tnClient.OwnStreamLocator(composedStreamId))
 //	assertNoErrorOrFail(t, err, "Failed to load composed stream")
 //
 //	// Get records from the composed stream

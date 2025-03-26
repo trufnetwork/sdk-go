@@ -77,7 +77,7 @@ import (
 //		return append(oldArgs, newArg)
 //	}
 //
-// func (s *Stream) getMetadata(ctx context.Context, params getMetadataParams) ([]getMetadataResult, error) {
+// func (s *Action) getMetadata(ctx context.Context, params getMetadataParams) ([]getMetadataResult, error) {
 //
 //		var args []any
 //
@@ -101,7 +101,7 @@ import (
 //		Value types.MetadataValue
 //	}
 //
-//	func (s *Stream) batchInsertMetadata(ctx context.Context, inputs []metadataInput) (kwiltypes.Hash, error) {
+//	func (s *Action) batchInsertMetadata(ctx context.Context, inputs []metadataInput) (kwiltypes.Hash, error) {
 //		var tuples [][]any
 //		for _, input := range inputs {
 //			valType := input.Key.GetType()
@@ -116,21 +116,21 @@ import (
 //		return s.checkedExecute(ctx, "insert_metadata", tuples)
 //	}
 //
-//	func (s *Stream) insertMetadata(ctx context.Context, key types.MetadataKey, value types.MetadataValue) (kwiltypes.Hash, error) {
+//	func (s *Action) insertMetadata(ctx context.Context, key types.MetadataKey, value types.MetadataValue) (kwiltypes.Hash, error) {
 //		return s.batchInsertMetadata(ctx, []metadataInput{{key, value}})
 //	}
 //
-//	func (s *Stream) disableMetadata(ctx context.Context, rowId string) (kwiltypes.Hash, error) {
+//	func (s *Action) disableMetadata(ctx context.Context, rowId string) (kwiltypes.Hash, error) {
 //		return s.checkedExecute(ctx, "disable_metadata", [][]any{{rowId}})
 //	}
 //
-//	func (s *Stream) InitializeStream(ctx context.Context) (kwiltypes.Hash, error) {
+//	func (s *Action) InitializeStream(ctx context.Context) (kwiltypes.Hash, error) {
 //		return s.execute(ctx, "init", nil)
 //	}
 //
 // // ExecuteProcedure is a wrapper around the execute function, just to be explicit that users can execute arbitrary procedures
 //
-//	func (s *Stream) ExecuteProcedure(ctx context.Context, procedure string, args [][]any) (kwiltypes.Hash, error) {
+//	func (s *Action) ExecuteProcedure(ctx context.Context, procedure string, args [][]any) (kwiltypes.Hash, error) {
 //		return s.execute(ctx, procedure, args)
 //	}
 type GetRecordRawOutput struct {
@@ -148,11 +148,11 @@ func transformOrNil[T any](value *T, transform func(T) any) any {
 
 // // CallProcedure is a wrapper around the call function, just to be explicit that users can call arbitrary procedures
 //
-//	func (s *Stream) CallProcedure(ctx context.Context, procedure string, args []any) (*kwiltypes.QueryResult, error) {
+//	func (s *Action) CallProcedure(ctx context.Context, procedure string, args []any) (*kwiltypes.QueryResult, error) {
 //		return s.call(ctx, procedure, args)
 //	}
 
-func (s *Stream) GetRecord(ctx context.Context, input types.GetRecordInput) ([]types.StreamRecord, error) {
+func (s *Action) GetRecord(ctx context.Context, input types.GetRecordInput) ([]types.StreamRecord, error) {
 	var args []any
 	args = append(args, input.DataProvider)
 	args = append(args, input.StreamId)
@@ -200,7 +200,7 @@ func (s *Stream) GetRecord(ctx context.Context, input types.GetRecordInput) ([]t
 //type GetIndexRawOutput = GetRecordRawOutput
 //type GetIndexUnixRawOutput = GetRecordUnixRawOutput
 //
-//func (s *Stream) GetIndex(ctx context.Context, input types.GetIndexInput) ([]types.StreamIndex, error) {
+//func (s *Action) GetIndex(ctx context.Context, input types.GetIndexInput) ([]types.StreamIndex, error) {
 //	var args []any
 //	args = append(args, transformOrNil(input.From, func(date civil.Date) any { return date.String() }))
 //	args = append(args, transformOrNil(input.To, func(date civil.Date) any { return date.String() }))
@@ -236,7 +236,7 @@ func (s *Stream) GetRecord(ctx context.Context, input types.GetRecordInput) ([]t
 //	return outputs, nil
 //}
 //
-//func (s *Stream) GetIndexUnix(ctx context.Context, input types.GetIndexUnixInput) ([]types.StreamIndexUnix, error) {
+//func (s *Action) GetIndexUnix(ctx context.Context, input types.GetIndexUnixInput) ([]types.StreamIndexUnix, error) {
 //	var args []any
 //	args = append(args, transformOrNil(input.From, func(date int) any { return date }))
 //	args = append(args, transformOrNil(input.To, func(date int) any { return date }))
@@ -269,7 +269,7 @@ func (s *Stream) GetRecord(ctx context.Context, input types.GetRecordInput) ([]t
 //}
 //
 //// GetFirstRecord(ctx context.Context, input GetFirstRecordInput) (*StreamRecord, error)
-//func (s *Stream) GetFirstRecord(ctx context.Context, input types.GetFirstRecordInput) (*types.StreamRecord, error) {
+//func (s *Action) GetFirstRecord(ctx context.Context, input types.GetFirstRecordInput) (*types.StreamRecord, error) {
 //	var args []any
 //	args = append(args, transformOrNil(input.AfterDate, func(date civil.Date) any { return date.String() }))
 //	args = append(args, transformOrNil(input.FrozenAt, func(date time.Time) any { return date.UTC().Format(time.RFC3339) }))
@@ -304,7 +304,7 @@ func (s *Stream) GetRecord(ctx context.Context, input types.GetRecordInput) ([]t
 //	}, nil
 //}
 //
-//func (s *Stream) GetFirstRecordUnix(ctx context.Context, input types.GetFirstRecordUnixInput) (*types.StreamRecordUnix, error) {
+//func (s *Action) GetFirstRecordUnix(ctx context.Context, input types.GetFirstRecordUnixInput) (*types.StreamRecordUnix, error) {
 //	var args []any
 //	args = append(args, transformOrNil(input.AfterDate, func(date int) any { return date }))
 //	args = append(args, transformOrNil(input.FrozenAt, func(date time.Time) any { return date.UTC().Format(time.RFC3339) }))

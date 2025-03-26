@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	kwiltypes "github.com/kwilteam/kwil-db/core/types"
 	"testing"
 	"time"
@@ -52,56 +53,23 @@ func deployTestPrimitiveStreamWithData(
 	assertNoErrorOrFail(t, err, "Failed to deploy stream")
 	waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
 
-	//address, err := util.NewEthereumAddressFromBytes(tnClient.GetSigner().PubKey().Bytes())
-	//assertNoErrorOrFail(t, err, "Failed to create signer address")
+	address, err := auth.EthSecp256k1Authenticator{}.Identifier(tnClient.GetSigner().CompactID())
+	assertNoErrorOrFail(t, err, "Failed to create signer address")
 
-	//streamLocator := types.StreamLocator{
-	//	StreamId:     streamId,
-	//	DataProvider: address,
-	//}
+	primitiveActions, err := tnClient.LoadPrimitiveActions()
+	assertNoErrorOrFail(t, err, "Failed to load stream")
 
-	//deployedStream, err := tnClient.LoadPrimitiveActions(streamLocator)
-	//assertNoErrorOrFail(t, err, "Failed to load stream")
-	//
-	//txHashInit, err := deployedStream.InitializeStream(ctx)
-	//assertNoErrorOrFail(t, err, "Failed to initialize stream")
-	//waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInit)
-	//
-	//txHashInsert, err := deployedStream.InsertRecords(ctx, data)
-	//assertNoErrorOrFail(t, err, "Failed to insert record")
-	//waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInsert)
+	for _, record := range data {
+		txHashInsert, err := primitiveActions.InsertRecord(ctx, types.InsertRecordInput{
+			DataProvider: address,
+			StreamId:     streamId.String(),
+			EventTime:    record.EventTime,
+			Value:        record.Value,
+		})
+		assertNoErrorOrFail(t, err, "Failed to insert record")
+		waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInsert)
+	}
 }
-
-//func deployTestPrimitiveStreamUnixWithData(
-//	t *testing.T,
-//	ctx context.Context,
-//	tnClient *tnclient.Client,
-//	streamId util.StreamId,
-//	data []types.InsertRecordUnixInput,
-//) {
-//	deployTxHash, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitiveUnix)
-//	assertNoErrorOrFail(t, err, "Failed to deploy stream")
-//	waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
-//
-//	address, err := util.NewEthereumAddressFromBytes(tnClient.GetSigner().Identity())
-//	assertNoErrorOrFail(t, err, "Failed to create signer address")
-//
-//	streamLocator := types.StreamLocator{
-//		StreamId:     streamId,
-//		DataProvider: address,
-//	}
-//
-//	deployedStream, err := tnClient.LoadPrimitiveActions(streamLocator)
-//	assertNoErrorOrFail(t, err, "Failed to load stream")
-//
-//	txHashInit, err := deployedStream.InitializeStream(ctx)
-//	assertNoErrorOrFail(t, err, "Failed to initialize stream")
-//	waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInit)
-//
-//	txHashInsert, err := deployedStream.InsertRecordsUnix(ctx, data)
-//	assertNoErrorOrFail(t, err, "Failed to insert record")
-//	waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInsert)
-//}
 
 //func deployTestComposedStreamWithTaxonomy(
 //	t *testing.T,
@@ -122,14 +90,14 @@ func deployTestPrimitiveStreamWithData(
 //		DataProvider: address,
 //	}
 //
-//	deployedStream, err := tnClient.LoadComposedStream(streamLocator)
+//	deployedStream, err := tnClient.LoadComposedActions(streamLocator)
 //	assertNoErrorOrFail(t, err, "Failed to load stream")
 //
 //	txHashInit, err := deployedStream.InitializeStream(ctx)
 //	assertNoErrorOrFail(t, err, "Failed to initialize stream")
 //	waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInit)
 //
-//	txHashTax, err := deployedStream.SetTaxonomy(ctx, taxonomies)
+//	txHashTax, err := deployedStream.InsertTaxonomy(ctx, taxonomies)
 //	assertNoErrorOrFail(t, err, "Failed to set taxonomy")
 //	waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashTax)
 //}

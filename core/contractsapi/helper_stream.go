@@ -12,14 +12,14 @@ package contractsapi
 //
 //// HelperStream implements the IAdminContract interface
 //type HelperStream struct {
-//	Stream
+//	Action
 //}
 //
 //var _ types.IHelperStream = (*HelperStream)(nil)
 //
-//func HelperStreamFromStream(stream Stream) (*HelperStream, error) {
+//func HelperStreamFromStream(stream Action) (*HelperStream, error) {
 //	return &HelperStream{
-//		Stream: stream,
+//		Action: stream,
 //	}, nil
 //}
 //
@@ -33,7 +33,7 @@ package contractsapi
 //
 //// CheckDeployed checks if the contract is deployed
 ////func (c *HelperStream) CheckDeployed(ctx context.Context) (bool, error) {
-////	_, err := c.Stream._client.GetSchema(ctx, c.Stream.DBID)
+////	_, err := c.Action._client.GetSchema(ctx, c.Action.DBID)
 ////	// if the error message CONTAINS "not found", the contract is not deployed
 ////	if err != nil && strings.Contains(err.Error(), "dataset not found") {
 ////		return false, nil
