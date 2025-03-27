@@ -41,6 +41,7 @@ func TestComposedActions(t *testing.T) {
 	childBStreamId := util.GenerateStreamId("test-composed-stream-child-b-unix")
 
 	allStreamIds := []util.StreamId{streamId, childAStreamId, childBStreamId}
+	primitiveStreamIds := []util.StreamId{childAStreamId, childBStreamId}
 
 	// Cleanup function to destroy the streams after test completion
 	t.Cleanup(func() {
@@ -71,20 +72,19 @@ func TestComposedActions(t *testing.T) {
 		// | 2020-01-01 | 1      | 3      |
 		// | 2020-01-02 | 2      | 4      |
 
-		deployTestPrimitiveStreamWithData(t, ctx, tnClient, childAStreamId, []types.InsertRecordInput{
-			{Value: 1, EventTime: 1},
-			{Value: 2, EventTime: 2},
-			{Value: 3, EventTime: 3},
-			{Value: 4, EventTime: 4},
-			{Value: 5, EventTime: 5},
-		})
+		deployTestPrimitiveStreamWithData(t, ctx, tnClient, primitiveStreamIds, []types.InsertRecordInput{
+			// Child A
+			{DataProvider: signerAddress.Address(), StreamId: childAStreamId.String(), Value: 2, EventTime: 2},
+			{DataProvider: signerAddress.Address(), StreamId: childAStreamId.String(), Value: 3, EventTime: 3},
+			{DataProvider: signerAddress.Address(), StreamId: childAStreamId.String(), Value: 4, EventTime: 4},
+			{DataProvider: signerAddress.Address(), StreamId: childAStreamId.String(), Value: 5, EventTime: 5},
 
-		deployTestPrimitiveStreamWithData(t, ctx, tnClient, childBStreamId, []types.InsertRecordInput{
-			{Value: 3, EventTime: 1},
-			{Value: 4, EventTime: 2},
-			{Value: 5, EventTime: 3},
-			{Value: 6, EventTime: 4},
-			{Value: 7, EventTime: 5},
+			// Child B
+			{DataProvider: signerAddress.Address(), StreamId: childBStreamId.String(), Value: 3, EventTime: 1},
+			{DataProvider: signerAddress.Address(), StreamId: childBStreamId.String(), Value: 4, EventTime: 2},
+			{DataProvider: signerAddress.Address(), StreamId: childBStreamId.String(), Value: 5, EventTime: 3},
+			{DataProvider: signerAddress.Address(), StreamId: childBStreamId.String(), Value: 6, EventTime: 4},
+			{DataProvider: signerAddress.Address(), StreamId: childBStreamId.String(), Value: 7, EventTime: 5},
 		})
 
 		// Step 3: Set taxonomies for the composed stream

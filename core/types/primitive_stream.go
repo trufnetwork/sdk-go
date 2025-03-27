@@ -14,20 +14,13 @@ type InsertRecordInput struct {
 	Value        float64
 }
 
-type InsertRecordsInput struct {
-	DataProvider []string
-	StreamId     []string
-	DateValue    []int
-	Value        []float64
-}
-
 type IPrimitiveAction interface {
 	// IAction methods are also available in IPrimitiveAction
 	IAction
 	// InsertRecord insert a recors into the stream
 	InsertRecord(ctx context.Context, inputs InsertRecordInput, opts ...kwilClientType.TxOpt) (types.Hash, error)
 	// InsertRecords inserts records into the stream
-	//InsertRecords(ctx context.Context, inputs []InsertRecordInput, opts ...kwilClientType.TxOpt) (types.Hash, error)
+	InsertRecords(ctx context.Context, inputs []InsertRecordInput, opts ...kwilClientType.TxOpt) (types.Hash, error)
 	// InsertRecordsUnix inserts records into the stream
 	//InsertRecordsUnix(ctx context.Context, inputs []InsertRecordUnixInput, opts ...kwilClientType.TxOpt) (types.Hash, error)
 	// GetFirstRecordUnix gets the first record of the stream with Unix timestamp
