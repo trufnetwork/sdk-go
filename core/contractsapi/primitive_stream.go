@@ -80,18 +80,33 @@ func (p *PrimitiveAction) InsertRecord(ctx context.Context, input types.InsertRe
 	}}, opts...)
 }
 
-//func (p *PrimitiveAction) InsertRecords(ctx context.Context, inputs []types.InsertRecordsInput, opts ...client.TxOpt) (kwiltypes.Hash, error) {
-//	var args [][]any
-//	for _, input := range inputs {
-//		dateStr := input.EventTime
-//		args = append(args, []any{
-//			dateStr,
-//			fmt.Sprintf("%f", input.Value),
-//		})
-//	}
-//
-//	return p.checkedExecute(ctx, "insert_records", args, opts...)
-//}
+func (p *PrimitiveAction) InsertRecords(ctx context.Context, inputs []types.InsertRecordInput, opts ...client.TxOpt) (kwiltypes.Hash, error) {
+	var (
+		dataProviders []string
+		streamIds     []string
+		eventTimes    []int
+		values        kwiltypes.DecimalArray
+	)
+
+	for _, input := range inputs {
+		valueNumeric, err := kwiltypes.ParseDecimalExplicit(strconv.FormatFloat(input.Value, 'f', -1, 64), 36, 18)
+		if err != nil {
+			return kwiltypes.Hash{}, errors.WithStack(err)
+		}
+
+		dataProviders = append(dataProviders, input.DataProvider)
+		streamIds = append(streamIds, input.StreamId)
+		eventTimes = append(eventTimes, input.EventTime)
+		values = append(values, valueNumeric)
+	}
+
+	return p.checkedExecute(ctx, "insert_records", [][]any{{
+		dataProviders,
+		streamIds,
+		eventTimes,
+		values,
+	}}, opts...)
+}
 
 //func (p *PrimitiveAction) GetFirstRecordUnix(ctx context.Context, input types.GetFirstRecordUnixInput) (*types.StreamRecordUnix, error) {
 //	err := p.checkValidPrimitiveStream(ctx)

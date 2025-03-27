@@ -2,7 +2,6 @@ package integration
 
 import (
 	"context"
-	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	kwiltypes "github.com/kwilteam/kwil-db/core/types"
 	"testing"
 	"time"
@@ -46,29 +45,21 @@ func deployTestPrimitiveStreamWithData(
 	t *testing.T,
 	ctx context.Context,
 	tnClient *tnclient.Client,
-	streamId util.StreamId,
+	streamIds []util.StreamId,
 	data []types.InsertRecordInput,
 ) {
-	deployTxHash, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitive)
-	assertNoErrorOrFail(t, err, "Failed to deploy stream")
-	waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
-
-	address, err := auth.EthSecp256k1Authenticator{}.Identifier(tnClient.GetSigner().CompactID())
-	assertNoErrorOrFail(t, err, "Failed to create signer address")
+	for _, streamId := range streamIds {
+		deployTxHash, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitive)
+		assertNoErrorOrFail(t, err, "Failed to deploy stream")
+		waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
+	}
 
 	primitiveActions, err := tnClient.LoadPrimitiveActions()
 	assertNoErrorOrFail(t, err, "Failed to load stream")
 
-	for _, record := range data {
-		txHashInsert, err := primitiveActions.InsertRecord(ctx, types.InsertRecordInput{
-			DataProvider: address,
-			StreamId:     streamId.String(),
-			EventTime:    record.EventTime,
-			Value:        record.Value,
-		})
-		assertNoErrorOrFail(t, err, "Failed to insert record")
-		waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInsert)
-	}
+	txHashInsert, err := primitiveActions.InsertRecords(ctx, data)
+	assertNoErrorOrFail(t, err, "Failed to insert records")
+	waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInsert)
 }
 
 //func deployTestComposedStreamWithTaxonomy(
