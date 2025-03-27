@@ -174,28 +174,32 @@ func TestComposedActions(t *testing.T) {
 
 		// Step 5: Query the composed stream for index
 		// Query the index within a specific date range
-		//mockDateFrom3 := 3
-		//mockDateTo3 := 4
-		//mockBaseDate := 3
-		//index, err := deployedComposedStream.GetIndexUnix(ctx, types.GetIndexUnixInput{
-		//	From:     &mockDateFrom3,
-		//	To:       &mockDateTo3,
-		//	BaseDate: &mockBaseDate,
-		//})
+		mockDateFrom3 := 3
+		mockDateTo3 := 4
+		mockBaseDate := 3
+		index, err := deployedComposedStream.GetIndex(ctx, types.GetIndexInput{
+			DataProvider: signerAddress.Address(),
+			StreamId:     streamId.String(),
+			From:         &mockDateFrom3,
+			To:           &mockDateTo3,
+			BaseDate:     &mockBaseDate,
+		})
 
 		//assertNoErrorOrFail(t, err, "Failed to get index")
-		//assert.Equal(t, 2, len(index))
-		//checkRecord(index[0], 100)                // index on base date is expected to be 100
-		//checkRecord(index[1], 124.44444444444444) // it is x% away from the base date + 1 in percentage
+		assert.Equal(t, 2, len(index))
+		checkRecord(index[0], 100)                // index on base date is expected to be 100
+		checkRecord(index[1], 124.44444444444444) // it is x% away from the base date + 1 in percentage
 
 		// Query the index before the set start date
-		//mockDateFrom4 := 4
-		//mockDateTo4 := 5
-		//indexBefore, errBefore := deployedComposedStream.GetIndexUnix(ctx, types.GetIndexUnixInput{
-		//	From: &mockDateFrom4,
-		//	To:   &mockDateTo4,
-		//})
-		//assertNoErrorOrFail(t, errBefore, "Failed to get index before start date")
-		//assert.NotNil(t, indexBefore, "Index before start date should not be nil")
+		mockDateFrom4 := 1
+		mockDateTo4 := 2
+		indexBefore, errBefore := deployedComposedStream.GetIndex(ctx, types.GetIndexInput{
+			DataProvider: signerAddress.Address(),
+			StreamId:     streamId.String(),
+			From:         &mockDateFrom4,
+			To:           &mockDateTo4,
+		})
+		assertNoErrorOrFail(t, errBefore, "Failed to get index before start date")
+		assert.Nil(t, indexBefore, "Index before start date should not be nil as there is no active index before the start date")
 	})
 }

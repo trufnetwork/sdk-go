@@ -45,11 +45,7 @@ type IAction interface {
 	// GetRecord reads the records of the stream within the given date range
 	GetRecord(ctx context.Context, input GetRecordInput) ([]StreamRecord, error)
 	// GetIndex reads the index of the stream within the given date range
-	//GetIndex(ctx context.Context, input GetIndexInput) ([]StreamIndex, error)
-	//GetRecordUnix reads the records of the stream within the given date rang
-	//GetRecordUnix(ctx context.Context, input GetRecordUnixInput) ([]StreamRecordUnix, error)
-	// GetIndexUnix reads the index of the stream within the given date range
-	//GetIndexUnix(ctx context.Context, input GetIndexUnixInput) ([]StreamIndexUnix, error)
+	GetIndex(ctx context.Context, input GetIndexInput) ([]StreamIndex, error)
 	// GetType gets the type of the stream -- Primitive or Composed
 	//GetType(ctx context.Context) (StreamType, error)
 	// GetFirstRecord gets the first record of the stream

@@ -124,10 +124,14 @@ func (c *Client) OwnStreamLocator(streamId util.StreamId) clientType.StreamLocat
 }
 
 func (c *Client) Address() util.EthereumAddress {
-	address, err := util.NewEthereumAddressFromBytes(c.kwilClient.Signer().PubKey().Bytes())
+	addr, err := auth.EthSecp256k1Authenticator{}.Identifier(c.kwilClient.Signer().CompactID())
 	if err != nil {
 		// should never happen
 		logging.Logger.Panic("failed to get address from signer", zap.Error(err))
+	}
+	address, err := util.NewEthereumAddressFromString(addr)
+	if err != nil {
+		logging.Logger.Panic("failed to create address from string", zap.Error(err))
 	}
 	return address
 }

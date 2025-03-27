@@ -24,8 +24,6 @@ type Client interface {
 	LoadPrimitiveActions() (IPrimitiveAction, error)
 	// LoadComposedActions loads a already deployed composed stream, permitting its API usage
 	LoadComposedActions() (IComposedAction, error)
-	// LoadHelperStream loads a already deployed helper stream, permitting its API usage
-	//LoadHelperStream(stream StreamLocator) (IHelperStream, error)
 	/*
 	 * utils for the client
 	 */
@@ -38,7 +36,7 @@ type Client interface {
 	// GetAllInitializedStreams returns all streams from the Truf Network that are initialized
 	//GetAllInitializedStreams(ctx context.Context, input GetAllStreamsInput) ([]StreamLocator, error)
 	// DeployComposedStreamWithTaxonomy deploys a composed stream with a taxonomy
-	//DeployComposedStreamWithTaxonomy(ctx context.Context, streamId util.StreamId, taxonomy Taxonomy) error
+	DeployComposedStreamWithTaxonomy(ctx context.Context, streamId util.StreamId, taxonomy Taxonomy) error
 }
 
 type GetAllStreamsInput struct {
