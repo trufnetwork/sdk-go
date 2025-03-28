@@ -3,8 +3,6 @@ package contractsapi
 import (
 	"context"
 	kwiltypes "github.com/kwilteam/kwil-db/core/types"
-
-	// "github.com/kwilteam/kwil-db/core/types/transactions"
 	"github.com/pkg/errors"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
@@ -36,31 +34,22 @@ func LoadComposedActions(opts NewActionOptions) (*ComposedAction, error) {
 	return ComposedStreamFromStream(*stream)
 }
 
-// checkValidComposedStream checks if the stream is a valid composed stream
+// CheckValidComposedStream checks if the stream is a valid composed stream
 // and returns an error if it is not. Valid means:
 // - the stream is initialized
 // - the stream is a composed stream
-func (c *ComposedAction) checkValidComposedStream(ctx context.Context) error {
+func (c *ComposedAction) CheckValidComposedStream(ctx context.Context, locator types.StreamLocator) error {
 	// then check if is composed
-	//streamType, err := c.GetType(ctx)
-	//if err != nil {
-	//	return errors.WithStack(err)
-	//}
-
-	//if streamType != types.StreamTypeComposed {
-	//	return ErrorStreamNotComposed
-	//}
-
-	return nil
-}
-
-func (c *ComposedAction) checkedExecute(ctx context.Context, method string, args [][]any) (kwiltypes.Hash, error) {
-	err := c.checkValidComposedStream(ctx)
+	streamType, err := c.GetType(ctx, locator)
 	if err != nil {
-		return kwiltypes.Hash{}, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 
-	return c.execute(ctx, method, args)
+	if streamType != types.StreamTypeComposed {
+		return ErrorStreamNotComposed
+	}
+
+	return nil
 }
 
 type DescribeTaxonomiesResult struct {
@@ -177,7 +166,12 @@ func (c *ComposedAction) InsertTaxonomy(ctx context.Context, taxonomies types.Ta
 		startDate = *taxonomies.StartDate
 	}
 
-	var args [][]any
-	args = append(args, []any{taxonomies.ParentStream.DataProvider.Address(), taxonomies.ParentStream.StreamId.String(), childDataProviders, childStreamIDs.Strings(), weights, startDate})
-	return c.checkedExecute(ctx, "insert_taxonomy", args)
+	return c.execute(ctx, "insert_taxonomy", [][]any{{
+		taxonomies.ParentStream.DataProvider.Address(),
+		taxonomies.ParentStream.StreamId.String(),
+		childDataProviders,
+		childStreamIDs.Strings(),
+		weights,
+		startDate,
+	}})
 }

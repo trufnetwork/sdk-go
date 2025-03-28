@@ -3,8 +3,6 @@ package contractsapi
 import (
 	"encoding/json"
 	kwiltypes "github.com/kwilteam/kwil-db/core/types"
-
-	// "github.com/kwilteam/kwil-db/core/types/client"
 	"github.com/pkg/errors"
 )
 

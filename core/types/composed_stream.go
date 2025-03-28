@@ -32,8 +32,10 @@ type IComposedAction interface {
 	IAction
 	// DescribeTaxonomies returns the taxonomy of the stream with Unix timestamp
 	DescribeTaxonomies(ctx context.Context, params DescribeTaxonomiesParams) (Taxonomy, error)
-	// SetTaxonomyUnix sets the taxonomy of the stream with Unix timestamp
+	// InsertTaxonomy sets the taxonomy of the stream with Unix timestamp
 	InsertTaxonomy(ctx context.Context, taxonomies Taxonomy) (types.Hash, error)
+	// CheckValidComposedStream checks if the stream is a valid composed stream
+	CheckValidComposedStream(ctx context.Context, locator StreamLocator) error
 }
 
 // MarshalJSON Custom marshaler for TaxonomyDefinition

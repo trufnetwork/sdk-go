@@ -2,9 +2,9 @@ package contractsapi
 
 import (
 	"context"
+	"encoding/hex"
 	"github.com/kwilteam/kwil-db/core/client"
 	kwilTypes "github.com/kwilteam/kwil-db/core/types"
-
 	"github.com/pkg/errors"
 	"github.com/trufnetwork/sdk-go/core/types"
 )
@@ -23,16 +23,8 @@ type NewActionOptions struct {
 
 var (
 	ErrorStreamNotFound = errors.New("stream not found")
-	ErrorDatasetExists  = errors.New("dataset exists")
 	ErrorRecordNotFound = errors.New("record not found")
 )
-
-// NewStream creates a new stream, it is straightforward and only requires the stream id and the deployer
-//func NewStream(options NewActionOptions) (*Action, error) {
-//	return &Action{
-//		_client: options.Client,
-//	}, nil
-//}
 
 // LoadAction loads an existing stream, so it also checks if the stream is deployed
 func LoadAction(options NewActionOptions) (*Action, error) {
@@ -41,75 +33,57 @@ func LoadAction(options NewActionOptions) (*Action, error) {
 	}, nil
 }
 
-//func (s *Action) ToComposedStream() (*ComposedAction, error) {
-//	return ComposedStreamFromStream(*s)
-//}
-
 func (s *Action) ToPrimitiveStream() (*PrimitiveAction, error) {
 	return PrimitiveStreamFromStream(*s)
 }
 
-//func (s *Action) GetType(ctx context.Context) (tntypes.StreamType, error) {
-//	if s._type != "" {
-//		return s._type, nil
-//	}
-//
-//	values, err := s.getMetadata(ctx, getMetadataParams{
-//		Key:        "type",
-//		OnlyLatest: true,
-//	})
-//	if err != nil {
-//		return "", errors.WithStack(err)
-//	}
-//
-//	if len(values) == 0 {
-//		// type can't ever be disabled
-//		return "", errors.New("no type found, check if the stream is initialized")
-//	}
-//
-//	switch values[0].ValueS {
-//	case "composed":
-//		s._type = tntypes.StreamTypeComposed
-//	case "primitive":
-//		s._type = tntypes.StreamTypePrimitive
-//	default:
-//		return "", errors.New(fmt.Sprintf("unknown stream type: %s", values[0].ValueS))
-//	}
-//
-//	if s._type == "" {
-//		return "", errors.New("stream type is not set")
-//	}
-//
-//	return s._type, nil
-//}
+func (s *Action) GetType(ctx context.Context, locator types.StreamLocator) (types.StreamType, error) {
+	results, err := s.getMetadata(ctx, getMetadataParams{
+		Stream:  locator,
+		Key:     "type",
+		Limit:   1,
+		Offset:  0,
+		OrderBy: "created_at DESC",
+	})
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
 
-//func (s *Action) GetStreamOwner(ctx context.Context) ([]byte, error) {
-//	if s._owner != nil {
-//		return s._owner, nil
-//	}
-//
-//	values, err := s.getMetadata(ctx, getMetadataParams{
-//		Key:        "stream_owner",
-//		OnlyLatest: true,
-//	})
-//	if err != nil {
-//		return nil, errors.WithStack(err)
-//	}
-//
-//	if len(values) == 0 {
-//		// owner can't ever be disabled
-//		return nil, errors.New("no owner found (is the stream initialized?)")
-//	}
-//
-//	s._owner, err = hex.DecodeString(values[0].ValueRef)
-//	if err != nil {
-//		return nil, errors.WithStack(err)
-//	}
-//
-//	return s._owner, nil
-//}
+	if len(results) == 0 {
+		// type can't ever be disabled
+		return "", errors.New("no type found, check if the stream is initialized")
+	}
 
-func (s *Action) checkStreamExists(ctx context.Context, input types.CheckStreamExistsInput) error {
+	value, err := results[0].getValueByKey("type")
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+
+	return types.StreamType(value), nil
+}
+
+func (s *Action) GetStreamOwner(ctx context.Context, locator types.StreamLocator) ([]byte, error) {
+	values, err := s.getMetadata(ctx, getMetadataParams{
+		Stream:  locator,
+		Key:     "stream_owner",
+		Limit:   1,
+		Offset:  0,
+		OrderBy: "created_at DESC",
+	})
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	if len(values) == 0 {
+		// owner can't ever be disabled
+		return nil, errors.New("no owner found (is the stream initialized?)")
+	}
+
+	return hex.DecodeString(values[0].ValueRef)
+}
+
+// CheckStreamExists checks if the stream exists
+func (s *Action) CheckStreamExists(ctx context.Context, input types.CheckStreamExistsInput) error {
 	result, err := s._client.Call(ctx, "", "stream_exists", []any{input.DataProvider, input.StreamId})
 	if err != nil {
 		return errors.WithStack(err)
@@ -124,8 +98,15 @@ func (s *Action) checkStreamExists(ctx context.Context, input types.CheckStreamE
 
 func (s *Action) call(ctx context.Context, method string, args []any) (*kwilTypes.QueryResult, error) {
 	result, err := s._client.Call(ctx, "", method, args)
-	if err != nil {
+	if err != nil || result.Error != nil {
+		if result.Error != nil {
+			return nil, errors.New(*result.Error)
+		}
 		return nil, errors.WithStack(err)
+	}
+
+	if len(result.QueryResult.Values) == 0 {
+		return nil, ErrorRecordNotFound
 	}
 
 	return result.QueryResult, nil

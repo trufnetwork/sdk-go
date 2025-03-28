@@ -10,7 +10,6 @@ type StreamType string
 const (
 	StreamTypeComposed  StreamType = "composed"
 	StreamTypePrimitive StreamType = "primitive"
-	//StreamTypeHelper        StreamType = "helper"
 )
 
 func (s StreamType) String() string {

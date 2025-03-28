@@ -33,6 +33,7 @@ func TestPrimitiveActions(t *testing.T) {
 	// Generate a unique stream ID and locator
 	// The stream ID is used to uniquely identify the stream within TN
 	streamId := util.GenerateStreamId("test-primitive-stream-unix")
+	streamLocator := tnClient.OwnStreamLocator(streamId)
 
 	// Set up cleanup to destroy the stream after test completion
 	// This ensures that test streams don't persist in the network
@@ -49,6 +50,16 @@ func TestPrimitiveActions(t *testing.T) {
 
 	deployedPrimitiveStream, err := tnClient.LoadPrimitiveActions()
 	assertNoErrorOrFail(t, err, "Failed to load stream")
+
+	// Check stream validity
+
+	err = deployedPrimitiveStream.CheckValidPrimitiveStream(ctx, streamLocator)
+	assertNoErrorOrFail(t, err, "Failed to check stream validity")
+
+	// Check Type of the stream
+	streamType, err := deployedPrimitiveStream.GetType(ctx, streamLocator)
+	assertNoErrorOrFail(t, err, "Failed to get stream type")
+	assert.Equal(t, types.StreamTypePrimitive, streamType, "Expected stream type to be primitive")
 
 	//t.Run("EmptyStreamOperations", func(t *testing.T) {
 	//	// Query first record from empty stream
