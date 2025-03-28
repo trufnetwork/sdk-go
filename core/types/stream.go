@@ -2,10 +2,11 @@ package types
 
 import (
 	"context"
-	"time"
-
 	"github.com/cockroachdb/apd/v3"
 	"github.com/golang-sql/civil"
+	"github.com/kwilteam/kwil-db/node/types"
+	"github.com/trufnetwork/sdk-go/core/util"
+	"time"
 )
 
 type GetRecordInput struct {
@@ -36,6 +37,26 @@ type StreamRecord struct {
 
 type StreamIndex = StreamRecord
 
+type ReadWalletInput struct {
+	Stream StreamLocator
+	Wallet util.EthereumAddress
+}
+
+type VisibilityInput struct {
+	Stream     StreamLocator
+	Visibility util.VisibilityEnum
+}
+
+type CheckStreamExistsInput struct {
+	DataProvider string
+	StreamId     string
+}
+
+type DefaultBaseTimeInput struct {
+	Stream   StreamLocator
+	BaseTime int
+}
+
 type IAction interface {
 	// ExecuteProcedure Executes an arbitrary procedure on the stream. Execute refers to the write calls
 	//ExecuteProcedure(ctx context.Context, procedure string, args [][]any) (types.Hash, error)
@@ -52,28 +73,29 @@ type IAction interface {
 	//GetFirstRecord(ctx context.Context, input GetFirstRecordInput) (*StreamRecord, error)
 
 	// SetReadVisibility sets the read visibility of the stream -- Private or Public
-	//SetReadVisibility(ctx context.Context, visibility util.VisibilityEnum) (types.Hash, error)
+	SetReadVisibility(ctx context.Context, input VisibilityInput) (types.Hash, error)
 	// GetReadVisibility gets the read visibility of the stream -- Private or Public
 	//GetReadVisibility(ctx context.Context) (*util.VisibilityEnum, error)
 	// SetComposeVisibility sets the compose visibility of the stream -- Private or Public
-	//SetComposeVisibility(ctx context.Context, visibility util.VisibilityEnum) (types.Hash, error)
+	SetComposeVisibility(ctx context.Context, input VisibilityInput) (types.Hash, error)
 	// GetComposeVisibility gets the compose visibility of the stream -- Private or Public
 	//GetComposeVisibility(ctx context.Context) (*util.VisibilityEnum, error)
 
 	// AllowReadWallet allows a wallet to read the stream, if reading is private
 	//AllowReadWallet(ctx context.Context, wallet util.EthereumAddress) (types.Hash, error)
+	AllowReadWallet(ctx context.Context, input ReadWalletInput) (types.Hash, error)
 	// DisableReadWallet disables a wallet from reading the stream
-	//DisableReadWallet(ctx context.Context, wallet util.EthereumAddress) (types.Hash, error)
+	DisableReadWallet(ctx context.Context, input ReadWalletInput) (types.Hash, error)
 	// AllowComposeStream allows a stream to use this stream as child, if composing is private
-	//AllowComposeStream(ctx context.Context, locator StreamLocator) (types.Hash, error)
+	AllowComposeStream(ctx context.Context, locator StreamLocator) (types.Hash, error)
 	// DisableComposeStream disables a stream from using this stream as child
-	//DisableComposeStream(ctx context.Context, locator StreamLocator) (types.Hash, error)
+	DisableComposeStream(ctx context.Context, locator StreamLocator) (types.Hash, error)
 
 	// GetAllowedReadWallets gets the wallets allowed to read the stream
 	//GetAllowedReadWallets(ctx context.Context) ([]util.EthereumAddress, error)
 	// GetAllowedComposeStreams gets the streams allowed to compose this stream
 	//GetAllowedComposeStreams(ctx context.Context) ([]StreamLocator, error)
 
-	// SetDefaultBaseDate insert a metadata row with `default_base_date` key
-	//SetDefaultBaseDate(ctx context.Context, baseDate string) (types.Hash, error)
+	// SetDefaultBaseTime insert a metadata row with `default_base_time` key
+	SetDefaultBaseTime(ctx context.Context, input DefaultBaseTimeInput) (types.Hash, error)
 }

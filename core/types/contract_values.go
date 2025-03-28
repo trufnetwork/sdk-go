@@ -27,7 +27,7 @@ const (
 	ReadVisibilityKey     MetadataKey = "read_visibility"
 	AllowReadWalletKey    MetadataKey = "allow_read_wallet"
 	AllowComposeStreamKey MetadataKey = "allow_compose_stream"
-	DefaultBaseDateKey    MetadataKey = "default_base_date"
+	DefaultBaseTimeKey    MetadataKey = "default_base_time"
 )
 
 func (s MetadataKey) GetType() MetadataType {
@@ -46,8 +46,8 @@ func (s MetadataKey) GetType() MetadataType {
 		return MetadataTypeRef
 	case AllowComposeStreamKey:
 		return MetadataTypeRef
-	case DefaultBaseDateKey:
-		return MetadataTypeString
+	case DefaultBaseTimeKey:
+		return MetadataTypeInt
 	default:
 		return MetadataTypeString
 	}

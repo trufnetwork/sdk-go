@@ -3,10 +3,10 @@ package contractsapi
 import (
 	"context"
 	"github.com/kwilteam/kwil-db/core/client"
-	"github.com/kwilteam/kwil-db/core/types"
+	kwilTypes "github.com/kwilteam/kwil-db/core/types"
 
 	"github.com/pkg/errors"
-	tntypes "github.com/trufnetwork/sdk-go/core/types"
+	"github.com/trufnetwork/sdk-go/core/types"
 )
 
 // ## Initializations
@@ -15,7 +15,7 @@ type Action struct {
 	_client *client.Client
 }
 
-var _ tntypes.IAction = (*Action)(nil)
+var _ types.IAction = (*Action)(nil)
 
 type NewActionOptions struct {
 	Client *client.Client
@@ -109,42 +109,20 @@ func (s *Action) ToPrimitiveStream() (*PrimitiveAction, error) {
 //	return s._owner, nil
 //}
 
-//func (s *Action) checkInitialized(ctx context.Context) error {
-//	// check if is deployed
-//	err := s.checkDeployed(ctx)
-//
-//	if err != nil {
-//		return errors.WithStack(err)
-//	}
-//
-//	// check if is initialized by trying to get its type
-//	//_, err = s.GetType(ctx)
-//	//if err != nil {
-//	//	return errors.Wrap(err, "check if the stream is initialized")
-//	//}
-//
-//	return nil
-//}
+func (s *Action) checkStreamExists(ctx context.Context, input types.CheckStreamExistsInput) error {
+	result, err := s._client.Call(ctx, "", "stream_exists", []any{input.DataProvider, input.StreamId})
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
-//func (s *Action) checkDeployed(ctx context.Context) error {
-//	if s._deployed {
-//		return nil
-//	}
-//
-//	result, err := s._client.Call(ctx, "", "stream_exists", []any{s._deployer, s.StreamId})
-//	if err != nil {
-//		return errors.WithStack(err)
-//	}
-//
-//	if len(result.QueryResult.Values) == 0 || result.QueryResult.Values[0][0] == false {
-//		return ErrorStreamNotFound
-//	}
-//
-//	s._deployed = true
-//	return nil
-//}
+	if len(result.QueryResult.Values) == 0 || result.QueryResult.Values[0][0] == false {
+		return ErrorStreamNotFound
+	}
 
-func (s *Action) call(ctx context.Context, method string, args []any) (*types.QueryResult, error) {
+	return nil
+}
+
+func (s *Action) call(ctx context.Context, method string, args []any) (*kwilTypes.QueryResult, error) {
 	result, err := s._client.Call(ctx, "", method, args)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -153,17 +131,6 @@ func (s *Action) call(ctx context.Context, method string, args []any) (*types.Qu
 	return result.QueryResult, nil
 }
 
-func (s *Action) execute(ctx context.Context, method string, args [][]any) (types.Hash, error) {
+func (s *Action) execute(ctx context.Context, method string, args [][]any) (kwilTypes.Hash, error) {
 	return s._client.Execute(ctx, "", method, args)
 }
-
-// except for init, all write methods should be checked for initialization
-// this prevents unknown errors when trying to execute a method on a stream that is not initialized
-//func (s *Action) checkedExecute(ctx context.Context, method string, args [][]any) (types.Hash, error) {
-//	err := s.checkInitialized(ctx)
-//	if err != nil {
-//		return types.Hash{}, errors.WithStack(err)
-//	}
-//
-//	return s.execute(ctx, method, args)
-//}
