@@ -3,136 +3,124 @@ package contractsapi
 import (
 	"context"
 	"github.com/cockroachdb/apd/v3"
+	kwiltypes "github.com/kwilteam/kwil-db/core/types"
 	"github.com/pkg/errors"
 	"github.com/trufnetwork/sdk-go/core/types"
+	"reflect"
 	"strconv"
 )
 
-// import (
-//
-//	"context"
-//	kwiltypes "github.com/kwilteam/kwil-db/core/types"
-//	"reflect"
-//	"time"
-//
-//	"github.com/cockroachdb/apd/v3"
-//	"github.com/golang-sql/civil"
-//	// "github.com/kwilteam/kwil-db/core/types/client"
-//	// "github.com/kwilteam/kwil-db/core/types/transactions"
-//	"github.com/pkg/errors"
-//	"github.com/trufnetwork/sdk-go/core/types"
-//
-// )
-//
-// // ## View only procedures
-//
-//	type getMetadataParams struct {
-//		Key        types.MetadataKey
-//		OnlyLatest bool
-//		// optional. Gets metadata with ref value equal to the given value
-//		Ref string
-//	}
-//
-//	type getMetadataResult struct {
-//		RowId  string `json:"row_id"`
-//		ValueI int    `json:"value_i"`
-//		ValueB bool   `json:"value_b"`
-//		// TODO: uncomment when supported
-//		// ValueF    float64 `json:"value_f"`
-//		ValueS    string `json:"value_s"`
-//		ValueRef  string `json:"value_ref"`
-//		CreatedAt int    `json:"created_at"`
-//	}
-//
-// // GetValueByKey returns the value of the metadata by its key
-// // I.e. if we expect an int from `ComposeVisibility`, we can call this function
-// // to get `valueI` from the result
-//
-//	func (g getMetadataResult) GetValueByKey(t types.MetadataKey) (any, error) {
-//		metadataType := t.GetType()
-//
-//		switch metadataType {
-//		case types.MetadataTypeInt:
-//			return g.ValueI, nil
-//		case types.MetadataTypeBool:
-//			return g.ValueB, nil
-//		case types.MetadataTypeString:
-//			return g.ValueS, nil
-//		case types.MetadataTypeRef:
-//			return g.ValueRef, nil
-//		default:
-//			return types.MetadataValue{}, errors.New("unsupported metadata type")
-//		}
-//	}
-//
-// // addArgOrNull adds a new argument to the list of arguments
-// // this helps us making it NULL if it's equal to its zero value
-// // The caveat is that we won't be able to pass the zero value of the type. Issues with this?
-//
-//	func addArgOrNull(oldArgs []any, newArg any, nullIfZero bool) []any {
-//		if nullIfZero && reflect.ValueOf(newArg).IsZero() {
-//			return append(oldArgs, nil)
-//		}
-//
-//		return append(oldArgs, newArg)
-//	}
-//
-// func (s *Action) getMetadata(ctx context.Context, params getMetadataParams) ([]getMetadataResult, error) {
-//
-//		var args []any
-//
-//		args = addArgOrNull(args, params.Key.String(), false)
-//		args = addArgOrNull(args, params.OnlyLatest, false)
-//		// just add null if ref is empty, because it's optional
-//		args = addArgOrNull(args, params.Ref, true)
-//
-//		res, err := s.call(ctx, "get_metadata", args)
-//		if err != nil {
-//			return nil, errors.WithStack(err)
-//		}
-//
-//		return DecodeCallResult[getMetadataResult](res)
-//	}
-//
-// // ## Write procedures
-//
-//	type metadataInput struct {
-//		Key   types.MetadataKey
-//		Value types.MetadataValue
-//	}
-//
-//	func (s *Action) batchInsertMetadata(ctx context.Context, inputs []metadataInput) (kwiltypes.Hash, error) {
-//		var tuples [][]any
-//		for _, input := range inputs {
-//			valType := input.Key.GetType()
-//			valStr, err := valType.StringFromValue(input.Value)
-//			if err != nil {
-//				return kwiltypes.Hash{}, errors.WithStack(err)
-//			}
-//
-//			tuples = append(tuples, []any{input.Key.String(), valStr, string(valType)})
-//		}
-//
-//		return s.checkedExecute(ctx, "insert_metadata", tuples)
-//	}
-//
-//	func (s *Action) insertMetadata(ctx context.Context, key types.MetadataKey, value types.MetadataValue) (kwiltypes.Hash, error) {
-//		return s.batchInsertMetadata(ctx, []metadataInput{{key, value}})
-//	}
-//
-//	func (s *Action) disableMetadata(ctx context.Context, rowId string) (kwiltypes.Hash, error) {
-//		return s.checkedExecute(ctx, "disable_metadata", [][]any{{rowId}})
-//	}
-//
-//	func (s *Action) InitializeStream(ctx context.Context) (kwiltypes.Hash, error) {
-//		return s.execute(ctx, "init", nil)
-//	}
-//
-// // ExecuteProcedure is a wrapper around the execute function, just to be explicit that users can execute arbitrary procedures
-//
-//	func (s *Action) ExecuteProcedure(ctx context.Context, procedure string, args [][]any) (kwiltypes.Hash, error) {
-//		return s.execute(ctx, procedure, args)
-//	}
+// ## View only procedures
+
+type getMetadataParams struct {
+	Key        types.MetadataKey
+	OnlyLatest bool
+	// optional. Gets metadata with ref value equal to the given value
+	Ref string
+}
+
+type getMetadataResult struct {
+	RowId  string `json:"row_id"`
+	ValueI int    `json:"value_i"`
+	ValueB bool   `json:"value_b"`
+	// TODO: uncomment when supported
+	// ValueF    float64 `json:"value_f"`
+	ValueS    string `json:"value_s"`
+	ValueRef  string `json:"value_ref"`
+	CreatedAt int    `json:"created_at"`
+}
+
+// GetValueByKey returns the value of the metadata by its key
+// I.e. if we expect an int from `ComposeVisibility`, we can call this function
+// to get `valueI` from the result
+
+func (g getMetadataResult) GetValueByKey(t types.MetadataKey) (any, error) {
+	metadataType := t.GetType()
+
+	switch metadataType {
+	case types.MetadataTypeInt:
+		return g.ValueI, nil
+	case types.MetadataTypeBool:
+		return g.ValueB, nil
+	case types.MetadataTypeString:
+		return g.ValueS, nil
+	case types.MetadataTypeRef:
+		return g.ValueRef, nil
+	default:
+		return types.MetadataValue{}, errors.New("unsupported metadata type")
+	}
+}
+
+// addArgOrNull adds a new argument to the list of arguments
+// this helps us making it NULL if it's equal to its zero value
+// The caveat is that we won't be able to pass the zero value of the type. Issues with this?
+
+func addArgOrNull(oldArgs []any, newArg any, nullIfZero bool) []any {
+	if nullIfZero && reflect.ValueOf(newArg).IsZero() {
+		return append(oldArgs, nil)
+	}
+
+	return append(oldArgs, newArg)
+}
+
+func (s *Action) getMetadata(ctx context.Context, params getMetadataParams) ([]getMetadataResult, error) {
+	return nil, errors.New("not implemented")
+	var args []any
+
+	args = addArgOrNull(args, params.Key.String(), false)
+	args = addArgOrNull(args, params.OnlyLatest, false)
+	// just add null if ref is empty, because it's optional
+	args = addArgOrNull(args, params.Ref, true)
+
+	res, err := s.call(ctx, "get_metadata", args)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return DecodeCallResult[getMetadataResult](res)
+}
+
+// ## Write procedures
+
+type metadataInput struct {
+	Stream types.StreamLocator
+	Key    types.MetadataKey
+	Value  types.MetadataValue
+}
+
+type InsertMetadataInput struct {
+	Stream types.StreamLocator
+	Key    types.MetadataKey
+	Value  types.MetadataValue
+}
+
+func (s *Action) insertMetadata(ctx context.Context, input InsertMetadataInput) (kwiltypes.Hash, error) {
+	valType := input.Key.GetType()
+	valStr, err := valType.StringFromValue(input.Value)
+	if err != nil {
+		return kwiltypes.Hash{}, errors.WithStack(err)
+	}
+
+	return s.execute(ctx, "insert_metadata", [][]any{
+		{input.Stream.DataProvider.Address(), input.Stream.StreamId.String(), input.Key.String(), valStr, string(valType)},
+	})
+}
+
+type DisableMetadataInput struct {
+	Stream types.StreamLocator
+	RowId  *kwiltypes.UUID
+}
+
+func (s *Action) disableMetadata(ctx context.Context, input DisableMetadataInput) (kwiltypes.Hash, error) {
+	return s.execute(ctx, "disable_metadata", [][]any{{input.Stream.DataProvider, input.Stream.StreamId, input.RowId}})
+}
+
+// ExecuteProcedure is a wrapper around the execute function, just to be explicit that users can execute arbitrary procedures
+
+func (s *Action) ExecuteProcedure(ctx context.Context, procedure string, args [][]any) (kwiltypes.Hash, error) {
+	return s.execute(ctx, procedure, args)
+}
+
 type GetRecordRawOutput struct {
 	EventTime string `json:"event_time"`
 	Value     string `json:"value"`
@@ -243,7 +231,7 @@ func (s *Action) GetIndex(ctx context.Context, input types.GetIndexInput) ([]typ
 	return outputs, nil
 }
 
-//// GetFirstRecord(ctx context.Context, input GetFirstRecordInput) (*StreamRecord, error)
+// GetFirstRecord(ctx context.Context, input GetFirstRecordInput) (*StreamRecord, error)
 //func (s *Action) GetFirstRecord(ctx context.Context, input types.GetFirstRecordInput) (*types.StreamRecord, error) {
 //	var args []any
 //	args = append(args, transformOrNil(input.AfterDate, func(date civil.Date) any { return date.String() }))
@@ -278,7 +266,7 @@ func (s *Action) GetIndex(ctx context.Context, input types.GetIndexInput) ([]typ
 //		Value:     *value,
 //	}, nil
 //}
-//
+
 //func (s *Action) GetFirstRecordUnix(ctx context.Context, input types.GetFirstRecordUnixInput) (*types.StreamRecordUnix, error) {
 //	var args []any
 //	args = append(args, transformOrNil(input.AfterDate, func(date int) any { return date }))
