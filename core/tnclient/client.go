@@ -9,8 +9,6 @@ import (
 	"github.com/kwilteam/kwil-db/core/log"
 	kwilType "github.com/kwilteam/kwil-db/core/types"
 	"github.com/kwilteam/kwil-db/node/types"
-
-	// "github.com/kwilteam/kwil-db/core/types/transactions"
 	"github.com/pkg/errors"
 	tn_api "github.com/trufnetwork/sdk-go/core/contractsapi"
 	"github.com/trufnetwork/sdk-go/core/logging"

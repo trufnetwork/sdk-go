@@ -21,8 +21,8 @@ type IPrimitiveAction interface {
 	InsertRecord(ctx context.Context, inputs InsertRecordInput, opts ...kwilClientType.TxOpt) (types.Hash, error)
 	// InsertRecords inserts records into the stream
 	InsertRecords(ctx context.Context, inputs []InsertRecordInput, opts ...kwilClientType.TxOpt) (types.Hash, error)
-	// InsertRecordsUnix inserts records into the stream
-	//InsertRecordsUnix(ctx context.Context, inputs []InsertRecordUnixInput, opts ...kwilClientType.TxOpt) (types.Hash, error)
 	// GetFirstRecordUnix gets the first record of the stream with Unix timestamp
 	//GetFirstRecordUnix(ctx context.Context, input GetFirstRecordUnixInput) (*StreamRecordUnix, error)
+	// CheckValidPrimitiveStream checks if the stream is a valid primitive stream
+	CheckValidPrimitiveStream(ctx context.Context, locator StreamLocator) error
 }

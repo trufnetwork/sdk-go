@@ -5,7 +5,6 @@ import (
 	"github.com/kwilteam/kwil-db/core/client"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/kwilteam/kwil-db/core/types"
-
 	"github.com/trufnetwork/sdk-go/core/util"
 )
 

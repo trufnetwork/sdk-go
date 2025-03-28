@@ -105,10 +105,6 @@ func TestDeployComposedStreamsWithTaxonomy(t *testing.T) {
 	assertNoErrorOrFail(t, err, "Failed to insert record")
 	waitTxToBeMinedWithSuccess(t, ctx, tnClient, insertTxHash)
 
-	// Load the second primitive stream
-	//primitiveStream2, err := tnClient.LoadPrimitiveActions(tnClient.OwnStreamLocator(primitiveStreamId2))
-	//assertNoErrorOrFail(t, err, "Failed to load primitive stream")
-
 	// insert a record to primitiveStreamId2
 	insertTxHash, err = primitiveStream.InsertRecords(ctx, []types.InsertRecordInput{
 		{

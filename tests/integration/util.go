@@ -3,27 +3,15 @@ package integration
 import (
 	"context"
 	kwiltypes "github.com/kwilteam/kwil-db/core/types"
-	"testing"
-	"time"
-
-	"github.com/golang-sql/civil"
-	// "github.com/kwilteam/kwil-db/core/types/transactions"
 	"github.com/stretchr/testify/assert"
 	"github.com/trufnetwork/sdk-go/core/tnclient"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
+	"testing"
+	"time"
 )
 
 // ## Helper functions
-
-// unsafeParseDate is a helper function to parse a date string into a civil.Date, panicking on error.
-func unsafeParseDate(dateStr string) *civil.Date {
-	date, err := civil.ParseDate(dateStr)
-	if err != nil {
-		panic(err)
-	}
-	return &date
-}
 
 // waitTxToBeMinedWithSuccess waits for a transaction to be successful, failing the test if it fails.
 func waitTxToBeMinedWithSuccess(t *testing.T, ctx context.Context, client *tnclient.Client, txHash kwiltypes.Hash) {
@@ -72,7 +60,7 @@ func deployTestComposedStreamWithTaxonomy(
 	deployTxHash, err := tnClient.DeployStream(ctx, streamId, types.StreamTypeComposed)
 	assertNoErrorOrFail(t, err, "Failed to deploy stream")
 	waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
-	
+
 	deployedStream, err := tnClient.LoadComposedActions()
 	assertNoErrorOrFail(t, err, "Failed to load stream")
 

@@ -13,28 +13,29 @@ import (
 // ## View only procedures
 
 type getMetadataParams struct {
-	Key        types.MetadataKey
-	OnlyLatest bool
+	Stream types.StreamLocator
+	Key    types.MetadataKey
 	// optional. Gets metadata with ref value equal to the given value
-	Ref string
+	Ref     string
+	Limit   int
+	Offset  int
+	OrderBy string
 }
-
 type getMetadataResult struct {
-	RowId  string `json:"row_id"`
-	ValueI int    `json:"value_i"`
-	ValueB bool   `json:"value_b"`
-	// TODO: uncomment when supported
-	// ValueF    float64 `json:"value_f"`
+	RowId     string `json:"row_id"`
+	ValueI    string `json:"value_i"`
+	ValueF    string `json:"value_f"`
+	ValueB    string `json:"value_b"`
 	ValueS    string `json:"value_s"`
 	ValueRef  string `json:"value_ref"`
-	CreatedAt int    `json:"created_at"`
+	CreatedAt string `json:"created_at"`
 }
 
-// GetValueByKey returns the value of the metadata by its key
+// getValueByKey returns the value of the metadata by its key
 // I.e. if we expect an int from `ComposeVisibility`, we can call this function
 // to get `valueI` from the result
 
-func (g getMetadataResult) GetValueByKey(t types.MetadataKey) (any, error) {
+func (g getMetadataResult) getValueByKey(t types.MetadataKey) (string, error) {
 	metadataType := t.GetType()
 
 	switch metadataType {
@@ -47,7 +48,7 @@ func (g getMetadataResult) GetValueByKey(t types.MetadataKey) (any, error) {
 	case types.MetadataTypeRef:
 		return g.ValueRef, nil
 	default:
-		return types.MetadataValue{}, errors.New("unsupported metadata type")
+		return "", errors.New("unsupported metadata type")
 	}
 }
 
@@ -64,13 +65,16 @@ func addArgOrNull(oldArgs []any, newArg any, nullIfZero bool) []any {
 }
 
 func (s *Action) getMetadata(ctx context.Context, params getMetadataParams) ([]getMetadataResult, error) {
-	return nil, errors.New("not implemented")
 	var args []any
 
+	args = append(args, params.Stream.DataProvider.Address())
+	args = append(args, params.Stream.StreamId.String())
 	args = addArgOrNull(args, params.Key.String(), false)
-	args = addArgOrNull(args, params.OnlyLatest, false)
 	// just add null if ref is empty, because it's optional
 	args = addArgOrNull(args, params.Ref, true)
+	args = addArgOrNull(args, params.Limit, true)
+	args = addArgOrNull(args, params.Offset, true)
+	args = addArgOrNull(args, params.OrderBy, true)
 
 	res, err := s.call(ctx, "get_metadata", args)
 	if err != nil {
@@ -81,12 +85,6 @@ func (s *Action) getMetadata(ctx context.Context, params getMetadataParams) ([]g
 }
 
 // ## Write procedures
-
-type metadataInput struct {
-	Stream types.StreamLocator
-	Key    types.MetadataKey
-	Value  types.MetadataValue
-}
 
 type InsertMetadataInput struct {
 	Stream types.StreamLocator
@@ -112,11 +110,10 @@ type DisableMetadataInput struct {
 }
 
 func (s *Action) disableMetadata(ctx context.Context, input DisableMetadataInput) (kwiltypes.Hash, error) {
-	return s.execute(ctx, "disable_metadata", [][]any{{input.Stream.DataProvider, input.Stream.StreamId, input.RowId}})
+	return s.execute(ctx, "disable_metadata", [][]any{{input.Stream.DataProvider.Address(), input.Stream.StreamId.String(), input.RowId}})
 }
 
 // ExecuteProcedure is a wrapper around the execute function, just to be explicit that users can execute arbitrary procedures
-
 func (s *Action) ExecuteProcedure(ctx context.Context, procedure string, args [][]any) (kwiltypes.Hash, error) {
 	return s.execute(ctx, procedure, args)
 }
@@ -134,11 +131,10 @@ func transformOrNil[T any](value *T, transform func(T) any) any {
 	return transform(*value)
 }
 
-// // CallProcedure is a wrapper around the call function, just to be explicit that users can call arbitrary procedures
-//
-//	func (s *Action) CallProcedure(ctx context.Context, procedure string, args []any) (*kwiltypes.QueryResult, error) {
-//		return s.call(ctx, procedure, args)
-//	}
+// CallProcedure is a wrapper around the call function, just to be explicit that users can call arbitrary procedures
+func (s *Action) CallProcedure(ctx context.Context, procedure string, args []any) (*kwiltypes.QueryResult, error) {
+	return s.call(ctx, procedure, args)
+}
 
 func (s *Action) GetRecord(ctx context.Context, input types.GetRecordInput) ([]types.StreamRecord, error) {
 	var args []any

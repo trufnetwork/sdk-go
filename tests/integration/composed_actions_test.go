@@ -5,6 +5,7 @@ import (
 	"github.com/kwilteam/kwil-db/core/crypto"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/stretchr/testify/assert"
+	"github.com/trufnetwork/sdk-go/core/contractsapi"
 	"github.com/trufnetwork/sdk-go/core/tnclient"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
@@ -64,6 +65,15 @@ func TestComposedActions(t *testing.T) {
 		// Load the deployed composed stream
 		deployedComposedStream, err := tnClient.LoadComposedActions()
 		assertNoErrorOrFail(t, err, "Failed to load composed stream")
+
+		// Check Composed Validity
+		err = deployedComposedStream.CheckValidComposedStream(ctx, tnClient.OwnStreamLocator(streamId))
+		assertNoErrorOrFail(t, err, "Failed to check composed stream validity")
+
+		// Get Type of the stream
+		streamType, err := deployedComposedStream.GetType(ctx, tnClient.OwnStreamLocator(streamId))
+		assertNoErrorOrFail(t, err, "Failed to get stream type")
+		assert.Equal(t, types.StreamTypeComposed, streamType, "Expected stream type to be composed")
 
 		// Step 2: Deploy child streams with initial data
 		// Deploy two primitive child streams with initial data
@@ -155,7 +165,7 @@ func TestComposedActions(t *testing.T) {
 			From:         &mockDateFrom2,
 			To:           &mockDateTo2,
 		})
-		assertNoErrorOrFail(t, errBefore, "Failed to get records before start date")
+		assert.ErrorIs(t, errBefore, contractsapi.ErrorRecordNotFound, "Expected error when querying records before start date")
 		assert.Nil(t, recordsBefore, "Records before start date should not be nil as there is no active record before the start date")
 
 		// Function to check the record values
@@ -185,7 +195,7 @@ func TestComposedActions(t *testing.T) {
 			BaseDate:     &mockBaseDate,
 		})
 
-		//assertNoErrorOrFail(t, err, "Failed to get index")
+		assertNoErrorOrFail(t, err, "Failed to get index")
 		assert.Equal(t, 2, len(index))
 		checkRecord(index[0], 100)                // index on base date is expected to be 100
 		checkRecord(index[1], 124.44444444444444) // it is x% away from the base date + 1 in percentage
@@ -199,7 +209,7 @@ func TestComposedActions(t *testing.T) {
 			From:         &mockDateFrom4,
 			To:           &mockDateTo4,
 		})
-		assertNoErrorOrFail(t, errBefore, "Failed to get index before start date")
+		assert.ErrorIs(t, errBefore, contractsapi.ErrorRecordNotFound, "Expected error when querying index before start date")
 		assert.Nil(t, indexBefore, "Index before start date should not be nil as there is no active index before the start date")
 	})
 }

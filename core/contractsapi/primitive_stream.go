@@ -33,37 +33,22 @@ func LoadPrimitiveActions(options NewActionOptions) (*PrimitiveAction, error) {
 	return PrimitiveStreamFromStream(*stream)
 }
 
-// checkValidPrimitiveStream checks if the stream is a valid primitive stream
+// CheckValidPrimitiveStream checks if the stream is a valid primitive stream
 // and returns an error if it is not. Valid means:
 // - the stream is initialized
 // - the stream is a primitive stream
-func (p *PrimitiveAction) checkValidPrimitiveStream(ctx context.Context) error {
-	// first check if is initialized
-	//err := p.checkInitialized(ctx)
-	//if err != nil {
-	//	return errors.WithStack(err)
-	//}
-	//
-	//// then check if is primitive
-	//streamType, err := p.GetType(ctx)
-	//if err != nil {
-	//	return errors.WithStack(err)
-	//}
-	//
-	//if streamType != types.StreamTypePrimitive {
-	//	return ErrorStreamNotPrimitive
-	//}
-
-	return nil
-}
-
-func (p *PrimitiveAction) checkedExecute(ctx context.Context, method string, args [][]any, opts ...client.TxOpt) (kwiltypes.Hash, error) {
-	err := p.checkValidPrimitiveStream(ctx)
+func (p *PrimitiveAction) CheckValidPrimitiveStream(ctx context.Context, locator types.StreamLocator) error {
+	// then check if is primitive
+	streamType, err := p.GetType(ctx, locator)
 	if err != nil {
-		return kwiltypes.Hash{}, errors.WithStack(err)
+		return errors.WithStack(err)
 	}
 
-	return p._client.Execute(ctx, "", method, args, opts...)
+	if streamType != types.StreamTypePrimitive {
+		return ErrorStreamNotPrimitive
+	}
+
+	return nil
 }
 
 func (p *PrimitiveAction) InsertRecord(ctx context.Context, input types.InsertRecordInput, opts ...client.TxOpt) (kwiltypes.Hash, error) {
@@ -72,7 +57,7 @@ func (p *PrimitiveAction) InsertRecord(ctx context.Context, input types.InsertRe
 		return kwiltypes.Hash{}, errors.WithStack(err)
 	}
 
-	return p.checkedExecute(ctx, "insert_record", [][]any{{
+	return p._client.Execute(ctx, "", "insert_record", [][]any{{
 		input.DataProvider,
 		input.StreamId,
 		input.EventTime,
@@ -100,7 +85,7 @@ func (p *PrimitiveAction) InsertRecords(ctx context.Context, inputs []types.Inse
 		values = append(values, valueNumeric)
 	}
 
-	return p.checkedExecute(ctx, "insert_records", [][]any{{
+	return p._client.Execute(ctx, "", "insert_records", [][]any{{
 		dataProviders,
 		streamIds,
 		eventTimes,
