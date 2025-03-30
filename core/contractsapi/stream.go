@@ -99,10 +99,10 @@ func (s *Action) CheckStreamExists(ctx context.Context, input types.CheckStreamE
 func (s *Action) call(ctx context.Context, method string, args []any) (*kwilTypes.QueryResult, error) {
 	result, err := s._client.Call(ctx, "", method, args)
 	if err != nil || result.Error != nil {
-		if result.Error != nil {
-			return nil, errors.New(*result.Error)
+		if err != nil {
+			return nil, errors.WithStack(err)
 		}
-		return nil, errors.WithStack(err)
+		return nil, errors.New(*result.Error)
 	}
 
 	if len(result.QueryResult.Values) == 0 {

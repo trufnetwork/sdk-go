@@ -31,12 +31,8 @@ type Client interface {
 	OwnStreamLocator(streamId util.StreamId) StreamLocator
 	// Address of the signer used by the client
 	Address() util.EthereumAddress
-	// GetAllStreams returns all streams from the Truf network
-	//GetAllStreams(ctx context.Context, input GetAllStreamsInput) ([]StreamLocator, error)
+	// ListStreams returns list streams from the Truf network
+	ListStreams(ctx context.Context, input ListStreamsInput) ([]ListStreamsOutput, error)
 	// DeployComposedStreamWithTaxonomy deploys a composed stream with a taxonomy
 	DeployComposedStreamWithTaxonomy(ctx context.Context, streamId util.StreamId, taxonomy Taxonomy) error
-}
-
-type GetAllStreamsInput struct {
-	Owner []byte
 }

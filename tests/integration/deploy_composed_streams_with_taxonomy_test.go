@@ -68,24 +68,23 @@ func TestDeployComposedStreamsWithTaxonomy(t *testing.T) {
 	waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
 
 	// List all streams
-	//streams, err := tnClient.GetAllStreams(ctx, types.GetAllStreamsInput{})
-	//assertNoErrorOrFail(t, err, "Failed to list all streams")
+	streams, err := tnClient.ListStreams(ctx, types.ListStreamsInput{})
+	assertNoErrorOrFail(t, err, "Failed to list all streams")
 
-	// Check that only the primitive and composed streams are listed
-	//expectedStreamIds := map[util.StreamId]bool{
-	//	primitiveStreamId:  true,
-	//	composedStreamId:   true,
-	//	primitiveStreamId2: true,
-	//}
+	//Check that only the primitive and composed streams are listed
+	expectedStreamIds := map[string]bool{
+		primitiveStreamId.String():  true,
+		composedStreamId.String():   true,
+		primitiveStreamId2.String(): true,
+	}
 
-	//for _, stream := range streams {
-	// this will only be true if the database is clean from start
-	//assert.True(t, expectedStreamIds[stream.StreamId], "Unexpected stream listed: %s", stream.StreamId)
-	//delete(expectedStreamIds, stream.StreamId)
-	//}
+	for _, stream := range streams {
+		assert.True(t, expectedStreamIds[stream.StreamId], "Unexpected stream listed: %s", stream.StreamId)
+		delete(expectedStreamIds, stream.StreamId)
+	}
 
-	// Ensure all expected streams were found
-	//assert.Empty(t, expectedStreamIds, "Not all expected streams were listed")
+	//Ensure all expected streams were found
+	assert.Empty(t, expectedStreamIds, "Not all expected streams were listed")
 
 	// insert a record to primitiveStreamId and primitiveStreamId2
 	// Load the primitive stream
