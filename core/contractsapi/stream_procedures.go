@@ -227,69 +227,46 @@ func (s *Action) GetIndex(ctx context.Context, input types.GetIndexInput) ([]typ
 	return outputs, nil
 }
 
-// GetFirstRecord(ctx context.Context, input GetFirstRecordInput) (*StreamRecord, error)
-//func (s *Action) GetFirstRecord(ctx context.Context, input types.GetFirstRecordInput) (*types.StreamRecord, error) {
-//	var args []any
-//	args = append(args, transformOrNil(input.AfterDate, func(date civil.Date) any { return date.String() }))
-//	args = append(args, transformOrNil(input.FrozenAt, func(date time.Time) any { return date.UTC().Format(time.RFC3339) }))
-//
-//	results, err := s.call(ctx, "get_first_record", args)
-//	if err != nil {
-//		return nil, errors.WithStack(err)
-//	}
-//
-//	rawOutputs, err := DecodeCallResult[GetRecordRawOutput](results)
-//	if err != nil {
-//		return nil, errors.WithStack(err)
-//	}
-//
-//	if len(rawOutputs) == 0 {
-//		return nil, nil
-//	}
-//
-//	rawOutput := rawOutputs[0]
-//	value, _, err := apd.NewFromString(rawOutput.Value)
-//	if err != nil {
-//		return nil, errors.WithStack(err)
-//	}
-//	dateValue, err := civil.ParseDate(rawOutput.EventTime)
-//	if err != nil {
-//		return nil, errors.WithStack(err)
-//	}
-//
-//	return &types.StreamRecord{
-//		EventTime: dateValue,
-//		Value:     *value,
-//	}, nil
-//}
+func (s *Action) GetFirstRecord(ctx context.Context, input types.GetFirstRecordInput) (*types.StreamRecord, error) {
+	var args []any
+	args = append(args, input.DataProvider)
+	args = append(args, input.StreamId)
+	args = addArgOrNull(args, input.After, true)
+	args = addArgOrNull(args, input.FrozenAt, true)
 
-//func (s *Action) GetFirstRecordUnix(ctx context.Context, input types.GetFirstRecordUnixInput) (*types.StreamRecordUnix, error) {
-//	var args []any
-//	args = append(args, transformOrNil(input.AfterDate, func(date int) any { return date }))
-//	args = append(args, transformOrNil(input.FrozenAt, func(date time.Time) any { return date.UTC().Format(time.RFC3339) }))
-//
-//	results, err := s.call(ctx, "get_first_record", args)
-//	if err != nil {
-//		return nil, errors.WithStack(err)
-//	}
-//
-//	rawOutputs, err := DecodeCallResult[GetRecordUnixRawOutput](results)
-//	if err != nil {
-//		return nil, errors.WithStack(err)
-//	}
-//
-//	if len(rawOutputs) == 0 {
-//		return nil, nil
-//	}
-//
-//	rawOutput := rawOutputs[0]
-//	value, _, err := apd.NewFromString(rawOutput.Value)
-//	if err != nil {
-//		return nil, errors.WithStack(err)
-//	}
-//
-//	return &types.StreamRecordUnix{
-//		EventTime: rawOutput.EventTime,
-//		Value:     *value,
-//	}, nil
-//}
+	results, err := s.call(ctx, "get_first_record", args)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	rawOutputs, err := DecodeCallResult[GetRecordRawOutput](results)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	if len(rawOutputs) == 0 {
+		return nil, nil
+	}
+
+	rawOutput := rawOutputs[0]
+	value, _, err := apd.NewFromString(rawOutput.Value)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return &types.StreamRecord{
+		EventTime: func() int {
+			if rawOutput.EventTime == "" {
+				return 0
+			}
+
+			eventTime, err := strconv.Atoi(rawOutput.EventTime)
+			if err != nil {
+				return 0
+			}
+
+			return eventTime
+		}(),
+		Value: *value,
+	}, nil
+}

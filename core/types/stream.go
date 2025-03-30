@@ -3,11 +3,9 @@ package types
 import (
 	"context"
 	"github.com/cockroachdb/apd/v3"
-	"github.com/golang-sql/civil"
 	kwilType "github.com/kwilteam/kwil-db/core/types"
 	"github.com/kwilteam/kwil-db/node/types"
 	"github.com/trufnetwork/sdk-go/core/util"
-	"time"
 )
 
 type GetRecordInput struct {
@@ -22,13 +20,10 @@ type GetRecordInput struct {
 type GetIndexInput = GetRecordInput
 
 type GetFirstRecordInput struct {
-	AfterDate *civil.Date
-	FrozenAt  *time.Time
-}
-
-type GetFirstRecordUnixInput struct {
-	AfterDate *int
-	FrozenAt  *time.Time
+	DataProvider string
+	StreamId     string
+	After        *int
+	FrozenAt     *int
 }
 
 type StreamRecord struct {
@@ -71,7 +66,7 @@ type IAction interface {
 	// GetType gets the type of the stream -- Primitive or Composed
 	GetType(ctx context.Context, locator StreamLocator) (StreamType, error)
 	// GetFirstRecord gets the first record of the stream
-	//GetFirstRecord(ctx context.Context, input GetFirstRecordInput) (*StreamRecord, error)
+	GetFirstRecord(ctx context.Context, input GetFirstRecordInput) (*StreamRecord, error)
 
 	// SetReadVisibility sets the read visibility of the stream -- Private or Public
 	SetReadVisibility(ctx context.Context, input VisibilityInput) (types.Hash, error)
