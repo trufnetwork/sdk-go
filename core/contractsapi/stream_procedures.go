@@ -254,19 +254,24 @@ func (s *Action) GetFirstRecord(ctx context.Context, input types.GetFirstRecordI
 		return nil, errors.WithStack(err)
 	}
 
+	eventTime, err := func() (int, error) {
+		if rawOutput.EventTime == "" {
+			return 0, nil
+		}
+
+		eventTime, err := strconv.Atoi(rawOutput.EventTime)
+		if err != nil {
+			return 0, errors.WithStack(err)
+		}
+
+			return eventTime, nil
+	}()
+	if err != nil {
+		return nil, err
+	}
+
 	return &types.StreamRecord{
-		EventTime: func() int {
-			if rawOutput.EventTime == "" {
-				return 0
-			}
-
-			eventTime, err := strconv.Atoi(rawOutput.EventTime)
-			if err != nil {
-				return 0
-			}
-
-			return eventTime
-		}(),
+		EventTime: eventTime,
 		Value: *value,
 	}, nil
 }
