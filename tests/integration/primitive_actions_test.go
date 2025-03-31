@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
+	"github.com/trufnetwork/sdk-go/core/contractsapi"
 	"testing"
 
 	"github.com/kwilteam/kwil-db/core/crypto"
@@ -61,20 +62,25 @@ func TestPrimitiveActions(t *testing.T) {
 	assertNoErrorOrFail(t, err, "Failed to get stream type")
 	assert.Equal(t, types.StreamTypePrimitive, streamType, "Expected stream type to be primitive")
 
-	//t.Run("EmptyStreamOperations", func(t *testing.T) {
-	//	// Query first record from empty stream
-	//	firstRecord, err := deployedPrimitiveStream.GetFirstRecordUnix(ctx, types.GetFirstRecordUnixInput{})
-	//	assertNoErrorOrFail(t, err, "Failed to query first record")
-	//	assert.Nil(t, firstRecord, "Expected nil record from empty stream")
-	//
-	//	// Query first record with after date from empty stream
-	//	afterDate := 1
-	//	firstRecordAfter, err := deployedPrimitiveStream.GetFirstRecordUnix(ctx, types.GetFirstRecordUnixInput{
-	//		AfterDate: &afterDate,
-	//	})
-	//	assertNoErrorOrFail(t, err, "Failed to query first record with after date")
-	//	assert.Nil(t, firstRecordAfter, "Expected nil record from empty stream with after date")
-	//})
+	t.Run("EmptyStreamOperations", func(t *testing.T) {
+		// Query first record from empty stream
+		firstRecord, err := deployedPrimitiveStream.GetFirstRecord(ctx, types.GetFirstRecordInput{
+			DataProvider: streamLocator.DataProvider.Address(),
+			StreamId:     streamId.String(),
+		})
+		assert.ErrorIs(t, err, contractsapi.ErrorRecordNotFound, "Expected no records error")
+		assert.Nil(t, firstRecord, "Expected nil record from empty stream")
+
+		// Query first record with after date from empty stream
+		afterDate := 1
+		firstRecordAfter, err := deployedPrimitiveStream.GetFirstRecord(ctx, types.GetFirstRecordInput{
+			DataProvider: streamLocator.DataProvider.Address(),
+			StreamId:     streamId.String(),
+			After:        &afterDate,
+		})
+		assert.ErrorIs(t, err, contractsapi.ErrorRecordNotFound, "Expected no records error")
+		assert.Nil(t, firstRecordAfter, "Expected nil record from empty stream with after date")
+	})
 
 	t.Run("DeploymentWriteAndReadOperations", func(t *testing.T) {
 		// Insert a record into the stream
@@ -108,25 +114,30 @@ func TestPrimitiveActions(t *testing.T) {
 		assert.Equal(t, 1, records[0].EventTime, "Unexpected record date")
 
 		// Query the first record from the stream
-		//firstRecord, err := deployedPrimitiveStream.GetFirstRecordUnix(ctx, types.GetFirstRecordUnixInput{})
-		//assertNoErrorOrFail(t, err, "Failed to query first record")
+		firstRecord, err := deployedPrimitiveStream.GetFirstRecord(ctx, types.GetFirstRecordInput{
+			DataProvider: addr,
+			StreamId:     streamId.String(),
+		})
+		assertNoErrorOrFail(t, err, "Failed to query first record")
 
 		// Verify the first record's content
-		//assert.NotNil(t, firstRecord, "Expected non-nil record")
-		//assert.Equal(t, "1.000000000000000000", firstRecord.Value.String(), "Unexpected first record value")
-		//assert.Equal(t, 1, firstRecord.EventTime, "Unexpected first record date")
+		assert.NotNil(t, firstRecord, "Expected non-nil record")
+		assert.Equal(t, "1.000000000000000000", firstRecord.Value.String(), "Unexpected first record value")
+		assert.Equal(t, 1, firstRecord.EventTime, "Unexpected first record date")
 
 		// Query index from the stream
-		//index, err := deployedPrimitiveStream.GetIndexUnix(ctx, types.GetIndexUnixInput{
-		//	From: &mockedDateFromUnix,
-		//	To:   &mockedDateToUnix,
-		//})
-		//assertNoErrorOrFail(t, err, "Failed to query index")
+		index, err := deployedPrimitiveStream.GetIndex(ctx, types.GetIndexInput{
+			DataProvider: addr,
+			StreamId:     streamId.String(),
+			From:         &mockedDateFromUnix,
+			To:           &mockedDateToUnix,
+		})
+		assertNoErrorOrFail(t, err, "Failed to query index")
 
 		// Verify the index's content
 		// This ensures that the inserted data matches what we expect
-		//assert.Len(t, index, 1, "Expected exactly one index")
-		//assert.Equal(t, "100.000000000000000000", index[0].Value.String(), "Unexpected index value")
-		//assert.Equal(t, 1, index[0].EventTime, "Unexpected index date")
+		assert.Len(t, index, 1, "Expected exactly one index")
+		assert.Equal(t, "100.000000000000000000", index[0].Value.String(), "Unexpected index value")
+		assert.Equal(t, 1, index[0].EventTime, "Unexpected index date")
 	})
 }
