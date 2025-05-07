@@ -4,11 +4,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
+
 	"github.com/pkg/errors"
 	"github.com/trufnetwork/sdk-go/core/logging"
 	"go.uber.org/zap"
-	"regexp"
-	"strings"
 )
 
 type EthereumAddress struct {
@@ -22,9 +23,11 @@ func NewEthereumAddressFromString(address string) (EthereumAddress, error) {
 		address = "0x" + address
 	}
 
+	loweredAddress := strings.ToLower(address)
+
 	ethereumAddress := EthereumAddress{
 		correctlyCreated: true,
-		hex:              address,
+		hex:              loweredAddress,
 	}
 
 	if err := ethereumAddress.validate(); err != nil {
@@ -35,7 +38,18 @@ func NewEthereumAddressFromString(address string) (EthereumAddress, error) {
 }
 
 func NewEthereumAddressFromBytes(address []byte) (EthereumAddress, error) {
-	return NewEthereumAddressFromString(hex.EncodeToString(address))
+	loweredAddress := strings.ToLower(hex.EncodeToString(address))
+
+	ethereumAddress := EthereumAddress{
+		correctlyCreated: true,
+		hex:              loweredAddress,
+	}
+
+	if err := ethereumAddress.validate(); err != nil {
+		return EthereumAddress{}, errors.WithStack(err)
+	}
+
+	return ethereumAddress, nil
 }
 
 // Unsafe_NewEthereumAddressFromString the difference is that it panics on errors
@@ -66,10 +80,10 @@ func (e *EthereumAddress) checkCorrectlyCreated() {
 	}
 }
 
-// Address returns the address as a hex string, starting with 0x
+// Address returns the address as a lowercase hex string, starting with 0x
 func (e *EthereumAddress) Address() string {
 	e.checkCorrectlyCreated()
-	return e.hex
+	return strings.ToLower(e.hex)
 }
 
 // Bytes returns the address as a byte slice
