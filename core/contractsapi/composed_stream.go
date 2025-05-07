@@ -2,11 +2,12 @@ package contractsapi
 
 import (
 	"context"
+	"strconv"
+
 	kwiltypes "github.com/kwilteam/kwil-db/core/types"
 	"github.com/pkg/errors"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
-	"strconv"
 )
 
 type ComposedAction struct {
@@ -53,10 +54,10 @@ func (c *ComposedAction) CheckValidComposedStream(ctx context.Context, locator t
 }
 
 type DescribeTaxonomiesResult struct {
-	DataProvider      string        `json:"data_provider"`
-	StreamId          util.StreamId `json:"stream_id"`
-	ChildDataProvider string        `json:"child_data_provider"`
-	ChildStreamId     util.StreamId `json:"child_stream_id"`
+	DataProvider      string `json:"data_provider"`
+	StreamId          string `json:"stream_id"`
+	ChildDataProvider string `json:"child_data_provider"`
+	ChildStreamId     string `json:"child_stream_id"`
 	// decimals are received as strings by kwil to avoid precision loss
 	// as decimal are more arbitrary than golang's float64
 	Weight        string `json:"weight"`
@@ -90,9 +91,14 @@ func (c *ComposedAction) DescribeTaxonomies(ctx context.Context, params types.De
 			return types.Taxonomy{}, errors.WithStack(err)
 		}
 
+		childStreamId, err := util.NewStreamId(r.ChildStreamId)
+		if err != nil {
+			return types.Taxonomy{}, errors.WithStack(err)
+		}
+
 		taxonomyItems = append(taxonomyItems, types.TaxonomyItem{
 			ChildStream: types.StreamLocator{
-				StreamId:     r.ChildStreamId,
+				StreamId:     *childStreamId,
 				DataProvider: dpAddress,
 			},
 			Weight: weight,
