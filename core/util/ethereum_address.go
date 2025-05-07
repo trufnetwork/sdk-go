@@ -38,18 +38,7 @@ func NewEthereumAddressFromString(address string) (EthereumAddress, error) {
 }
 
 func NewEthereumAddressFromBytes(address []byte) (EthereumAddress, error) {
-	loweredAddress := strings.ToLower(hex.EncodeToString(address))
-
-	ethereumAddress := EthereumAddress{
-		correctlyCreated: true,
-		hex:              loweredAddress,
-	}
-
-	if err := ethereumAddress.validate(); err != nil {
-		return EthereumAddress{}, errors.WithStack(err)
-	}
-
-	return ethereumAddress, nil
+	return NewEthereumAddressFromString(hex.EncodeToString(address))
 }
 
 // Unsafe_NewEthereumAddressFromString the difference is that it panics on errors
