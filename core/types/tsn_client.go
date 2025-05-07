@@ -2,8 +2,9 @@ package types
 
 import (
 	"context"
-	"github.com/kwilteam/kwil-db/core/client"
 	"time"
+
+	"github.com/kwilteam/kwil-db/core/client"
 
 	"github.com/kwilteam/kwil-db/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
@@ -35,4 +36,12 @@ type Client interface {
 	ListStreams(ctx context.Context, input ListStreamsInput) ([]ListStreamsOutput, error)
 	// DeployComposedStreamWithTaxonomy deploys a composed stream with a taxonomy
 	DeployComposedStreamWithTaxonomy(ctx context.Context, streamId util.StreamId, taxonomy Taxonomy) error
+	// BatchDeployStreams deploys multiple streams (primitive and composed).
+	// Returns the transaction hash of the batch operation.
+	BatchDeployStreams(ctx context.Context, streamDefs []StreamDefinition) (types.Hash, error)
+	// BatchStreamExists checks for the existence of multiple streams.
+	BatchStreamExists(ctx context.Context, streams []StreamLocator) ([]StreamExistsResult, error)
+	// BatchFilterStreamsByExistence filters a list of streams based on their existence in the database.
+	// Use this instead of BatchStreamExists if you want less data returned.
+	BatchFilterStreamsByExistence(ctx context.Context, streams []StreamLocator, returnExisting bool) ([]StreamLocator, error)
 }

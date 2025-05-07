@@ -2,6 +2,8 @@ package tnclient
 
 import (
 	"context"
+	"time"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/kwilteam/kwil-db/core/client"
 	kwilClientType "github.com/kwilteam/kwil-db/core/client/types"
@@ -15,7 +17,6 @@ import (
 	clientType "github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
 	"go.uber.org/zap"
-	"time"
 )
 
 type Client struct {
@@ -132,4 +133,37 @@ func (c *Client) Address() util.EthereumAddress {
 		logging.Logger.Panic("failed to create address from string", zap.Error(err))
 	}
 	return address
+}
+
+// BatchDeployStreams deploys multiple streams (primitive and composed).
+// It returns the transaction hash of the batch operation.
+func (c *Client) BatchDeployStreams(ctx context.Context, streamDefs []clientType.StreamDefinition) (kwilType.Hash, error) {
+	// Assuming SchemaName for "create_streams" is obtained from somewhere or is a known constant.
+	// For now, using an empty string as a placeholder if it's a root/global procedure.
+	schemaName := "" // Or c.config.SchemaName, etc.
+
+	return tn_api.BatchDeployStreams(ctx, tn_api.BatchDeployStreamsInput{
+		KwilClient:  c.GetKwilClient(),
+		Definitions: streamDefs,
+		SchemaName:  schemaName,
+	})
+}
+
+// BatchStreamExists checks for the existence of multiple streams.
+func (c *Client) BatchStreamExists(ctx context.Context, streams []clientType.StreamLocator) ([]clientType.StreamExistsResult, error) {
+	actions, err := c.LoadActions()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load actions for BatchStreamExists")
+	}
+	return actions.BatchStreamExists(ctx, streams)
+}
+
+// BatchFilterStreamsByExistence filters a list of streams based on their existence in the database.
+// Use this instead of BatchStreamExists if you want less data returned.
+func (c *Client) BatchFilterStreamsByExistence(ctx context.Context, streams []clientType.StreamLocator, returnExisting bool) ([]clientType.StreamLocator, error) {
+	actions, err := c.LoadActions()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load actions for BatchFilterStreamsByExistence")
+	}
+	return actions.BatchFilterStreamsByExistence(ctx, streams, returnExisting)
 }

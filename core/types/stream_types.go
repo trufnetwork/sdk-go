@@ -23,3 +23,9 @@ type ListStreamsOutput struct {
 	StreamType   string `json:"stream_type"`
 	CreatedAt    string `json:"created_at"`
 }
+
+// StreamDefinition defines the necessary information to deploy a stream.
+type StreamDefinition struct {
+	StreamId   util.StreamId // User-defined identifier for the stream
+	StreamType StreamType    // Type of the stream (Primitive, Composed, etc.)
+}

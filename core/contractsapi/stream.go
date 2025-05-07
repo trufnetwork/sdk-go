@@ -3,6 +3,7 @@ package contractsapi
 import (
 	"context"
 	"encoding/hex"
+
 	"github.com/kwilteam/kwil-db/core/client"
 	kwilTypes "github.com/kwilteam/kwil-db/core/types"
 	"github.com/pkg/errors"
@@ -103,10 +104,6 @@ func (s *Action) call(ctx context.Context, method string, args []any) (*kwilType
 			return nil, errors.WithStack(err)
 		}
 		return nil, errors.New(*result.Error)
-	}
-
-	if len(result.QueryResult.Values) == 0 {
-		return nil, ErrorRecordNotFound
 	}
 
 	return result.QueryResult, nil
