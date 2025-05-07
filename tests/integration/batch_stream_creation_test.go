@@ -19,7 +19,9 @@ import (
 func TestBatchDeployAndExistenceOperations(t *testing.T) {
 	fixture := NewServerFixture(t)
 	err := fixture.Setup()
-	defer fixture.Teardown()
+	t.Cleanup(func() {
+		fixture.Teardown()
+	})
 	require.NoError(t, err, "Failed to setup server fixture")
 
 	tnClient := fixture.Client()

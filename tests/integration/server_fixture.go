@@ -104,6 +104,10 @@ func NewServerFixture(t *testing.T) *ServerFixture {
 					"--root", "/root/.kwild",
 					"--db-owner", DB_PUBLIC_KEY,
 					"--db.host", "test-kwil-postgres",
+					// faster tests
+					"--consensus.propose-timeout", "500ms",
+					// we don't need to produce empty blocks
+					"--consensus.empty-block-timeout", "30s",
 				},
 			},
 		},

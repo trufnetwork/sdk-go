@@ -2,42 +2,44 @@ package integration
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/golang-sql/civil"
 	"github.com/kwilteam/kwil-db/core/crypto"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/trufnetwork/sdk-go/core/tnclient"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
-	"testing"
-	"time"
 )
 
 // TestPermissions demonstrates the deployment and permission management of primitive and composed streams in TN.
 func TestPermissions(t *testing.T) {
-	ctx := context.Background()
+	fixture := NewServerFixture(t)
+	err := fixture.Setup()
+	t.Cleanup(func() {
+		fixture.Teardown()
+	})
+	require.NoError(t, err, "Failed to setup server fixture")
 
-	// Set up owner assets
-	// The owner is the entity deploying and managing the streams
-	ownerPk, err := crypto.Secp256k1PrivateKeyFromHex(TestPrivateKey)
-	assertNoErrorOrFail(t, err, "Failed to parse private key")
-	streamOwnerSigner := &auth.EthPersonalSigner{Key: *ownerPk}
-	streamOwnerAddressStr, _ := auth.EthSecp256k1Authenticator{}.Identifier(streamOwnerSigner.CompactID())
-	streamOwnerAddress, err := util.NewEthereumAddressFromString(streamOwnerAddressStr)
-	assertNoErrorOrFail(t, err, "Failed to create signer address")
-	ownerTnClient, err := tnclient.NewClient(ctx, TestKwilProvider, tnclient.WithSigner(streamOwnerSigner))
-	assertNoErrorOrFail(t, err, "Failed to create client")
+	ownerTnClient := fixture.Client()
+	require.NotNil(t, ownerTnClient, "Owner client from fixture should not be nil")
+	streamOwnerAddress := ownerTnClient.Address()
+
+	ctx := context.Background()
 
 	// Set up reader assets
 	// The reader represents a separate entity that will attempt to access the streams
 	readerPk, err := crypto.Secp256k1PrivateKeyFromHex("2222222222222222222222222222222222222222222222222222222222222222")
-	assertNoErrorOrFail(t, err, "Failed to parse private key")
+	assertNoErrorOrFail(t, err, "Failed to parse private key for reader")
 	readerSigner := &auth.EthPersonalSigner{Key: *readerPk}
 	readerAddressStr, _ := auth.EthSecp256k1Authenticator{}.Identifier(readerSigner.CompactID())
 	readerAddress, err := util.NewEthereumAddressFromString(readerAddressStr)
-	assertNoErrorOrFail(t, err, "Failed to create signer address")
+	assertNoErrorOrFail(t, err, "Failed to create reader signer address")
 	readerTnClient, err := tnclient.NewClient(ctx, TestKwilProvider, tnclient.WithSigner(readerSigner))
-	assertNoErrorOrFail(t, err, "Failed to create client")
+	assertNoErrorOrFail(t, err, "Failed to create reader client")
 
 	// Generate unique stream IDs for primitive and composed streams
 	primitiveStreamId := util.GenerateStreamId("test-wallet-permission-primitive-stream")

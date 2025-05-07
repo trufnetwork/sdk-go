@@ -3,31 +3,29 @@ package integration
 import (
 	"context"
 	"fmt"
-	kwiltypes "github.com/kwilteam/kwil-db/core/types"
 	"testing"
 	"time"
 
-	"github.com/kwilteam/kwil-db/core/crypto"
-	"github.com/kwilteam/kwil-db/core/crypto/auth"
+	kwiltypes "github.com/kwilteam/kwil-db/core/types"
+
 	"github.com/stretchr/testify/assert"
-	"github.com/trufnetwork/sdk-go/core/tnclient"
+	"github.com/stretchr/testify/require"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
 )
 
 func TestBatchOperations(t *testing.T) {
+	fixture := NewServerFixture(t)
+	err := fixture.Setup()
+	t.Cleanup(func() {
+		fixture.Teardown()
+	})
+	require.NoError(t, err, "Failed to setup server fixture")
+
+	tnClient := fixture.Client()
+	require.NotNil(t, tnClient, "Client from fixture should not be nil")
+
 	ctx := context.Background()
-
-	// Parse the private key for authentication
-	pk, err := crypto.Secp256k1PrivateKeyFromHex(TestPrivateKey)
-	assertNoErrorOrFail(t, err, "Failed to parse private key")
-
-	// Create a signer using the parsed private key
-	signer := &auth.EthPersonalSigner{Key: *pk}
-
-	// Initialize the TN client with the signer
-	tnClient, err := tnclient.NewClient(ctx, TestKwilProvider, tnclient.WithSigner(signer))
-	assertNoErrorOrFail(t, err, "Failed to create client")
 
 	t.Run("TestSequentialSmallBatches", func(t *testing.T) {
 		streamId := util.GenerateStreamId("test-sequential-small")

@@ -2,13 +2,11 @@ package integration
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
-	"github.com/trufnetwork/sdk-go/core/contractsapi"
 	"testing"
 
-	"github.com/kwilteam/kwil-db/core/crypto"
-	"github.com/kwilteam/kwil-db/core/crypto/auth"
-	"github.com/trufnetwork/sdk-go/core/tnclient"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
 )
@@ -16,20 +14,17 @@ import (
 // TestPrimitiveActions demonstrates the process of deploying, initializing, writing to,
 // and reading from a primitive action in TN using the TN SDK.
 func TestPrimitiveActions(t *testing.T) {
+	fixture := NewServerFixture(t)
+	err := fixture.Setup()
+	t.Cleanup(func() {
+		fixture.Teardown()
+	})
+	require.NoError(t, err, "Failed to setup server fixture")
+
+	tnClient := fixture.Client()
+	require.NotNil(t, tnClient, "Client from fixture should not be nil")
+
 	ctx := context.Background()
-
-	// Parse the private key for authentication
-	// Note: In a production environment, use secure key management practices
-	pk, err := crypto.Secp256k1PrivateKeyFromHex(TestPrivateKey)
-	assertNoErrorOrFail(t, err, "Failed to parse private key")
-
-	// Create a signer using the parsed private key
-	signer := &auth.EthPersonalSigner{Key: *pk}
-
-	// Initialize the TN client with the signer
-	// Replace TestKwilProvider with the appropriate TN provider URL in your environment
-	tnClient, err := tnclient.NewClient(ctx, TestKwilProvider, tnclient.WithSigner(signer))
-	assertNoErrorOrFail(t, err, "Failed to create client")
 
 	// Generate a unique stream ID and locator
 	// The stream ID is used to uniquely identify the stream within TN
@@ -68,7 +63,7 @@ func TestPrimitiveActions(t *testing.T) {
 			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamId.String(),
 		})
-		assert.ErrorIs(t, err, contractsapi.ErrorRecordNotFound, "Expected no records error")
+		assert.NoError(t, err, "Expected no error")
 		assert.Nil(t, firstRecord, "Expected nil record from empty stream")
 
 		// Query first record with after date from empty stream
@@ -78,16 +73,15 @@ func TestPrimitiveActions(t *testing.T) {
 			StreamId:     streamId.String(),
 			After:        &afterDate,
 		})
-		assert.ErrorIs(t, err, contractsapi.ErrorRecordNotFound, "Expected no records error")
+		assert.NoError(t, err, "Expected no error")
 		assert.Nil(t, firstRecordAfter, "Expected nil record from empty stream with after date")
 	})
 
 	t.Run("DeploymentWriteAndReadOperations", func(t *testing.T) {
 		// Insert a record into the stream
 		// This demonstrates how to write data to the stream
-		addr, _ := auth.EthSecp256k1Authenticator{}.Identifier(signer.CompactID())
 		txHash, err := deployedPrimitiveStream.InsertRecord(ctx, types.InsertRecordInput{
-			DataProvider: addr,
+			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamId.String(),
 			EventTime:    1,
 			Value:        1,
@@ -100,7 +94,7 @@ func TestPrimitiveActions(t *testing.T) {
 		mockedDateFromUnix := 1
 		mockedDateToUnix := 1
 		records, err := deployedPrimitiveStream.GetRecord(ctx, types.GetRecordInput{
-			DataProvider: addr,
+			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamId.String(),
 			From:         &mockedDateFromUnix,
 			To:           &mockedDateToUnix,
@@ -115,7 +109,7 @@ func TestPrimitiveActions(t *testing.T) {
 
 		// Query the first record from the stream
 		firstRecord, err := deployedPrimitiveStream.GetFirstRecord(ctx, types.GetFirstRecordInput{
-			DataProvider: addr,
+			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamId.String(),
 		})
 		assertNoErrorOrFail(t, err, "Failed to query first record")
@@ -127,7 +121,7 @@ func TestPrimitiveActions(t *testing.T) {
 
 		// Query index from the stream
 		index, err := deployedPrimitiveStream.GetIndex(ctx, types.GetIndexInput{
-			DataProvider: addr,
+			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamId.String(),
 			From:         &mockedDateFromUnix,
 			To:           &mockedDateToUnix,

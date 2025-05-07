@@ -2,14 +2,12 @@ package integration
 
 import (
 	"context"
-	"github.com/kwilteam/kwil-db/core/crypto"
-	"github.com/kwilteam/kwil-db/core/crypto/auth"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
-	"github.com/trufnetwork/sdk-go/core/contractsapi"
-	"github.com/trufnetwork/sdk-go/core/tnclient"
+	"github.com/stretchr/testify/require"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
-	"testing"
 )
 
 // This file contains integration tests for composed streams in the Truf Network (TN).
@@ -19,21 +17,18 @@ import (
 // TestComposedStream demonstrates the process of deploying, initializing, and querying
 // a composed stream that aggregates data from multiple primitive streams in the TN using the TN SDK.
 func TestComposedActions(t *testing.T) {
+	fixture := NewServerFixture(t)
+	err := fixture.Setup()
+	t.Cleanup(func() {
+		fixture.Teardown()
+	})
+	require.NoError(t, err, "Failed to setup server fixture")
+
+	tnClient := fixture.Client()
+	require.NotNil(t, tnClient, "Client from fixture should not be nil")
+
 	ctx := context.Background()
-
-	// Parse the private key for authentication
-	pk, err := crypto.Secp256k1PrivateKeyFromHex(TestPrivateKey)
-	assertNoErrorOrFail(t, err, "Failed to parse private key")
-
-	// Create a signer using the parsed private key
-	signer := &auth.EthPersonalSigner{Key: *pk}
-	tnClient, err := tnclient.NewClient(ctx, TestKwilProvider, tnclient.WithSigner(signer))
-	assertNoErrorOrFail(t, err, "Failed to create client")
-
-	signerAddressString, err := auth.EthSecp256k1Authenticator{}.Identifier(signer.CompactID())
-	assertNoErrorOrFail(t, err, "Failed to create signer address")
-	signerAddress, err := util.NewEthereumAddressFromString(signerAddressString)
-	assertNoErrorOrFail(t, err, "Failed to create signer address from string")
+	signerAddress := tnClient.Address()
 
 	// Generate a unique stream ID and locator for the composed stream and its child streams
 	streamId := util.GenerateStreamId("test-composed-stream-unix")
@@ -165,7 +160,7 @@ func TestComposedActions(t *testing.T) {
 			From:         &mockDateFrom2,
 			To:           &mockDateTo2,
 		})
-		assert.ErrorIs(t, errBefore, contractsapi.ErrorRecordNotFound, "Expected error when querying records before start date")
+		assert.NoError(t, errBefore, "Expected no error when querying records before start date")
 		assert.Nil(t, recordsBefore, "Records before start date should not be nil as there is no active record before the start date")
 
 		// Function to check the record values
@@ -209,7 +204,7 @@ func TestComposedActions(t *testing.T) {
 			From:         &mockDateFrom4,
 			To:           &mockDateTo4,
 		})
-		assert.ErrorIs(t, errBefore, contractsapi.ErrorRecordNotFound, "Expected error when querying index before start date")
+		assert.NoError(t, errBefore, "Expected no error when querying index before start date")
 		assert.Nil(t, indexBefore, "Index before start date should not be nil as there is no active index before the start date")
 	})
 }
