@@ -23,7 +23,7 @@ Describes the taxonomies of the composed stream.
 ### `SetTaxonomy`
 
 ```go
-SetTaxonomy(ctx context.Context, taxonomies []types.TaxonomyItem) (transactions.TxHash, error)
+SetTaxonomy(ctx context.Context, taxonomies []types.TaxonomyItem) (kwiltypes.Hash, error)
 ```
 
 Sets the taxonomy of the composed stream.

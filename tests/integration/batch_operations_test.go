@@ -3,12 +3,12 @@ package integration
 import (
 	"context"
 	"fmt"
+	kwiltypes "github.com/kwilteam/kwil-db/core/types"
 	"testing"
 	"time"
 
 	"github.com/kwilteam/kwil-db/core/crypto"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
-	"github.com/kwilteam/kwil-db/core/types/transactions"
 	"github.com/stretchr/testify/assert"
 	"github.com/trufnetwork/sdk-go/core/tnclient"
 	"github.com/trufnetwork/sdk-go/core/types"
@@ -41,35 +41,33 @@ func TestBatchOperations(t *testing.T) {
 		})
 
 		// Deploy and initialize stream
-		deployTxHash, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitiveUnix)
+		deployTxHash, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitive)
 		assertNoErrorOrFail(t, err, "Failed to deploy stream")
 		waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
 
-		deployedStream, err := tnClient.LoadPrimitiveStream(streamLocator)
+		deployedStream, err := tnClient.LoadPrimitiveActions()
 		assertNoErrorOrFail(t, err, "Failed to load stream")
-
-		txHashInit, err := deployedStream.InitializeStream(ctx)
-		assertNoErrorOrFail(t, err, "Failed to initialize stream")
-		waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInit)
 
 		const numBatches = 500
 		const recordsPerBatch = 5
 		baseTimestamp := 1672531200 // Start from 2023-01-01
 
 		// Insert multiple batches without waiting
-		txHashes := make([]transactions.TxHash, 0, numBatches)
+		txHashes := make([]kwiltypes.Hash, 0, numBatches)
 		startTime := time.Now()
 
 		for batch := 0; batch < numBatches; batch++ {
-			records := make([]types.InsertRecordUnixInput, recordsPerBatch)
+			records := make([]types.InsertRecordInput, recordsPerBatch)
 			for i := 0; i < recordsPerBatch; i++ {
-				records[i] = types.InsertRecordUnixInput{
-					DateValue: baseTimestamp + (batch * 86400) + (i * 3600),
-					Value:     float64(batch*100 + i),
+				records[i] = types.InsertRecordInput{
+					DataProvider: streamLocator.DataProvider.Address(),
+					StreamId:     streamLocator.StreamId.String(),
+					EventTime:    baseTimestamp + (batch * 86400) + (i * 3600),
+					Value:        float64(batch*100 + i),
 				}
 			}
 
-			txHash, err := deployedStream.InsertRecordsUnix(ctx, records)
+			txHash, err := deployedStream.InsertRecords(ctx, records)
 			assertNoErrorOrFail(t, err, "Failed to insert batch")
 			txHashes = append(txHashes, txHash)
 		}
@@ -93,9 +91,11 @@ func TestBatchOperations(t *testing.T) {
 		dateFrom := baseTimestamp
 		dateTo := baseTimestamp + (numBatches * 86400)
 
-		records, err := deployedStream.GetRecordUnix(ctx, types.GetRecordUnixInput{
-			DateFrom: &dateFrom,
-			DateTo:   &dateTo,
+		records, err := deployedStream.GetRecord(ctx, types.GetRecordInput{
+			DataProvider: streamLocator.DataProvider.Address(),
+			StreamId:     streamLocator.StreamId.String(),
+			From:         &dateFrom,
+			To:           &dateTo,
 		})
 		assertNoErrorOrFail(t, err, "Failed to query records")
 		assert.Equal(t, totalRecords, len(records), "Unexpected number of records")
@@ -113,35 +113,33 @@ func TestBatchOperations(t *testing.T) {
 		})
 
 		// Deploy and initialize stream
-		deployTxHash, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitiveUnix)
+		deployTxHash, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitive)
 		assertNoErrorOrFail(t, err, "Failed to deploy stream")
 		waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
 
-		deployedStream, err := tnClient.LoadPrimitiveStream(streamLocator)
+		deployedStream, err := tnClient.LoadPrimitiveActions()
 		assertNoErrorOrFail(t, err, "Failed to load stream")
-
-		txHashInit, err := deployedStream.InitializeStream(ctx)
-		assertNoErrorOrFail(t, err, "Failed to initialize stream")
-		waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInit)
 
 		const numBatches = 500
 		const recordsPerBatch = 100
 		baseTimestamp := 1672531200 // Start from 2023-01-01
 
 		// Insert multiple batches without waiting
-		txHashes := make([]transactions.TxHash, 0, numBatches)
+		txHashes := make([]kwiltypes.Hash, 0, numBatches)
 		startTime := time.Now()
 
 		for batch := 0; batch < numBatches; batch++ {
-			records := make([]types.InsertRecordUnixInput, recordsPerBatch)
+			records := make([]types.InsertRecordInput, recordsPerBatch)
 			for i := 0; i < recordsPerBatch; i++ {
-				records[i] = types.InsertRecordUnixInput{
-					DateValue: baseTimestamp + (batch * 86400) + (i * 300), // 5-minute intervals
-					Value:     float64(batch*1000 + i),
+				records[i] = types.InsertRecordInput{
+					DataProvider: streamLocator.DataProvider.Address(),
+					StreamId:     streamLocator.StreamId.String(),
+					EventTime:    baseTimestamp + (batch * 86400) + (i * 300), // 5-minute intervals
+					Value:        float64(batch*1000 + i),
 				}
 			}
 
-			txHash, err := deployedStream.InsertRecordsUnix(ctx, records)
+			txHash, err := deployedStream.InsertRecords(ctx, records)
 			assertNoErrorOrFail(t, err, "Failed to insert batch")
 			txHashes = append(txHashes, txHash)
 		}
@@ -165,9 +163,11 @@ func TestBatchOperations(t *testing.T) {
 		dateFrom := baseTimestamp
 		dateTo := baseTimestamp + (numBatches * 86400)
 
-		records, err := deployedStream.GetRecordUnix(ctx, types.GetRecordUnixInput{
-			DateFrom: &dateFrom,
-			DateTo:   &dateTo,
+		records, err := deployedStream.GetRecord(ctx, types.GetRecordInput{
+			DataProvider: streamLocator.DataProvider.Address(),
+			StreamId:     streamLocator.StreamId.String(),
+			From:         &dateFrom,
+			To:           &dateTo,
 		})
 		assertNoErrorOrFail(t, err, "Failed to query records")
 		assert.Equal(t, totalRecords, len(records), "Unexpected number of records")
@@ -185,33 +185,31 @@ func TestBatchOperations(t *testing.T) {
 		})
 
 		// Deploy and initialize stream
-		deployTxHash, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitiveUnix)
+		deployTxHash, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitive)
 		assertNoErrorOrFail(t, err, "Failed to deploy stream")
 		waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
 
-		deployedStream, err := tnClient.LoadPrimitiveStream(streamLocator)
+		deployedStream, err := tnClient.LoadPrimitiveActions()
 		assertNoErrorOrFail(t, err, "Failed to load stream")
-
-		txHashInit, err := deployedStream.InitializeStream(ctx)
-		assertNoErrorOrFail(t, err, "Failed to initialize stream")
-		waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInit)
 
 		const numRecords = 500
 		baseTimestamp := 1672531200 // Start from 2023-01-01
 
 		// Rapidly insert individual records without waiting
-		txHashes := make([]transactions.TxHash, 0, numRecords)
+		txHashes := make([]kwiltypes.Hash, 0, numRecords)
 		startTime := time.Now()
 
 		for i := 0; i < numRecords; i++ {
-			records := []types.InsertRecordUnixInput{
+			records := []types.InsertRecordInput{
 				{
-					DateValue: baseTimestamp + (i * 3600),
-					Value:     float64(i),
+					DataProvider: streamLocator.DataProvider.Address(),
+					StreamId:     streamLocator.StreamId.String(),
+					EventTime:    baseTimestamp + (i * 3600),
+					Value:        float64(i),
 				},
 			}
 
-			txHash, err := deployedStream.InsertRecordsUnix(ctx, records)
+			txHash, err := deployedStream.InsertRecords(ctx, records)
 			assertNoErrorOrFail(t, err, "Failed to insert record")
 			txHashes = append(txHashes, txHash)
 		}
@@ -233,9 +231,11 @@ func TestBatchOperations(t *testing.T) {
 		dateFrom := baseTimestamp
 		dateTo := baseTimestamp + (numRecords * 3600)
 
-		records, err := deployedStream.GetRecordUnix(ctx, types.GetRecordUnixInput{
-			DateFrom: &dateFrom,
-			DateTo:   &dateTo,
+		records, err := deployedStream.GetRecord(ctx, types.GetRecordInput{
+			DataProvider: streamLocator.DataProvider.Address(),
+			StreamId:     streamLocator.StreamId.String(),
+			From:         &dateFrom,
+			To:           &dateTo,
 		})
 		assertNoErrorOrFail(t, err, "Failed to query records")
 		assert.Equal(t, numRecords, len(records), "Unexpected number of records")

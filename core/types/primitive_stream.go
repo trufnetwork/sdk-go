@@ -2,29 +2,27 @@ package types
 
 import (
 	"context"
+	"github.com/kwilteam/kwil-db/node/types"
 
-	"github.com/golang-sql/civil"
-	"github.com/kwilteam/kwil-db/core/types/client"
-	"github.com/kwilteam/kwil-db/core/types/transactions"
+	kwilClientType "github.com/kwilteam/kwil-db/core/client/types"
 )
 
 type InsertRecordInput struct {
-	DateValue civil.Date
-	Value     float64
+	DataProvider string
+	StreamId     string
+	EventTime    int
+	Value        float64
 }
 
-type InsertRecordUnixInput struct {
-	DateValue int
-	Value     float64
-}
-
-type IPrimitiveStream interface {
-	// IStream methods are also available in IPrimitiveStream
-	IStream
+type IPrimitiveAction interface {
+	// IAction methods are also available in IPrimitiveAction
+	IAction
+	// InsertRecord insert a recors into the stream
+	InsertRecord(ctx context.Context, inputs InsertRecordInput, opts ...kwilClientType.TxOpt) (types.Hash, error)
 	// InsertRecords inserts records into the stream
-	InsertRecords(ctx context.Context, inputs []InsertRecordInput, opts ...client.TxOpt) (transactions.TxHash, error)
-	// InsertRecordsUnix inserts records into the stream
-	InsertRecordsUnix(ctx context.Context, inputs []InsertRecordUnixInput, opts ...client.TxOpt) (transactions.TxHash, error)
+	InsertRecords(ctx context.Context, inputs []InsertRecordInput, opts ...kwilClientType.TxOpt) (types.Hash, error)
 	// GetFirstRecordUnix gets the first record of the stream with Unix timestamp
-	GetFirstRecordUnix(ctx context.Context, input GetFirstRecordUnixInput) (*StreamRecordUnix, error)
+	//GetFirstRecordUnix(ctx context.Context, input GetFirstRecordUnixInput) (*StreamRecordUnix, error)
+	// CheckValidPrimitiveStream checks if the stream is a valid primitive stream
+	CheckValidPrimitiveStream(ctx context.Context, locator StreamLocator) error
 }

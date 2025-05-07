@@ -2,41 +2,40 @@ package contractsapi
 
 import (
 	"context"
-	"reflect"
-	"time"
-
 	"github.com/cockroachdb/apd/v3"
-	"github.com/golang-sql/civil"
-	"github.com/kwilteam/kwil-db/core/types/client"
-	"github.com/kwilteam/kwil-db/core/types/transactions"
+	kwiltypes "github.com/kwilteam/kwil-db/core/types"
 	"github.com/pkg/errors"
 	"github.com/trufnetwork/sdk-go/core/types"
+	"reflect"
+	"strconv"
 )
 
 // ## View only procedures
 
 type getMetadataParams struct {
-	Key        types.MetadataKey
-	OnlyLatest bool
+	Stream types.StreamLocator
+	Key    types.MetadataKey
 	// optional. Gets metadata with ref value equal to the given value
-	Ref string
+	Ref     string
+	Limit   int
+	Offset  int
+	OrderBy string
 }
-
 type getMetadataResult struct {
-	RowId  string `json:"row_id"`
-	ValueI int    `json:"value_i"`
-	ValueB bool   `json:"value_b"`
-	// TODO: uncomment when supported
-	// ValueF    float64 `json:"value_f"`
+	RowId     string `json:"row_id"`
+	ValueI    string `json:"value_i"`
+	ValueF    string `json:"value_f"`
+	ValueB    string `json:"value_b"`
 	ValueS    string `json:"value_s"`
 	ValueRef  string `json:"value_ref"`
-	CreatedAt int    `json:"created_at"`
+	CreatedAt string `json:"created_at"`
 }
 
-// GetValueByKey returns the value of the metadata by its key
+// getValueByKey returns the value of the metadata by its key
 // I.e. if we expect an int from `ComposeVisibility`, we can call this function
 // to get `valueI` from the result
-func (g getMetadataResult) GetValueByKey(t types.MetadataKey) (any, error) {
+
+func (g getMetadataResult) getValueByKey(t types.MetadataKey) (string, error) {
 	metadataType := t.GetType()
 
 	switch metadataType {
@@ -49,13 +48,14 @@ func (g getMetadataResult) GetValueByKey(t types.MetadataKey) (any, error) {
 	case types.MetadataTypeRef:
 		return g.ValueRef, nil
 	default:
-		return types.MetadataValue{}, errors.New("unsupported metadata type")
+		return "", errors.New("unsupported metadata type")
 	}
 }
 
 // addArgOrNull adds a new argument to the list of arguments
 // this helps us making it NULL if it's equal to its zero value
 // The caveat is that we won't be able to pass the zero value of the type. Issues with this?
+
 func addArgOrNull(oldArgs []any, newArg any, nullIfZero bool) []any {
 	if nullIfZero && reflect.ValueOf(newArg).IsZero() {
 		return append(oldArgs, nil)
@@ -64,14 +64,17 @@ func addArgOrNull(oldArgs []any, newArg any, nullIfZero bool) []any {
 	return append(oldArgs, newArg)
 }
 
-func (s *Stream) getMetadata(ctx context.Context, params getMetadataParams) ([]getMetadataResult, error) {
-
+func (s *Action) getMetadata(ctx context.Context, params getMetadataParams) ([]getMetadataResult, error) {
 	var args []any
 
+	args = append(args, params.Stream.DataProvider.Address())
+	args = append(args, params.Stream.StreamId.String())
 	args = addArgOrNull(args, params.Key.String(), false)
-	args = addArgOrNull(args, params.OnlyLatest, false)
 	// just add null if ref is empty, because it's optional
 	args = addArgOrNull(args, params.Ref, true)
+	args = addArgOrNull(args, params.Limit, true)
+	args = addArgOrNull(args, params.Offset, true)
+	args = addArgOrNull(args, params.OrderBy, true)
 
 	res, err := s.call(ctx, "get_metadata", args)
 	if err != nil {
@@ -83,50 +86,40 @@ func (s *Stream) getMetadata(ctx context.Context, params getMetadataParams) ([]g
 
 // ## Write procedures
 
-type metadataInput struct {
-	Key   types.MetadataKey
-	Value types.MetadataValue
+type InsertMetadataInput struct {
+	Stream types.StreamLocator
+	Key    types.MetadataKey
+	Value  types.MetadataValue
 }
 
-func (s *Stream) batchInsertMetadata(ctx context.Context, inputs []metadataInput) (transactions.TxHash, error) {
-	var tuples [][]any
-	for _, input := range inputs {
-		valType := input.Key.GetType()
-		valStr, err := valType.StringFromValue(input.Value)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-
-		tuples = append(tuples, []any{input.Key.String(), valStr, string(valType)})
+func (s *Action) insertMetadata(ctx context.Context, input InsertMetadataInput) (kwiltypes.Hash, error) {
+	valType := input.Key.GetType()
+	valStr, err := valType.StringFromValue(input.Value)
+	if err != nil {
+		return kwiltypes.Hash{}, errors.WithStack(err)
 	}
 
-	return s.checkedExecute(ctx, "insert_metadata", tuples)
+	return s.execute(ctx, "insert_metadata", [][]any{
+		{input.Stream.DataProvider.Address(), input.Stream.StreamId.String(), input.Key.String(), valStr, string(valType)},
+	})
 }
 
-func (s *Stream) insertMetadata(ctx context.Context, key types.MetadataKey, value types.MetadataValue) (transactions.TxHash, error) {
-	return s.batchInsertMetadata(ctx, []metadataInput{{key, value}})
+type DisableMetadataInput struct {
+	Stream types.StreamLocator
+	RowId  *kwiltypes.UUID
 }
 
-func (s *Stream) disableMetadata(ctx context.Context, rowId string) (transactions.TxHash, error) {
-	return s.checkedExecute(ctx, "disable_metadata", [][]any{{rowId}})
-}
-
-func (s *Stream) InitializeStream(ctx context.Context) (transactions.TxHash, error) {
-	return s.execute(ctx, "init", nil)
+func (s *Action) disableMetadata(ctx context.Context, input DisableMetadataInput) (kwiltypes.Hash, error) {
+	return s.execute(ctx, "disable_metadata", [][]any{{input.Stream.DataProvider.Address(), input.Stream.StreamId.String(), input.RowId}})
 }
 
 // ExecuteProcedure is a wrapper around the execute function, just to be explicit that users can execute arbitrary procedures
-func (s *Stream) ExecuteProcedure(ctx context.Context, procedure string, args [][]any) (transactions.TxHash, error) {
+func (s *Action) ExecuteProcedure(ctx context.Context, procedure string, args [][]any) (kwiltypes.Hash, error) {
 	return s.execute(ctx, procedure, args)
 }
 
 type GetRecordRawOutput struct {
-	DateValue string `json:"date_value"`
-	Value     string `json:"value"`
-}
-
-type GetRecordUnixRawOutput struct {
-	DateValue int    `json:"date_value"`
+	EventTime string `json:"event_time"`
 	Value     string `json:"value"`
 }
 
@@ -139,15 +132,17 @@ func transformOrNil[T any](value *T, transform func(T) any) any {
 }
 
 // CallProcedure is a wrapper around the call function, just to be explicit that users can call arbitrary procedures
-func (s *Stream) CallProcedure(ctx context.Context, procedure string, args []any) (*client.Records, error) {
+func (s *Action) CallProcedure(ctx context.Context, procedure string, args []any) (*kwiltypes.QueryResult, error) {
 	return s.call(ctx, procedure, args)
 }
 
-func (s *Stream) GetRecord(ctx context.Context, input types.GetRecordInput) ([]types.StreamRecord, error) {
+func (s *Action) GetRecord(ctx context.Context, input types.GetRecordInput) ([]types.StreamRecord, error) {
 	var args []any
-	args = append(args, transformOrNil(input.DateFrom, func(date civil.Date) any { return date.String() }))
-	args = append(args, transformOrNil(input.DateTo, func(date civil.Date) any { return date.String() }))
-	args = append(args, transformOrNil(input.FrozenAt, func(date time.Time) any { return date.UTC().Format(time.RFC3339) }))
+	args = append(args, input.DataProvider)
+	args = append(args, input.StreamId)
+	args = append(args, transformOrNil(input.From, func(date int) any { return date }))
+	args = append(args, transformOrNil(input.To, func(date int) any { return date }))
+	args = append(args, transformOrNil(input.FrozenAt, func(date int) any { return date }))
 
 	results, err := s.call(ctx, "get_record", args)
 	if err != nil {
@@ -165,44 +160,20 @@ func (s *Stream) GetRecord(ctx context.Context, input types.GetRecordInput) ([]t
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		dateValue, err := civil.ParseDate(rawOutput.DateValue)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
 		outputs = append(outputs, types.StreamRecord{
-			DateValue: dateValue,
-			Value:     *value,
-		})
-	}
+			EventTime: func() int {
+				if rawOutput.EventTime == "" {
+					return 0
+				}
 
-	return outputs, nil
-}
+				eventTime, err := strconv.Atoi(rawOutput.EventTime)
+				if err != nil {
+					return 0
+				}
 
-func (s *Stream) GetRecordUnix(ctx context.Context, input types.GetRecordUnixInput) ([]types.StreamRecordUnix, error) {
-	var args []any
-	args = append(args, transformOrNil(input.DateFrom, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.DateTo, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.FrozenAt, func(date time.Time) any { return date.UTC().Format(time.RFC3339) }))
-
-	results, err := s.call(ctx, "get_record", args)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	rawOutputs, err := DecodeCallResult[GetRecordUnixRawOutput](results)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	var outputs []types.StreamRecordUnix
-	for _, rawOutput := range rawOutputs {
-		value, _, err := apd.NewFromString(rawOutput.Value)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		outputs = append(outputs, types.StreamRecordUnix{
-			DateValue: rawOutput.DateValue,
-			Value:     *value,
+				return eventTime
+			}(),
+			Value: *value,
 		})
 	}
 
@@ -210,14 +181,15 @@ func (s *Stream) GetRecordUnix(ctx context.Context, input types.GetRecordUnixInp
 }
 
 type GetIndexRawOutput = GetRecordRawOutput
-type GetIndexUnixRawOutput = GetRecordUnixRawOutput
 
-func (s *Stream) GetIndex(ctx context.Context, input types.GetIndexInput) ([]types.StreamIndex, error) {
+func (s *Action) GetIndex(ctx context.Context, input types.GetIndexInput) ([]types.StreamIndex, error) {
 	var args []any
-	args = append(args, transformOrNil(input.DateFrom, func(date civil.Date) any { return date.String() }))
-	args = append(args, transformOrNil(input.DateTo, func(date civil.Date) any { return date.String() }))
-	args = append(args, transformOrNil(input.FrozenAt, func(date time.Time) any { return date.UTC().Format(time.RFC3339) }))
-	args = append(args, transformOrNil(input.BaseDate, func(date civil.Date) any { return date.String() }))
+	args = append(args, input.DataProvider)
+	args = append(args, input.StreamId)
+	args = append(args, transformOrNil(input.From, func(date int) any { return date }))
+	args = append(args, transformOrNil(input.To, func(date int) any { return date }))
+	args = append(args, transformOrNil(input.FrozenAt, func(date int) any { return date }))
+	args = append(args, transformOrNil(input.BaseDate, func(date int) any { return date }))
 
 	results, err := s.call(ctx, "get_index", args)
 	if err != nil {
@@ -235,56 +207,32 @@ func (s *Stream) GetIndex(ctx context.Context, input types.GetIndexInput) ([]typ
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		dateValue, err := civil.ParseDate(rawOutput.DateValue)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
 		outputs = append(outputs, types.StreamIndex{
-			DateValue: dateValue,
-			Value:     *value,
+			EventTime: func() int {
+				if rawOutput.EventTime == "" {
+					return 0
+				}
+
+				eventTime, err := strconv.Atoi(rawOutput.EventTime)
+				if err != nil {
+					return 0
+				}
+
+				return eventTime
+			}(),
+			Value: *value,
 		})
 	}
 
 	return outputs, nil
 }
 
-func (s *Stream) GetIndexUnix(ctx context.Context, input types.GetIndexUnixInput) ([]types.StreamIndexUnix, error) {
+func (s *Action) GetFirstRecord(ctx context.Context, input types.GetFirstRecordInput) (*types.StreamRecord, error) {
 	var args []any
-	args = append(args, transformOrNil(input.DateFrom, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.DateTo, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.FrozenAt, func(date time.Time) any { return date.UTC().Format(time.RFC3339) }))
-	args = append(args, transformOrNil(input.BaseDate, func(date int) any { return date }))
-
-	results, err := s.call(ctx, "get_index", args)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	rawOutputs, err := DecodeCallResult[GetIndexUnixRawOutput](results)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	var outputs []types.StreamIndexUnix
-	for _, rawOutput := range rawOutputs {
-		value, _, err := apd.NewFromString(rawOutput.Value)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		outputs = append(outputs, types.StreamIndexUnix{
-			DateValue: rawOutput.DateValue,
-			Value:     *value,
-		})
-	}
-
-	return outputs, nil
-}
-
-// GetFirstRecord(ctx context.Context, input GetFirstRecordInput) (*StreamRecord, error)
-func (s *Stream) GetFirstRecord(ctx context.Context, input types.GetFirstRecordInput) (*types.StreamRecord, error) {
-	var args []any
-	args = append(args, transformOrNil(input.AfterDate, func(date civil.Date) any { return date.String() }))
-	args = append(args, transformOrNil(input.FrozenAt, func(date time.Time) any { return date.UTC().Format(time.RFC3339) }))
+	args = append(args, input.DataProvider)
+	args = append(args, input.StreamId)
+	args = addArgOrNull(args, input.After, true)
+	args = addArgOrNull(args, input.FrozenAt, true)
 
 	results, err := s.call(ctx, "get_first_record", args)
 	if err != nil {
@@ -305,44 +253,25 @@ func (s *Stream) GetFirstRecord(ctx context.Context, input types.GetFirstRecordI
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	dateValue, err := civil.ParseDate(rawOutput.DateValue)
+
+	eventTime, err := func() (int, error) {
+		if rawOutput.EventTime == "" {
+			return 0, nil
+		}
+
+		eventTime, err := strconv.Atoi(rawOutput.EventTime)
+		if err != nil {
+			return 0, errors.WithStack(err)
+		}
+
+			return eventTime, nil
+	}()
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	return &types.StreamRecord{
-		DateValue: dateValue,
-		Value:     *value,
-	}, nil
-}
-
-func (s *Stream) GetFirstRecordUnix(ctx context.Context, input types.GetFirstRecordUnixInput) (*types.StreamRecordUnix, error) {
-	var args []any
-	args = append(args, transformOrNil(input.AfterDate, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.FrozenAt, func(date time.Time) any { return date.UTC().Format(time.RFC3339) }))
-
-	results, err := s.call(ctx, "get_first_record", args)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	rawOutputs, err := DecodeCallResult[GetRecordUnixRawOutput](results)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	if len(rawOutputs) == 0 {
-		return nil, nil
-	}
-
-	rawOutput := rawOutputs[0]
-	value, _, err := apd.NewFromString(rawOutput.Value)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	return &types.StreamRecordUnix{
-		DateValue: rawOutput.DateValue,
-		Value:     *value,
+		EventTime: eventTime,
+		Value: *value,
 	}, nil
 }

@@ -167,7 +167,7 @@ func (s *ServerFixture) Setup() error {
 	s.t.Logf("Using provider: %s", TestKwilProvider)
 
 	// Get the Ethereum address from the public key
-	pubKeyBytes := pk.PubKey().Bytes()
+	pubKeyBytes := pk.Public().Bytes()
 	// Remove the first byte which is the compression flag
 	pubKeyBytes = pubKeyBytes[1:]
 	addr, err := util.NewEthereumAddressFromBytes(crypto.Keccak256(pubKeyBytes)[12:])

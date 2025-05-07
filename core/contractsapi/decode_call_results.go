@@ -2,15 +2,15 @@ package contractsapi
 
 import (
 	"encoding/json"
-	"github.com/kwilteam/kwil-db/core/types/client"
+	kwiltypes "github.com/kwilteam/kwil-db/core/types"
 	"github.com/pkg/errors"
 )
 
 // DecodeCallResult decodes the result of a view call to the specified struct.
-func DecodeCallResult[T any](result *client.Records) ([]T, error) {
+func DecodeCallResult[T any](result *kwiltypes.QueryResult) ([]T, error) {
 	// Export returns all of the records in a slice. The map in each slice is
 	// equivalent to a Record, which is keyed by the column name.
-	records := result.Export()
+	records := result.ExportToStringMap()
 
 	// Convert the []map[string]any to JSON bytes
 	recordsBytes, err := json.Marshal(records)

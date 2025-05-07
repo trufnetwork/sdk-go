@@ -4,21 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/golang-sql/civil"
-	"github.com/kwilteam/kwil-db/core/types/transactions"
+	"github.com/kwilteam/kwil-db/core/types"
 	"github.com/pkg/errors"
 )
 
 type Taxonomy struct {
+	ParentStream  StreamLocator
 	TaxonomyItems []TaxonomyItem
-	StartDate     *civil.Date
-	EndDate       *civil.Date
-}
-
-type TaxonomyUnix struct {
-	TaxonomyItems []TaxonomyItem
+	CreatedAt     int
+	GroupSequence int
 	StartDate     *int
-	EndDate       *int
 }
 
 type TaxonomyItem struct {
@@ -27,21 +22,20 @@ type TaxonomyItem struct {
 }
 
 type DescribeTaxonomiesParams struct {
+	Stream StreamLocator
 	// LatestVersion if true, will return the latest version of the taxonomy only
 	LatestVersion bool
 }
 
-type IComposedStream interface {
-	// IStream methods are also available in IPrimitiveStream
-	IStream
-	// DescribeTaxonomies returns the taxonomy of the stream
+type IComposedAction interface {
+	// IAction methods are also available in IPrimitiveAction
+	IAction
+	// DescribeTaxonomies returns the taxonomy of the stream with Unix timestamp
 	DescribeTaxonomies(ctx context.Context, params DescribeTaxonomiesParams) (Taxonomy, error)
-	// DescribeTaxonomiesUnix returns the taxonomy of the stream with Unix timestamp
-	DescribeTaxonomiesUnix(ctx context.Context, params DescribeTaxonomiesParams) (TaxonomyUnix, error)
-	// SetTaxonomy sets the taxonomy of the stream
-	SetTaxonomy(ctx context.Context, taxonomies Taxonomy) (transactions.TxHash, error)
-	// SetTaxonomyUnix sets the taxonomy of the stream with Unix timestamp
-	SetTaxonomyUnix(ctx context.Context, taxonomies TaxonomyUnix) (transactions.TxHash, error)
+	// InsertTaxonomy sets the taxonomy of the stream with Unix timestamp
+	InsertTaxonomy(ctx context.Context, taxonomies Taxonomy) (types.Hash, error)
+	// CheckValidComposedStream checks if the stream is a valid composed stream
+	CheckValidComposedStream(ctx context.Context, locator StreamLocator) error
 }
 
 // MarshalJSON Custom marshaler for TaxonomyDefinition

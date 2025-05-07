@@ -8,12 +8,13 @@ import (
 type StreamType string
 
 const (
-	StreamTypeComposed      StreamType = "composed"
-	StreamTypePrimitive     StreamType = "primitive"
-	StreamTypeComposedUnix  StreamType = "composed_unix"
-	StreamTypePrimitiveUnix StreamType = "primitive_unix"
-	StreamTypeHelper        StreamType = "helper"
+	StreamTypeComposed  StreamType = "composed"
+	StreamTypePrimitive StreamType = "primitive"
 )
+
+func (s StreamType) String() string {
+	return string(s)
+}
 
 type MetadataKey string
 
@@ -25,7 +26,7 @@ const (
 	ReadVisibilityKey     MetadataKey = "read_visibility"
 	AllowReadWalletKey    MetadataKey = "allow_read_wallet"
 	AllowComposeStreamKey MetadataKey = "allow_compose_stream"
-	DefaultBaseDateKey    MetadataKey = "default_base_date"
+	DefaultBaseTimeKey    MetadataKey = "default_base_time"
 )
 
 func (s MetadataKey) GetType() MetadataType {
@@ -44,8 +45,8 @@ func (s MetadataKey) GetType() MetadataType {
 		return MetadataTypeRef
 	case AllowComposeStreamKey:
 		return MetadataTypeRef
-	case DefaultBaseDateKey:
-		return MetadataTypeString
+	case DefaultBaseTimeKey:
+		return MetadataTypeInt
 	default:
 		return MetadataTypeString
 	}

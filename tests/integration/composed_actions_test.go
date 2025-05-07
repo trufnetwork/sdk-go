@@ -5,11 +5,11 @@ import (
 	"github.com/kwilteam/kwil-db/core/crypto"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/stretchr/testify/assert"
+	"github.com/trufnetwork/sdk-go/core/contractsapi"
 	"github.com/trufnetwork/sdk-go/core/tnclient"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
 	"testing"
-	"time"
 )
 
 // This file contains integration tests for composed streams in the Truf Network (TN).
@@ -18,7 +18,7 @@ import (
 
 // TestComposedStream demonstrates the process of deploying, initializing, and querying
 // a composed stream that aggregates data from multiple primitive streams in the TN using the TN SDK.
-func TestComposedStream(t *testing.T) {
+func TestComposedActions(t *testing.T) {
 	ctx := context.Background()
 
 	// Parse the private key for authentication
@@ -30,20 +30,23 @@ func TestComposedStream(t *testing.T) {
 	tnClient, err := tnclient.NewClient(ctx, TestKwilProvider, tnclient.WithSigner(signer))
 	assertNoErrorOrFail(t, err, "Failed to create client")
 
-	signerAddress, err := util.NewEthereumAddressFromBytes(signer.Identity())
+	signerAddressString, err := auth.EthSecp256k1Authenticator{}.Identifier(signer.CompactID())
 	assertNoErrorOrFail(t, err, "Failed to create signer address")
+	signerAddress, err := util.NewEthereumAddressFromString(signerAddressString)
+	assertNoErrorOrFail(t, err, "Failed to create signer address from string")
 
 	// Generate a unique stream ID and locator for the composed stream and its child streams
-	streamId := util.GenerateStreamId("test-composed-stream")
-	streamLocator := tnClient.OwnStreamLocator(streamId)
+	streamId := util.GenerateStreamId("test-composed-stream-unix")
 
-	childAStreamId := util.GenerateStreamId("test-composed-stream-child-a")
-	childBStreamId := util.GenerateStreamId("test-composed-stream-child-b")
+	childAStreamId := util.GenerateStreamId("test-composed-stream-child-a-unix")
+	childBStreamId := util.GenerateStreamId("test-composed-stream-child-b-unix")
 
 	allStreamIds := []util.StreamId{streamId, childAStreamId, childBStreamId}
+	primitiveStreamIds := []util.StreamId{childAStreamId, childBStreamId}
 
 	// Cleanup function to destroy the streams after test completion
 	t.Cleanup(func() {
+		//return
 		for _, id := range allStreamIds {
 			destroyResult, err := tnClient.DestroyStream(ctx, id)
 			assertNoErrorOrFail(t, err, "Failed to destroy stream")
@@ -60,41 +63,48 @@ func TestComposedStream(t *testing.T) {
 		waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
 
 		// Load the deployed composed stream
-		deployedComposedStream, err := tnClient.LoadComposedStream(streamLocator)
+		deployedComposedStream, err := tnClient.LoadComposedActions()
 		assertNoErrorOrFail(t, err, "Failed to load composed stream")
 
-		// Step 2: Initialize the composed stream
-		// Initialization prepares the composed stream for data operations
-		txHashInit, err := deployedComposedStream.InitializeStream(ctx)
-		assertNoErrorOrFail(t, err, "Failed to initialize composed stream")
-		waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInit)
+		// Check Composed Validity
+		err = deployedComposedStream.CheckValidComposedStream(ctx, tnClient.OwnStreamLocator(streamId))
+		assertNoErrorOrFail(t, err, "Failed to check composed stream validity")
 
-		// Step 3: Deploy child streams with initial data
+		// Get Type of the stream
+		streamType, err := deployedComposedStream.GetType(ctx, tnClient.OwnStreamLocator(streamId))
+		assertNoErrorOrFail(t, err, "Failed to get stream type")
+		assert.Equal(t, types.StreamTypeComposed, streamType, "Expected stream type to be composed")
+
+		// Step 2: Deploy child streams with initial data
 		// Deploy two primitive child streams with initial data
 		// | date       | childA | childB |
 		// |------------|--------|--------|
 		// | 2020-01-01 | 1      | 3      |
 		// | 2020-01-02 | 2      | 4      |
 
-		deployTestPrimitiveStreamWithData(t, ctx, tnClient, childAStreamId, []types.InsertRecordInput{
-			{Value: 1, DateValue: *unsafeParseDate("2020-01-01")},
-			{Value: 2, DateValue: *unsafeParseDate("2020-01-02")},
-			{Value: 3, DateValue: *unsafeParseDate("2020-01-30")},
-			{Value: 4, DateValue: *unsafeParseDate("2020-02-01")},
-			{Value: 5, DateValue: *unsafeParseDate("2020-02-02")},
+		deployTestPrimitiveStreamWithData(t, ctx, tnClient, primitiveStreamIds, []types.InsertRecordInput{
+			// Child A
+			{DataProvider: signerAddress.Address(), StreamId: childAStreamId.String(), Value: 2, EventTime: 2},
+			{DataProvider: signerAddress.Address(), StreamId: childAStreamId.String(), Value: 3, EventTime: 3},
+			{DataProvider: signerAddress.Address(), StreamId: childAStreamId.String(), Value: 4, EventTime: 4},
+			{DataProvider: signerAddress.Address(), StreamId: childAStreamId.String(), Value: 5, EventTime: 5},
+
+			// Child B
+			{DataProvider: signerAddress.Address(), StreamId: childBStreamId.String(), Value: 3, EventTime: 1},
+			{DataProvider: signerAddress.Address(), StreamId: childBStreamId.String(), Value: 4, EventTime: 2},
+			{DataProvider: signerAddress.Address(), StreamId: childBStreamId.String(), Value: 5, EventTime: 3},
+			{DataProvider: signerAddress.Address(), StreamId: childBStreamId.String(), Value: 6, EventTime: 4},
+			{DataProvider: signerAddress.Address(), StreamId: childBStreamId.String(), Value: 7, EventTime: 5},
 		})
 
-		deployTestPrimitiveStreamWithData(t, ctx, tnClient, childBStreamId, []types.InsertRecordInput{
-			{Value: 3, DateValue: *unsafeParseDate("2020-01-01")},
-			{Value: 4, DateValue: *unsafeParseDate("2020-01-02")},
-			{Value: 5, DateValue: *unsafeParseDate("2020-01-30")},
-			{Value: 6, DateValue: *unsafeParseDate("2020-02-01")},
-			{Value: 7, DateValue: *unsafeParseDate("2020-02-02")},
-		})
-
-		// Step 4: Set taxonomies for the composed stream
+		// Step 3: Set taxonomies for the composed stream
 		// Taxonomies define the structure of the composed stream
-		txHashTaxonomies, err := deployedComposedStream.SetTaxonomy(ctx, types.Taxonomy{
+		mockStartDate := 3
+		txHashTaxonomies, err := deployedComposedStream.InsertTaxonomy(ctx, types.Taxonomy{
+			ParentStream: types.StreamLocator{
+				StreamId:     streamId,
+				DataProvider: signerAddress,
+			},
 			TaxonomyItems: []types.TaxonomyItem{
 				{
 					ChildStream: types.StreamLocator{
@@ -110,38 +120,53 @@ func TestComposedStream(t *testing.T) {
 					},
 					Weight: 2,
 				}},
-			StartDate: unsafeParseDate("2020-01-30"),
-			EndDate:   unsafeParseDate("2020-12-31"),
+			StartDate: &mockStartDate,
 		})
 		assertNoErrorOrFail(t, err, "Failed to set taxonomies")
 		waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashTaxonomies)
 
 		// Describe the taxonomies of the composed stream
 		taxonomies, err := deployedComposedStream.DescribeTaxonomies(ctx, types.DescribeTaxonomiesParams{
+			Stream:        types.StreamLocator{StreamId: streamId, DataProvider: signerAddress},
 			LatestVersion: true,
 		})
 		assertNoErrorOrFail(t, err, "Failed to describe taxonomies")
 		assert.Equal(t, 2, len(taxonomies.TaxonomyItems))
-		assert.Equal(t, time.Date(2020, 1, 30, 0, 0, 0, 0, time.UTC).Format(time.DateOnly), taxonomies.StartDate.String())
-		assert.Equal(t, time.Date(2020, 12, 31, 0, 0, 0, 0, time.UTC).Format(time.DateOnly), taxonomies.EndDate.String())
+		assert.Equal(t, 3, *taxonomies.StartDate)
+		assert.Equal(t, 1, taxonomies.GroupSequence)
+		assert.True(t, taxonomies.CreatedAt > 0)
+		assert.Equal(t, streamId.String(), taxonomies.ParentStream.StreamId.String())
+		assert.Equal(t, signerAddress.Address(), taxonomies.ParentStream.DataProvider.Address())
+		assert.Equal(t, childAStreamId.String(), taxonomies.TaxonomyItems[0].ChildStream.StreamId.String())
+		assert.Equal(t, signerAddress.Address(), taxonomies.TaxonomyItems[0].ChildStream.DataProvider.Address())
+		assert.Equal(t, 1.0, taxonomies.TaxonomyItems[0].Weight)
+		assert.Equal(t, mockStartDate, *taxonomies.StartDate)
 
-		// Step 5: Query the composed stream for records
+		// Step 4: Query the composed stream for records
 		// Query records within a specific date range
+		mockDateFrom := 4
+		mockDateTo := 5
 		records, err := deployedComposedStream.GetRecord(ctx, types.GetRecordInput{
-			DateFrom: unsafeParseDate("2020-02-01"),
-			DateTo:   unsafeParseDate("2020-02-02"),
+			DataProvider: signerAddress.Address(),
+			StreamId:     streamId.String(),
+			From:         &mockDateFrom,
+			To:           &mockDateTo,
 		})
 
 		assertNoErrorOrFail(t, err, "Failed to get records")
 		assert.Equal(t, 2, len(records))
 
 		// Query the records before the set start date
+		mockDateFrom2 := 1
+		mockDateTo2 := 2
 		recordsBefore, errBefore := deployedComposedStream.GetRecord(ctx, types.GetRecordInput{
-			DateFrom: unsafeParseDate("2020-01-01"),
-			DateTo:   unsafeParseDate("2020-01-02"),
+			DataProvider: signerAddress.Address(),
+			StreamId:     streamId.String(),
+			From:         &mockDateFrom2,
+			To:           &mockDateTo2,
 		})
-		assertNoErrorOrFail(t, errBefore, "Failed to get records before start date")
-		assert.NotNil(t, recordsBefore, "Records before start date should not be nil")
+		assert.ErrorIs(t, errBefore, contractsapi.ErrorRecordNotFound, "Expected error when querying records before start date")
+		assert.Nil(t, recordsBefore, "Records before start date should not be nil as there is no active record before the start date")
 
 		// Function to check the record values
 		var checkRecord = func(record types.StreamRecord, expectedValue float64) {
@@ -157,12 +182,17 @@ func TestComposedStream(t *testing.T) {
 		checkRecord(records[0], 5.333333333333333)
 		checkRecord(records[1], 6.333333333333333)
 
-		// Step 6: Query the composed stream for index
+		// Step 5: Query the composed stream for index
 		// Query the index within a specific date range
+		mockDateFrom3 := 3
+		mockDateTo3 := 4
+		mockBaseDate := 3
 		index, err := deployedComposedStream.GetIndex(ctx, types.GetIndexInput{
-			DateFrom: unsafeParseDate("2020-01-30"),
-			DateTo:   unsafeParseDate("2020-02-01"),
-			BaseDate: unsafeParseDate("2020-01-30"),
+			DataProvider: signerAddress.Address(),
+			StreamId:     streamId.String(),
+			From:         &mockDateFrom3,
+			To:           &mockDateTo3,
+			BaseDate:     &mockBaseDate,
 		})
 
 		assertNoErrorOrFail(t, err, "Failed to get index")
@@ -171,18 +201,15 @@ func TestComposedStream(t *testing.T) {
 		checkRecord(index[1], 124.44444444444444) // it is x% away from the base date + 1 in percentage
 
 		// Query the index before the set start date
+		mockDateFrom4 := 1
+		mockDateTo4 := 2
 		indexBefore, errBefore := deployedComposedStream.GetIndex(ctx, types.GetIndexInput{
-			DateFrom: unsafeParseDate("2020-01-01"),
-			DateTo:   unsafeParseDate("2020-01-02"),
+			DataProvider: signerAddress.Address(),
+			StreamId:     streamId.String(),
+			From:         &mockDateFrom4,
+			To:           &mockDateTo4,
 		})
-		assertNoErrorOrFail(t, errBefore, "Failed to get index before start date")
-		assert.NotNil(t, indexBefore, "Index before start date should not be nil")
-
-		// Step 7: Query the first record from the composed stream
-		// Query the first record from the composed stream
-		firstRecord, err := deployedComposedStream.GetFirstRecord(ctx, types.GetFirstRecordInput{})
-		assertNoErrorOrFail(t, err, "Failed to get first record")
-		checkRecord(*firstRecord, 2.3333333333333335)
-		assert.Equal(t, "2020-01-01", firstRecord.DateValue.String())
+		assert.ErrorIs(t, errBefore, contractsapi.ErrorRecordNotFound, "Expected error when querying index before start date")
+		assert.Nil(t, indexBefore, "Index before start date should not be nil as there is no active index before the start date")
 	})
 }

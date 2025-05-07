@@ -3,11 +3,12 @@ package tnclient
 import (
 	"context"
 	"github.com/go-playground/validator/v10"
-	kwilClientPkg "github.com/kwilteam/kwil-db/core/client"
+	"github.com/kwilteam/kwil-db/core/client"
+	kwilClientType "github.com/kwilteam/kwil-db/core/client/types"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/kwilteam/kwil-db/core/log"
-	kwilClientType "github.com/kwilteam/kwil-db/core/types/client"
-	"github.com/kwilteam/kwil-db/core/types/transactions"
+	kwilType "github.com/kwilteam/kwil-db/core/types"
+	"github.com/kwilteam/kwil-db/node/types"
 	"github.com/pkg/errors"
 	tn_api "github.com/trufnetwork/sdk-go/core/contractsapi"
 	"github.com/trufnetwork/sdk-go/core/logging"
@@ -20,7 +21,7 @@ import (
 type Client struct {
 	Signer      auth.Signer `validate:"required"`
 	logger      *log.Logger
-	kwilClient  *kwilClientPkg.Client `validate:"required"`
+	kwilClient  *client.Client `validate:"required"`
 	kwilOptions *kwilClientType.Options
 }
 
@@ -31,14 +32,15 @@ type Option func(*Client)
 func NewClient(ctx context.Context, provider string, options ...Option) (*Client, error) {
 	c := &Client{}
 	c.kwilOptions = kwilClientType.DefaultOptions()
-	kwilClient, err := kwilClientPkg.NewClient(ctx, provider, c.kwilOptions)
+	for _, option := range options {
+		option(c)
+	}
+
+	kwilClient, err := client.NewClient(ctx, provider, c.kwilOptions)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 	c.kwilClient = kwilClient
-	for _, option := range options {
-		option(c)
-	}
 
 	// Validate the client
 	if err = c.Validate(); err != nil {
@@ -55,7 +57,7 @@ func (c *Client) Validate() error {
 
 func WithSigner(signer auth.Signer) Option {
 	return func(c *Client) {
-		c.kwilClient.Signer = signer
+		c.kwilOptions.Signer = signer
 		c.Signer = signer
 	}
 }
@@ -68,59 +70,47 @@ func WithLogger(logger log.Logger) Option {
 }
 
 func (c *Client) GetSigner() auth.Signer {
-	return c.kwilClient.Signer
+	return c.kwilClient.Signer()
 }
 
-func (c *Client) WaitForTx(ctx context.Context, txHash transactions.TxHash, interval time.Duration) (*transactions.TcTxQueryResponse, error) {
+func (c *Client) WaitForTx(ctx context.Context, txHash kwilType.Hash, interval time.Duration) (*kwilType.TxQueryResponse, error) {
 	return c.kwilClient.WaitTx(ctx, txHash, interval)
 }
 
-func (c *Client) GetKwilClient() *kwilClientPkg.Client {
+func (c *Client) GetKwilClient() *client.Client {
 	return c.kwilClient
 }
 
-func (c *Client) DeployStream(ctx context.Context, streamId util.StreamId, streamType clientType.StreamType) (transactions.TxHash, error) {
+func (c *Client) DeployStream(ctx context.Context, streamId util.StreamId, streamType clientType.StreamType) (types.Hash, error) {
 	return tn_api.DeployStream(ctx, tn_api.DeployStreamInput{
 		StreamId:   streamId,
 		StreamType: streamType,
-		KwilClient: c.kwilClient,
-		Deployer:   c.kwilClient.Signer.Identity(),
+		KwilClient: c.GetKwilClient(),
 	})
 }
 
-func (c *Client) DestroyStream(ctx context.Context, streamId util.StreamId) (transactions.TxHash, error) {
-	out, err := tn_api.DestroyStream(ctx, tn_api.DestroyStreamInput{
+func (c *Client) DestroyStream(ctx context.Context, streamId util.StreamId) (types.Hash, error) {
+	return tn_api.DestroyStream(ctx, tn_api.DestroyStreamInput{
 		StreamId:   streamId,
-		KwilClient: c.kwilClient,
-	})
-	if err != nil {
-		return transactions.TxHash{}, errors.WithStack(err)
-	}
-
-	return out.TxHash, nil
-}
-
-func (c *Client) LoadStream(streamLocator clientType.StreamLocator) (clientType.IStream, error) {
-	return tn_api.LoadStream(tn_api.NewStreamOptions{
-		Client:   c.kwilClient,
-		StreamId: streamLocator.StreamId,
-		Deployer: streamLocator.DataProvider.Bytes(),
+		KwilClient: c.GetKwilClient(),
 	})
 }
 
-func (c *Client) LoadPrimitiveStream(streamLocator clientType.StreamLocator) (clientType.IPrimitiveStream, error) {
-	return tn_api.LoadPrimitiveStream(tn_api.NewStreamOptions{
-		Client:   c.kwilClient,
-		StreamId: streamLocator.StreamId,
-		Deployer: streamLocator.DataProvider.Bytes(),
+func (c *Client) LoadActions() (clientType.IAction, error) {
+	return tn_api.LoadAction(tn_api.NewActionOptions{
+		Client: c.kwilClient,
 	})
 }
 
-func (c *Client) LoadComposedStream(streamLocator clientType.StreamLocator) (clientType.IComposedStream, error) {
-	return tn_api.LoadComposedStream(tn_api.NewStreamOptions{
-		Client:   c.kwilClient,
-		StreamId: streamLocator.StreamId,
-		Deployer: streamLocator.DataProvider.Bytes(),
+func (c *Client) LoadPrimitiveActions() (clientType.IPrimitiveAction, error) {
+	return tn_api.LoadPrimitiveActions(tn_api.NewActionOptions{
+		Client: c.kwilClient,
+	})
+}
+
+func (c *Client) LoadComposedActions() (clientType.IComposedAction, error) {
+	return tn_api.LoadComposedActions(tn_api.NewActionOptions{
+		Client: c.kwilClient,
 	})
 }
 
@@ -132,18 +122,14 @@ func (c *Client) OwnStreamLocator(streamId util.StreamId) clientType.StreamLocat
 }
 
 func (c *Client) Address() util.EthereumAddress {
-	address, err := util.NewEthereumAddressFromBytes(c.kwilClient.Signer.Identity())
+	addr, err := auth.EthSecp256k1Authenticator{}.Identifier(c.kwilClient.Signer().CompactID())
 	if err != nil {
 		// should never happen
 		logging.Logger.Panic("failed to get address from signer", zap.Error(err))
 	}
+	address, err := util.NewEthereumAddressFromString(addr)
+	if err != nil {
+		logging.Logger.Panic("failed to create address from string", zap.Error(err))
+	}
 	return address
-}
-
-func (c *Client) LoadHelperStream(streamLocator clientType.StreamLocator) (clientType.IHelperStream, error) {
-	return tn_api.LoadHelperStream(tn_api.NewStreamOptions{
-		Client:   c.kwilClient,
-		StreamId: streamLocator.StreamId,
-		Deployer: streamLocator.DataProvider.Bytes(),
-	})
 }

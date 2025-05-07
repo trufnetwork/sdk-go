@@ -9,3 +9,17 @@ type StreamLocator struct {
 	// DataProvider is the address of the data provider, it's the deployer of the stream
 	DataProvider util.EthereumAddress
 }
+
+type ListStreamsInput struct {
+	DataProvider string
+	Limit        int
+	Offset       int
+	OrderBy      string
+}
+
+type ListStreamsOutput struct {
+	DataProvider string `json:"data_provider"`
+	StreamId     string `json:"stream_id"`
+	StreamType   string `json:"stream_type"`
+	CreatedAt    string `json:"created_at"`
+}
