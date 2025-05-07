@@ -5,12 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/joho/godotenv"
 	kwilcrypto "github.com/kwilteam/kwil-db/core/crypto"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/trufnetwork/sdk-go/core/tnclient"
@@ -22,6 +24,8 @@ const (
 	networkName      = "truf-test-network"
 	TestKwilProvider = "http://localhost:8484"
 	TestPrivateKey   = "1111111111111111111111111111111111111111111111111111111111111111" // Test private key
+	DB_PRIVATE_KEY   = "0000000000000000000000000000000000000000000000000000000000000001"
+	DB_PUBLIC_KEY    = "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
 )
 
 // ServerFixture is a fixture for setting up and tearing down a Trufnetwork server for testing
@@ -32,7 +36,7 @@ type ServerFixture struct {
 	ctx        context.Context
 	containers struct {
 		postgres containerSpec
-		tsndb    containerSpec
+		tndb     containerSpec
 	}
 }
 
@@ -42,7 +46,10 @@ type containerSpec struct {
 	image       string
 	tmpfsPath   string
 	envVars     []string
+	portsMap    map[string]string
 	healthCheck func(d *docker) error
+	entrypoint  string   // Optional: container entrypoint
+	command     []string // Optional: command and its arguments
 }
 
 // docker provides a simplified interface for docker operations
@@ -61,33 +68,42 @@ func NewServerFixture(t *testing.T) *ServerFixture {
 		ctx:    ctx,
 		containers: struct {
 			postgres containerSpec
-			tsndb    containerSpec
+			tndb     containerSpec
 		}{
 			postgres: containerSpec{
 				name:      "test-kwil-postgres",
 				image:     "kwildb/postgres:latest",
 				tmpfsPath: "/var/lib/postgresql/data",
+				portsMap:  map[string]string{"5432": "5432"},
 				envVars:   []string{"POSTGRES_HOST_AUTH_METHOD=trust"},
 				healthCheck: func(d *docker) error {
 					_, err := d.exec("test-kwil-postgres", "pg_isready", "-U", "postgres")
 					return err
 				},
 			},
-			tsndb: containerSpec{
-				name:      "test-tsn-db",
-				image:     "tsn-db:local",
+			tndb: containerSpec{
+				name:      "test-tn-db",
+				image:     "tn-db:local",
 				tmpfsPath: "/root/.kwild",
-				envVars: []string{
-					"CONFIG_PATH=/root/.kwild",
-					"KWILD_APP_HOSTNAME=test-tsn-db",
-					"KWILD_APP_PG_DB_HOST=test-kwil-postgres",
-					"KWILD_CHAIN_P2P_EXTERNAL_ADDRESS=http://test-tsn-db:26656",
+				portsMap: map[string]string{
+					"8484":  "8484",
+					"8080":  "8080",
+					"26656": "26656",
 				},
+				envVars: []string{},
 				healthCheck: func(d *docker) error {
 					// Wait for the service to be ready
 					time.Sleep(5 * time.Second)
-					_, err := d.exec("test-tsn-db", "ps", "aux")
+					_, err := d.exec("test-tn-db", "ps", "aux")
 					return err
+				},
+				entrypoint: "/app/kwild",
+				command: []string{
+					"start",
+					"--autogen",
+					"--root", "/root/.kwild",
+					"--db-owner", DB_PUBLIC_KEY,
+					"--db.host", "test-kwil-postgres",
 				},
 			},
 		},
@@ -96,6 +112,12 @@ func NewServerFixture(t *testing.T) *ServerFixture {
 
 // Setup sets up the test environment
 func (s *ServerFixture) Setup() error {
+	// Load .env file if it exists
+	err := godotenv.Load("../../.env")
+	if err != nil {
+		s.t.Log("No .env file found or error loading it, proceeding with existing environment variables: ", err)
+	}
+
 	// Clean up any existing resources
 	s.docker.cleanup()
 
@@ -120,22 +142,22 @@ func (s *ServerFixture) Setup() error {
 		time.Sleep(time.Second)
 	}
 
-	// Start tsn-db with autogen
-	s.t.Log("Starting tsn-db container...")
-	if err := s.docker.startContainer(s.containers.tsndb); err != nil {
+	// Start tn-db with autogen
+	s.t.Log("Starting tn-db container...")
+	if err := s.docker.startContainer(s.containers.tndb); err != nil {
 		// Get logs before failing
-		if out, err := s.docker.run("logs", s.containers.tsndb.name); err == nil {
-			s.t.Logf("TSN-DB container logs:\n%s", out)
+		if out, err := s.docker.run("logs", s.containers.tndb.name); err == nil {
+			s.t.Logf("TN-DB container logs:\n%s", out)
 		} else {
-			s.t.Logf("Failed to get TSN-DB logs: %v", err)
+			s.t.Logf("Failed to get TN-DB logs: %v", err)
 		}
 		// Get container status
-		if status, err := s.docker.run("inspect", "--format", "{{.State.Status}}", s.containers.tsndb.name); err == nil {
-			s.t.Logf("TSN-DB container status: %s", status)
+		if status, err := s.docker.run("inspect", "--format", "{{.State.Status}}", s.containers.tndb.name); err == nil {
+			s.t.Logf("TN-DB container status: %s", status)
 		}
-		return fmt.Errorf("failed to start tsn-db container: %w", err)
+		return fmt.Errorf("failed to start tn-db container: %w", err)
 	}
-	s.t.Log("TSN-DB container started successfully")
+	s.t.Log("TN-DB container started successfully")
 
 	// Wait for node to be fully initialized
 	s.t.Log("Waiting for node to be fully initialized...")
@@ -153,6 +175,25 @@ func (s *ServerFixture) Setup() error {
 			return errors.New("node failed to become healthy or produce the first block")
 		}
 		time.Sleep(time.Second)
+	}
+
+	s.t.Log("Running migration task...")
+	nodeRepoDir := os.Getenv("NODE_REPO_DIR")
+	if nodeRepoDir == "" {
+		return errors.New("NODE_REPO_DIR environment variable not set")
+	} else {
+		providerArg := fmt.Sprintf("PROVIDER=%s", TestKwilProvider)
+		privateKeyArg := fmt.Sprintf("PRIVATE_KEY=%s", DB_PRIVATE_KEY)
+		migrateCmd := exec.CommandContext(s.ctx, "task", "action:migrate", providerArg, privateKeyArg)
+		migrateCmd.Dir = nodeRepoDir
+
+		s.t.Logf("Executing command in %s: %s", migrateCmd.Dir, strings.Join(migrateCmd.Args, " "))
+		migrateOut, migrateErr := migrateCmd.CombinedOutput()
+		if migrateErr != nil {
+			s.t.Logf("Migration task output: %s", string(migrateOut))
+			return fmt.Errorf("migration task failed in %s: %w. Output: %s", nodeRepoDir, migrateErr, string(migrateOut))
+		}
+		s.t.Logf("Migration task successful. Output: %s", string(migrateOut))
 	}
 
 	// Create client
@@ -238,7 +279,7 @@ func (s *ServerFixture) Setup() error {
 // Teardown tears down the test environment
 func (s *ServerFixture) Teardown() {
 	// Stop containers in reverse order
-	s.docker.stopContainer(s.containers.tsndb.name)
+	s.docker.stopContainer(s.containers.tndb.name)
 	s.docker.stopContainer(s.containers.postgres.name)
 
 	// Tear down the network
@@ -289,7 +330,7 @@ func (d *docker) teardownNetwork() error {
 
 // startContainer starts a container with the given spec and waits for it to be healthy
 func (d *docker) startContainer(spec containerSpec) error {
-	args := []string{"run", "--rm", "--name", spec.name, "--network", networkName, "-d"}
+	args := []string{"run", "--name", spec.name, "--network", networkName, "-d"}
 
 	if spec.tmpfsPath != "" {
 		args = append(args, "--tmpfs", spec.tmpfsPath)
@@ -299,18 +340,19 @@ func (d *docker) startContainer(spec containerSpec) error {
 		args = append(args, "-e", env)
 	}
 
-	if spec.name == "test-tsn-db" {
-		args = append(args, "-p", "50051:50051", "-p", "50151:50151", "-p", "8080:8080",
-			"-p", "8484:8484", "-p", "26656:26656", "-p", "26657:26657",
-			"--entrypoint", "/app/kwild",
-			spec.image,
-			"--autogen",
-			"--app.pg-db-host", "test-kwil-postgres",
-			"--app.hostname", "test-tsn-db",
-			"--chain.p2p.external-address", "http://test-tsn-db:26656",
-		)
-	} else {
-		args = append(args, spec.image)
+	// Add port mappings from spec
+	for hostPort, containerPort := range spec.portsMap {
+		args = append(args, "-p", fmt.Sprintf("%s:%s", hostPort, containerPort))
+	}
+
+	if spec.entrypoint != "" {
+		args = append(args, "--entrypoint", spec.entrypoint)
+	}
+
+	args = append(args, spec.image)
+
+	if len(spec.command) > 0 {
+		args = append(args, spec.command...)
 	}
 
 	out, err := d.run(args...)
@@ -330,7 +372,7 @@ func (d *docker) startContainer(spec containerSpec) error {
 		}
 	}
 
-	if spec.name == "test-tsn-db" {
+	if spec.name == "test-tn-db" {
 		err := pollUntilTrue(context.Background(), 30*time.Second, func() bool {
 			out, err := exec.Command("curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "http://localhost:8484/api/v1/health").Output()
 			if err != nil {
@@ -377,7 +419,7 @@ func (d *docker) cleanup() {
 	d.run("network", "prune", "-f")
 
 	// Remove volume
-	d.run("volume", "rm", "tsn-config")
+	d.run("volume", "rm", "tn-config")
 }
 
 // pollUntilTrue polls a condition until it returns true or a timeout is reached
