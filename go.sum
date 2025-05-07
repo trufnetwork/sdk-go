@@ -26,6 +26,8 @@ github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/holiman/uint256 v1.3.2 h1:a9EgMPSC1AAaj1SZL5zIQD3WbwTuHrMGOerLjGmM/TA=
 github.com/holiman/uint256 v1.3.2/go.mod h1:EOMSn4q6Nyt9P6efbI3bueV4e1b3dGlUCXeiRV4ng7E=
+github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
+github.com/joho/godotenv v1.5.1/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=
 github.com/jrick/logrotate v1.1.2 h1:6ePk462NCX7TfKtNp5JJ7MbA2YIslkpfgP03TlTYMN0=
 github.com/jrick/logrotate v1.1.2/go.mod h1:f9tdWggSVK3iqavGpyvegq5IhNois7KXmasU6/N96OQ=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
@@ -36,6 +38,8 @@ github.com/kwilteam/kwil-db v0.10.2 h1:EEEJ5h2hYnPLsAVSHVSsH1OegzgDU/EKSeer41bJg
 github.com/kwilteam/kwil-db v0.10.2/go.mod h1:46IO8tO8gCBgETv90Lwscx1wDtYOBMxVHhlO8OAjfdc=
 github.com/kwilteam/kwil-db/core v0.4.1 h1:6ZOCLBMvO6EnVfsgwP2KxD0yWF2lIvmismSfRZLDXkc=
 github.com/kwilteam/kwil-db/core v0.4.1/go.mod h1:clG9Pk1NNs83dbIZZZn/6I+F4C9xntYTHbMFjL1HQ0w=
+github.com/kwilteam/kwil-db/core v0.4.2-0.20250506000241-da9d3ddea45e h1:v0spmBGP7AGA/NBoW3CSbXUd+AGZMIzguNuS6Oppd/c=
+github.com/kwilteam/kwil-db/core v0.4.2-0.20250506000241-da9d3ddea45e/go.mod h1:clG9Pk1NNs83dbIZZZn/6I+F4C9xntYTHbMFjL1HQ0w=
 github.com/leodido/go-urn v1.4.0 h1:WT9HwE9SGECu3lg4d/dIA+jxlljEa1/ffXKmRjqdmIQ=
 github.com/leodido/go-urn v1.4.0/go.mod h1:bvxc+MVxLKB4z00jd1z+Dvzr47oO32F/QSNjSBOlFxI=
 github.com/lib/pq v1.10.7 h1:p7ZhMD+KsSRozJr34udlUrhboJwWAgCg34+/ZZNvZZw=
