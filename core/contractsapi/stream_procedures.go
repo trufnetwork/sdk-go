@@ -2,12 +2,14 @@ package contractsapi
 
 import (
 	"context"
+	"reflect"
+	"strconv"
+
 	"github.com/cockroachdb/apd/v3"
 	kwiltypes "github.com/kwilteam/kwil-db/core/types"
 	"github.com/pkg/errors"
 	"github.com/trufnetwork/sdk-go/core/types"
-	"reflect"
-	"strconv"
+	"github.com/trufnetwork/sdk-go/core/util"
 )
 
 // ## View only procedures
@@ -227,6 +229,122 @@ func (s *Action) GetIndex(ctx context.Context, input types.GetIndexInput) ([]typ
 	return outputs, nil
 }
 
+// streamExistsResult is used to decode the output of the stream_exists_batch procedure.
+// Note: The exact JSON tags will depend on the actual output of the SQL procedure.
+// Assuming it returns columns named data_provider, stream_id, and exists.
+type streamExistsResult struct {
+	DataProvider string `json:"data_provider"`
+	StreamId     string `json:"stream_id"`
+	Exists       bool   `json:"stream_exists"`
+}
+
+// BatchStreamExists checks for the existence of multiple streams using the stream_exists_batch SQL action.
+func (s *Action) BatchStreamExists(ctx context.Context, streamsInput []types.StreamLocator) ([]types.StreamExistsResult, error) {
+	if len(streamsInput) == 0 {
+		return []types.StreamExistsResult{}, nil
+	}
+
+	dataProviders := make([]string, len(streamsInput))
+	streamIds := make([]string, len(streamsInput))
+
+	for i, si := range streamsInput {
+		dataProviders[i] = si.DataProvider.Address()
+		streamIds[i] = si.StreamId.String()
+	}
+
+	// The procedure stream_exists_batch expects two array arguments: $data_providers TEXT[], $stream_ids TEXT[]
+	args := []any{dataProviders, streamIds}
+
+	queryResult, err := s.call(ctx, "stream_exists_batch", args)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	decodedResults, err := DecodeCallResult[streamExistsResult](queryResult)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	resultsMap := make([]types.StreamExistsResult, len(decodedResults))
+	for i, res := range decodedResults {
+		dataProviderAddr, err := util.NewEthereumAddressFromString(res.DataProvider)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to parse data provider address '%s' from stream_exists_batch result", res.DataProvider)
+		}
+		streamIdObj, err := util.NewStreamId(res.StreamId)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to parse stream id '%s' from stream_exists_batch result", res.StreamId)
+		}
+		resultsMap[i] = types.StreamExistsResult{
+			StreamLocator: types.StreamLocator{
+				DataProvider: dataProviderAddr,
+				StreamId:     *streamIdObj,
+			},
+			Exists: res.Exists,
+		}
+	}
+
+	return resultsMap, nil
+}
+
+// filteredStreamResult is used to decode the output of the filter_streams_by_existence procedure.
+// It expects columns data_provider and stream_id.
+type filteredStreamResult struct {
+	DataProvider string `json:"data_provider"`
+	StreamId     string `json:"stream_id"`
+}
+
+// BatchFilterStreamsByExistence filters a list of streams based on their existence in the database.
+// The existingOnly flag determines whether to return streams that exist or streams that do not exist.
+func (s *Action) BatchFilterStreamsByExistence(ctx context.Context, streamsInput []types.StreamLocator, returnExisting bool) ([]types.StreamLocator, error) {
+	if len(streamsInput) == 0 {
+		return []types.StreamLocator{}, nil
+	}
+
+	dataProviders := make([]string, len(streamsInput))
+	streamIds := make([]string, len(streamsInput))
+
+	for i, sl := range streamsInput {
+		dataProviders[i] = sl.DataProvider.Address()
+		streamIds[i] = sl.StreamId.String()
+	}
+
+	args := []any{dataProviders, streamIds, returnExisting}
+
+	queryResult, err := s.call(ctx, "filter_streams_by_existence", args)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	decodedResults, err := DecodeCallResult[filteredStreamResult](queryResult)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	filteredLocators := make([]types.StreamLocator, 0, len(decodedResults))
+	for _, res := range decodedResults {
+		dataProviderAddr, err := util.NewEthereumAddressFromString(res.DataProvider)
+		if err != nil {
+			// This might happen if the SQL procedure returns an invalid address string.
+			// Consider how to handle this - skip, error out, or log.
+			// For now, wrapping the error and returning.
+			return nil, errors.Wrapf(err, "failed to parse data provider address '%s' from filter_streams_by_existence result", res.DataProvider)
+		}
+		streamIdObj, err := util.NewStreamId(res.StreamId)
+		if err != nil {
+			// Similar handling for invalid stream ID string.
+			return nil, errors.Wrapf(err, "failed to parse stream id '%s' from filter_streams_by_existence result", res.StreamId)
+		}
+
+		filteredLocators = append(filteredLocators, types.StreamLocator{
+			DataProvider: dataProviderAddr,
+			StreamId:     *streamIdObj,
+		})
+	}
+
+	return filteredLocators, nil
+}
+
 func (s *Action) GetFirstRecord(ctx context.Context, input types.GetFirstRecordInput) (*types.StreamRecord, error) {
 	var args []any
 	args = append(args, input.DataProvider)
@@ -264,7 +382,7 @@ func (s *Action) GetFirstRecord(ctx context.Context, input types.GetFirstRecordI
 			return 0, errors.WithStack(err)
 		}
 
-			return eventTime, nil
+		return eventTime, nil
 	}()
 	if err != nil {
 		return nil, err
@@ -272,6 +390,6 @@ func (s *Action) GetFirstRecord(ctx context.Context, input types.GetFirstRecordI
 
 	return &types.StreamRecord{
 		EventTime: eventTime,
-		Value: *value,
+		Value:     *value,
 	}, nil
 }

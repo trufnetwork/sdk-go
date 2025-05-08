@@ -2,28 +2,28 @@ package integration
 
 import (
 	"context"
-	"github.com/golang-sql/civil"
-	"github.com/kwilteam/kwil-db/core/crypto"
-	"github.com/kwilteam/kwil-db/core/crypto/auth"
-	"github.com/stretchr/testify/assert"
-	"github.com/trufnetwork/sdk-go/core/tnclient"
-	"github.com/trufnetwork/sdk-go/core/types"
-	"github.com/trufnetwork/sdk-go/core/util"
 	"testing"
 	"time"
+
+	"github.com/golang-sql/civil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/trufnetwork/sdk-go/core/types"
+	"github.com/trufnetwork/sdk-go/core/util"
 )
 
 func TestDeployComposedStreamsWithTaxonomy(t *testing.T) {
+	fixture := NewServerFixture(t)
+	err := fixture.Setup()
+	t.Cleanup(func() {
+		fixture.Teardown()
+	})
+	require.NoError(t, err, "Failed to setup server fixture")
+
+	tnClient := fixture.Client()
+	require.NotNil(t, tnClient, "Client from fixture should not be nil")
+
 	ctx := context.Background()
-
-	// Parse the private key for authentication
-	pk, err := crypto.Secp256k1PrivateKeyFromHex(TestPrivateKey)
-	assertNoErrorOrFail(t, err, "Failed to parse private key")
-
-	// Create a signer using the parsed private key
-	signer := &auth.EthPersonalSigner{Key: *pk}
-	tnClient, err := tnclient.NewClient(ctx, TestKwilProvider, tnclient.WithSigner(signer))
-	assertNoErrorOrFail(t, err, "Failed to create client")
 
 	// Generate unique stream IDs and locators
 	primitiveStreamId := util.GenerateStreamId("test-primitive-stream-one")

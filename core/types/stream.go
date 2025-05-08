@@ -2,6 +2,7 @@ package types
 
 import (
 	"context"
+
 	"github.com/cockroachdb/apd/v3"
 	kwilType "github.com/kwilteam/kwil-db/core/types"
 	"github.com/kwilteam/kwil-db/node/types"
@@ -53,6 +54,11 @@ type DefaultBaseTimeInput struct {
 	BaseTime int
 }
 
+type StreamExistsResult struct {
+	StreamLocator StreamLocator
+	Exists        bool
+}
+
 type IAction interface {
 	// ExecuteProcedure Executes an arbitrary procedure on the stream. Execute refers to the write calls
 	ExecuteProcedure(ctx context.Context, procedure string, args [][]any) (types.Hash, error)
@@ -96,4 +102,11 @@ type IAction interface {
 
 	// GetStreamOwner gets the owner of the stream
 	GetStreamOwner(ctx context.Context, locator StreamLocator) ([]byte, error)
+
+	// BatchStreamExists checks for the existence of multiple streams.
+	BatchStreamExists(ctx context.Context, streamsInput []StreamLocator) ([]StreamExistsResult, error)
+
+	// BatchFilterStreamsByExistence filters a list of streams based on their existence in the database.
+	// Use this instead of BatchStreamExists if you want less data returned.
+	BatchFilterStreamsByExistence(ctx context.Context, streamsInput []StreamLocator, returnExisting bool) ([]StreamLocator, error)
 }

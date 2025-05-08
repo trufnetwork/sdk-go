@@ -2,13 +2,14 @@ package integration
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	kwiltypes "github.com/kwilteam/kwil-db/core/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/trufnetwork/sdk-go/core/tnclient"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
-	"testing"
-	"time"
 )
 
 // ## Helper functions
@@ -36,18 +37,25 @@ func deployTestPrimitiveStreamWithData(
 	streamIds []util.StreamId,
 	data []types.InsertRecordInput,
 ) {
-	for _, streamId := range streamIds {
-		deployTxHash, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitive)
-		assertNoErrorOrFail(t, err, "Failed to deploy stream")
-		waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
+	streamDefs := make([]types.StreamDefinition, len(streamIds))
+	for i, streamId := range streamIds {
+		streamDefs[i] = types.StreamDefinition{
+			StreamId:   streamId,
+			StreamType: types.StreamTypePrimitive,
+		}
 	}
+	batchDeployTxHash, err := tnClient.BatchDeployStreams(ctx, streamDefs)
+	assertNoErrorOrFail(t, err, "Failed to deploy streams")
+	waitTxToBeMinedWithSuccess(t, ctx, tnClient, batchDeployTxHash)
 
-	primitiveActions, err := tnClient.LoadPrimitiveActions()
-	assertNoErrorOrFail(t, err, "Failed to load stream")
+	if len(data) > 0 {
+		primitiveActions, err := tnClient.LoadPrimitiveActions()
+		assertNoErrorOrFail(t, err, "Failed to load stream")
 
-	txHashInsert, err := primitiveActions.InsertRecords(ctx, data)
-	assertNoErrorOrFail(t, err, "Failed to insert records")
-	waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInsert)
+		txHashInsert, err := primitiveActions.InsertRecords(ctx, data)
+		assertNoErrorOrFail(t, err, "Failed to insert records")
+		waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHashInsert)
+	}
 }
 
 func deployTestComposedStreamWithTaxonomy(
