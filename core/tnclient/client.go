@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/kwilteam/kwil-db/core/client"
 	kwilClientType "github.com/kwilteam/kwil-db/core/client/types"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
+	"github.com/kwilteam/kwil-db/core/gatewayclient"
 	"github.com/kwilteam/kwil-db/core/log"
 	kwilType "github.com/kwilteam/kwil-db/core/types"
 	"github.com/kwilteam/kwil-db/node/types"
@@ -22,8 +22,8 @@ import (
 type Client struct {
 	Signer      auth.Signer `validate:"required"`
 	logger      *log.Logger
-	kwilClient  *client.Client `validate:"required"`
-	kwilOptions *kwilClientType.Options
+	kwilClient  *gatewayclient.GatewayClient `validate:"required"`
+	kwilOptions *gatewayclient.GatewayOptions
 }
 
 var _ clientType.Client = (*Client)(nil)
@@ -32,12 +32,14 @@ type Option func(*Client)
 
 func NewClient(ctx context.Context, provider string, options ...Option) (*Client, error) {
 	c := &Client{}
-	c.kwilOptions = kwilClientType.DefaultOptions()
+	c.kwilOptions = &gatewayclient.GatewayOptions{
+		Options: *kwilClientType.DefaultOptions(),
+	}
 	for _, option := range options {
 		option(c)
 	}
 
-	kwilClient, err := client.NewClient(ctx, provider, c.kwilOptions)
+	kwilClient, err := gatewayclient.NewClient(ctx, provider, c.kwilOptions)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -78,7 +80,7 @@ func (c *Client) WaitForTx(ctx context.Context, txHash kwilType.Hash, interval t
 	return c.kwilClient.WaitTx(ctx, txHash, interval)
 }
 
-func (c *Client) GetKwilClient() *client.Client {
+func (c *Client) GetKwilClient() *gatewayclient.GatewayClient {
 	return c.kwilClient
 }
 

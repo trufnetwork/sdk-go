@@ -15,15 +15,18 @@ func main() {
 	streamId := util.GenerateStreamId("test")
 	pk, _ := crypto.Secp256k1PrivateKeyFromHex("0000000000000000000000000000000000000000000000000000000000000001")
 	signer := &auth.EthPersonalSigner{Key: *pk}
-	tnClient, _ := tnclient.NewClient(
+	tnClient, err := tnclient.NewClient(
 		ctx,
 		"http://localhost:8484",
 		tnclient.WithSigner(signer))
+	if err != nil {
+		panic(err)
+	}
 	fmt.Println("streamId: ", streamId)
-	txHash, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitive)
+	listStreams, err := tnClient.ListStreams(ctx, types.ListStreamsInput{})
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("txHash: ", txHash)
+	fmt.Println("listStreams: ", listStreams)
 }

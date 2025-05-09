@@ -2,15 +2,15 @@ package contractsapi
 
 import (
 	"context"
-	"github.com/kwilteam/kwil-db/core/client"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
+	"github.com/kwilteam/kwil-db/core/gatewayclient"
 	"github.com/kwilteam/kwil-db/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
 )
 
 type DestroyStreamInput struct {
-	StreamId   util.StreamId  `validate:"required"`
-	KwilClient *client.Client `validate:"required"`
+	StreamId   util.StreamId                `validate:"required"`
+	KwilClient *gatewayclient.GatewayClient `validate:"required"`
 }
 
 // DestroyStream destroys a stream from TN
