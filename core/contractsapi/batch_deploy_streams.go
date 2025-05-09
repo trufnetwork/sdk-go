@@ -3,8 +3,8 @@ package contractsapi
 import (
 	"context"
 
-	"github.com/kwilteam/kwil-db/core/client"
 	kwilClientType "github.com/kwilteam/kwil-db/core/client/types"
+	"github.com/kwilteam/kwil-db/core/gatewayclient"
 	kwilType "github.com/kwilteam/kwil-db/core/types"
 	"github.com/pkg/errors"
 	"github.com/trufnetwork/sdk-go/core/types"
@@ -12,8 +12,8 @@ import (
 
 // BatchDeployStreamsInput defines the input for the BatchDeployStreams function.
 type BatchDeployStreamsInput struct {
-	KwilClient  *client.Client           `validate:"required"`
-	Definitions []types.StreamDefinition `validate:"required"`
+	KwilClient  *gatewayclient.GatewayClient `validate:"required"`
+	Definitions []types.StreamDefinition     `validate:"required"`
 	// SchemaName is the name of the schema where create_streams procedure exists.
 	// Typically, it might be empty if it's a root/global procedure.
 	SchemaName string

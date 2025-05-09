@@ -3,8 +3,8 @@ package contractsapi
 import (
 	"context"
 	"encoding/hex"
+	"github.com/kwilteam/kwil-db/core/gatewayclient"
 
-	"github.com/kwilteam/kwil-db/core/client"
 	kwilTypes "github.com/kwilteam/kwil-db/core/types"
 	"github.com/pkg/errors"
 	"github.com/trufnetwork/sdk-go/core/types"
@@ -13,13 +13,13 @@ import (
 // ## Initializations
 
 type Action struct {
-	_client *client.Client
+	_client *gatewayclient.GatewayClient
 }
 
 var _ types.IAction = (*Action)(nil)
 
 type NewActionOptions struct {
-	Client *client.Client
+	Client *gatewayclient.GatewayClient
 }
 
 var (
