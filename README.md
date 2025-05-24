@@ -21,14 +21,90 @@ go get github.com/trufnetwork/sdk-go
 
 ### Example Usage
 
+#### 1. Creating and Using a Primitive Stream
 ```go
 package main
 
 import (
 	"context"
 	"fmt"
-	"github.com/golang-sql/civil"
 	"github.com/kwilteam/kwil-db/core/crypto"
+	"github.com/kwilteam/kwil-db/core/crypto/auth"
+	"github.com/trufnetwork/sdk-go/core/tnclient"
+	"github.com/trufnetwork/sdk-go/core/types"
+	"github.com/trufnetwork/sdk-go/core/util"
+	"time"
+)
+
+func main() {
+	ctx := context.Background()
+
+	// Create TN client with Ethereum signer
+	pk, _ := crypto.Secp256k1PrivateKeyFromHex("<your-private-key-hex>")
+	signer := &auth.EthPersonalSigner{Key: *pk}
+	tnClient, err := tnclient.NewClient(ctx, "https://tsn-provider-url.com", 
+		tnclient.WithSigner(signer))
+	if err != nil {
+		panic(err)
+	}
+
+	// Create and deploy a new stream
+	streamId := util.GenerateStreamId("price-eth-usd")
+	txHash, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitive)
+	if err != nil {
+		panic(err)
+	}
+
+	// Wait for transaction confirmation
+	_, err = tnClient.WaitForTx(ctx, txHash, 10*time.Second)
+	if err != nil {
+		panic(err)
+	}
+
+	// Load the primitive stream
+	primitive, err := tnClient.LoadPrimitiveActions()
+	if err != nil {
+		panic(err)
+	}
+
+	// Insert price data with Unix timestamp
+	_, err = primitive.InsertRecord(ctx, types.InsertRecordInput{
+		DataProvider: tnClient.Address().Address(),
+		StreamId:     streamId.String(),
+		EventTime:    int(time.Now().Unix()),
+		Value:        3500.50,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	// Query stream data using Unix timestamps
+	streamLocator := tnClient.OwnStreamLocator(streamId)
+	records, err := primitive.GetRecord(ctx, types.GetRecordInput{
+		From: util.Ptr(int(time.Now().AddDate(0, 0, -7).Unix())),
+		To:   util.Ptr(int(time.Now().Unix())),
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	for _, record := range records {
+		fmt.Printf("Timestamp: %d, Value: %s\n", 
+			record.EventTime, 
+			record.Value.String())
+	}
+}
+```
+
+#### 2. Querying a Composed Stream (AI Index Example)
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"time"
+	
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/trufnetwork/sdk-go/core/tnclient"
 	"github.com/trufnetwork/sdk-go/core/types"
@@ -37,61 +113,54 @@ import (
 
 func main() {
 	ctx := context.Background()
-
-	// Create TN client
+	
+	// Initialize client with mainnet gateway
 	pk, _ := crypto.Secp256k1PrivateKeyFromHex("<your-private-key-hex>")
 	signer := &auth.EthPersonalSigner{Key: *pk}
-	tnClient, err := tnclient.NewClient(ctx, "<https://tsn-provider-url.com>", tnclient.WithSigner(signer))
+	tnClient, err := tnclient.NewClient(
+		ctx,
+		"https://gateway.infra.truf.network", // Mainnet endpoint
+		tnclient.WithSigner(signer),
+	)
 	if err != nil {
 		panic(err)
 	}
 
-	// Load an existing stream
-	streamId := util.GenerateStreamId("your-stream-name")
-
-	// For streamLocator creation, we have two options:
-	// 1. Use the data provider's address
-	// This option is used when we intend to use streams from another provider (i.e. Truflation's public address)
-	// 2. Use the current provider's address
-	// This option is used when we intend to use streams from the current provider (i.e. the address of the signer)
-
-	// if we intend to use streams from the current provider, we create locators using the current provider's address
-	streamLocator := tnClient.OwnStreamLocator(streamId)
+	// Configure AI Index stream parameters
+	dataProvider, _ := util.NewEthereumAddressFromString("0x4710a8d8f0d845da110086812a32de6d90d7ff5c")
+	streamId, _ := util.NewStreamId("st527bf3897aa3d6f5ae15a0af846db6")
 	
-	// if we intend to use streams from another provider, we create locators using the provider's address
-	//dataProvider, _ := util.NewEthereumAddressFromString("<provider-address>")
-	//streamLocator := types.StreamLocator{
-	//	StreamId:     streamId,
-	//	DataProvider: dataProvider,
-	//}
+	// Query last week's data
+	now := time.Now().Unix()
+	weekAgo := time.Now().AddDate(0, 0, -7).Unix()
 	
-	stream, err := tnClient.LoadPrimitiveStream(streamLocator)
-	if err != nil {
-		panic(err)
-	}
-
-	// Read data from the stream
-	dateFrom, _ := civil.ParseDate("2023-01-01")
-	dateTo, _ := civil.ParseDate("2023-01-31")
-	records, err := stream.GetRecord(ctx, types.GetRecordInput{
-		DateFrom: &dateFrom,
-		DateTo:   &dateTo,
+	records, err := tnClient.LoadActions().GetRecord(ctx, types.GetRecordInput{
+		DataProvider: dataProvider.Address(),
+		StreamId:     streamId.String(),
+		From:         util.Ptr(int(weekAgo)),
+		To:           util.Ptr(int(now)),
 	})
 	if err != nil {
 		panic(err)
 	}
 
+	// Display results with explorer link
+	fmt.Printf("\nAI Index Historical Values (View on explorer: %s)\n",
+		"https://truf.network/explorer/0x4710a8d8f0d845da110086812a32de6d90d7ff5c/st527bf3897aa3d6f5ae15a0af846db6")
+		
 	for _, record := range records {
-		fmt.Println(record.DateValue, record.Value.String())
+		fmt.Printf("%s: %s\n",
+			time.Unix(int64(record.EventTime), 0).UTC().Format("2006-01-02"),
+			record.Value.String())
 	}
 }
 ```
 
 For more comprehensive examples and usage patterns, please refer to the test files in the SDK repository. These tests provide detailed examples of various stream operations and error-handling scenarios.
 
-## Staging Network
+## Mainnet Network
 
-We have a staging network accessible at https://staging.tsn.truflation.com. You can interact with it to test and experiment with the TN SDK. Please use it responsibly, as TN is currently in an experimental phase. Any contributions and feedback are welcome.
+We have a mainnet network accessible at https://gateway.infra.truf.network. You can interact with it to test and experiment with the TN SDK. Please use it responsibly, as TN is currently in an experimental phase. Any contributions and feedback are welcome.
 
 ## Types of Streams
 
@@ -141,3 +210,4 @@ For additional support or questions, please [open an issue](https://github.com/t
 ## License
 
 The SDK-Go repository is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE.md) for more details.
+
