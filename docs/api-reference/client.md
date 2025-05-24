@@ -108,3 +108,9 @@ Gets the Ethereum address of the client.
 
 **Returns:**
 - `util.EthereumAddress`: The Ethereum address.
+
+### `NewClient`
+
+```go
+tnclient.NewClient(ctx, "https://gateway.infra.truf.network", opts)
+```
