@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+
 	"github.com/kwilteam/kwil-db/core/crypto"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/trufnetwork/sdk-go/core/tnclient"
@@ -23,7 +24,7 @@ func main() {
 		panic(err)
 	}
 	fmt.Println("streamId: ", streamId)
-	listStreams, err := tnClient.ListStreams(ctx, types.ListStreamsInput{})
+	listStreams, err := tnClient.ListStreams(ctx, types.ListStreamsInput{ BlockHeight: 0 })
 	if err != nil {
 		panic(err)
 	}

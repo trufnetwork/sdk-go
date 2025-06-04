@@ -98,7 +98,7 @@ func TestBatchDeployAndExistenceOperations(t *testing.T) {
 		}
 
 		// Further verification with ListStreams
-		listedStreams, err := tnClient.ListStreams(ctx, types.ListStreamsInput{DataProvider: signerAddress.Address(), Limit: 100}) // Increased limit
+		listedStreams, err := tnClient.ListStreams(ctx, types.ListStreamsInput{DataProvider: signerAddress.Address(), Limit: 100, BlockHeight: 0}) // Increased limit
 		assertNoErrorOrFail(t, err, "ListStreams failed")
 
 		for _, def := range definitions {
