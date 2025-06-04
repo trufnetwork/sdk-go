@@ -2,6 +2,7 @@ package tnclient
 
 import (
 	"context"
+
 	"github.com/pkg/errors"
 	"github.com/trufnetwork/sdk-go/core/contractsapi"
 	"github.com/trufnetwork/sdk-go/core/types"
@@ -15,6 +16,7 @@ func (c *Client) ListStreams(ctx context.Context, input types.ListStreamsInput) 
 	args = append(args, input.Limit)
 	args = append(args, input.Offset)
 	args = append(args, input.OrderBy)
+	args = append(args, input.BlockHeight)
 
 	result, err := c.kwilClient.Call(ctx, "", "list_streams", args)
 	if err != nil || result.Error != nil {

@@ -68,7 +68,7 @@ func TestDeployComposedStreamsWithTaxonomy(t *testing.T) {
 	waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
 
 	// List all streams
-	streams, err := tnClient.ListStreams(ctx, types.ListStreamsInput{})
+	streams, err := tnClient.ListStreams(ctx, types.ListStreamsInput{ BlockHeight: 0 })
 	assertNoErrorOrFail(t, err, "Failed to list all streams")
 
 	//Check that only the primitive and composed streams are listed

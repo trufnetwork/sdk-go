@@ -15,6 +15,7 @@ type ListStreamsInput struct {
 	Limit        int
 	Offset       int
 	OrderBy      string
+	BlockHeight  int
 }
 
 type ListStreamsOutput struct {
