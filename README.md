@@ -45,11 +45,13 @@ go get github.com/trufnetwork/sdk-go
 
 4. **Verify Node Synchronization**
 
-When running a local node, it's crucial to ensure it's fully synchronized before querying data. Use the following example to check node status:
+When running a local node, it's crucial to ensure it's fully synchronized before querying data. If you are running as a node operator or are connected to the network, use the following command to check node status:
 
 ```bash
 kwild admin status
 ```
+
+**Note:** If you are running a setup without operating as a node operator or connecting to the network, this command is not needed.
 
 ### Querying Streams from Local Node
 
