@@ -3,31 +3,71 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
+	"time"
 
 	"github.com/kwilteam/kwil-db/core/crypto"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/trufnetwork/sdk-go/core/tnclient"
 	"github.com/trufnetwork/sdk-go/core/types"
-	"github.com/trufnetwork/sdk-go/core/util"
 )
 
 func main() {
 	ctx := context.Background()
-	streamId := util.GenerateStreamId("test")
-	pk, _ := crypto.Secp256k1PrivateKeyFromHex("0000000000000000000000000000000000000000000000000000000000000001")
+
+	// 1. Set up local node connection
+	// Replace with your actual private key
+	pk, err := crypto.Secp256k1PrivateKeyFromHex("your-private-key")
+	if err != nil {
+		log.Fatalf("Failed to parse private key: %v", err)
+	}
 	signer := &auth.EthPersonalSigner{Key: *pk}
+
+	// Choose endpoint: Use "http://localhost:8484" for local node or "https://gateway.mainnet.truf.network" for mainnet
+	endpoint := "http://localhost:8484" // Change to mainnet URL if needed
 	tnClient, err := tnclient.NewClient(
 		ctx,
-		"http://localhost:8484",
-		tnclient.WithSigner(signer))
+		endpoint,
+		tnclient.WithSigner(signer),
+	)
 	if err != nil {
-		panic(err)
-	}
-	fmt.Println("streamId: ", streamId)
-	listStreams, err := tnClient.ListStreams(ctx, types.ListStreamsInput{ BlockHeight: 0 })
-	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to create TN client: %v", err)
 	}
 
-	fmt.Println("listStreams: ", listStreams)
+	// 2. AI Index stream details
+	dataProvider := "0x4710a8d8f0d845da110086812a32de6d90d7ff5c"
+	streamId := "stai0000000000000000000000000000"
+
+	// 3. Prepare record retrieval parameters (last week)
+	now := time.Now()
+	weekAgo := now.AddDate(0, 0, -7)
+	fromTime := int(weekAgo.Unix())
+	toTime := int(now.Unix())
+
+	// 4. Load composed actions and retrieve records
+	// Note: AI Index is a composed stream that aggregates data from multiple primitive streams
+	primitiveActions, err := tnClient.LoadComposedActions()
+	if err != nil {
+		log.Fatalf("Failed to load primitive actions: %v", err)
+	}
+
+	records, err := primitiveActions.GetRecord(ctx, types.GetRecordInput{
+		DataProvider: dataProvider,
+		StreamId:     streamId,
+		From:         &fromTime,
+		To:           &toTime,
+	})
+	if err != nil {
+		log.Fatalf("Failed to retrieve records: %v", err)
+	}
+
+	// 5. Display retrieved records
+	fmt.Println("\nAI Index Records:")
+	fmt.Println("----------------------------")
+	for _, record := range records {
+		fmt.Printf("Event Time: %d, Value: %s\n", 
+			record.EventTime, 
+			record.Value.String(),
+		)
+	}
 }

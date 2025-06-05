@@ -11,156 +11,204 @@ This documentation is a work in progress. If you need help, don't hesitate to [o
 ### Prerequisites
 
 - Go 1.20 or later
+- Docker (for local node setup)
+- A local TN node (optional, for local testing)
 
 ### Installation
 
 ```bash
 go get github.com/trufnetwork/sdk-go
-
 ```
 
-### Example Usage
+## Local Node Testing
 
-#### 1. Creating and Using a Primitive Stream
+### Setting Up a Local Node
+
+1. **Prerequisites:**
+   - Docker
+   - Docker Compose
+   - Git
+
+2. **Clone the TN Node Repository:**
+   ```bash
+   git clone https://github.com/trufnetwork/node.git
+   cd node
+   ```
+
+3. **Start the Local Node:**
+   ```bash
+   # Start the node in development mode
+   make dev-start
+   ```
+
+   **Note:** Setting up a local node as described above will initialize an empty database. This setup is primarily for testing the technology or development purposes. If you are a node operator and wish to sync with the Truf Network to access real data, please follow the [Node Operator Guide](https://github.com/trufnetwork/node/blob/main/docs/node-operator-guide.md) for instructions on connecting to the network and syncing data.
+
+4. **Verify Node Synchronization**
+
+When running a local node, it's crucial to ensure it's fully synchronized before querying data. Use the following example to check node status:
+
 ```go
 package main
 
 import (
 	"context"
 	"fmt"
+	"log"
+
+	"github.com/trufnetwork/sdk-go/core/tnclient"
+)
+
+func main() {
+	ctx := context.Background()
+	
+	// Connect to local node
+	client, err := tnclient.NewClient(
+		ctx, 
+		"http://localhost:8484",  // Local node endpoint
+		// Add signer if needed
+	)
+	if err != nil {
+		log.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Check node synchronization
+	nodeInfo, err := client.GetNodeInfo(ctx)
+	if err != nil {
+		log.Fatalf("Failed to get node info: %v", err)
+	}
+
+	fmt.Printf("Node Synchronization Status:\n")
+	fmt.Printf("Current Block Height: %d\n", nodeInfo.BlockHeight)
+	fmt.Printf("Network: %s\n", nodeInfo.NetworkName)
+}
+```
+
+### Querying Streams from Local Node
+
+Here's an example of querying the AI Index stream from a local node:
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"time"
+
 	"github.com/kwilteam/kwil-db/core/crypto"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/trufnetwork/sdk-go/core/tnclient"
 	"github.com/trufnetwork/sdk-go/core/types"
-	"github.com/trufnetwork/sdk-go/core/util"
-	"time"
 )
 
 func main() {
 	ctx := context.Background()
 
-	// Create TN client with Ethereum signer
-	pk, _ := crypto.Secp256k1PrivateKeyFromHex("<your-private-key-hex>")
+	// Set up local node connection
+	pk, err := crypto.Secp256k1PrivateKeyFromHex("your-private-key")
+	if err != nil {
+		log.Fatalf("Failed to parse private key: %v", err)
+	}
 	signer := &auth.EthPersonalSigner{Key: *pk}
-	tnClient, err := tnclient.NewClient(ctx, "https://tsn-provider-url.com", 
-		tnclient.WithSigner(signer))
+
+	// Connect to local node
+	tnClient, err := tnclient.NewClient(
+		ctx,
+		"http://localhost:8484",  // Local node endpoint
+		tnclient.WithSigner(signer),
+	)
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to create TN client: %v", err)
 	}
 
-	// Create and deploy a new stream
-	streamId := util.GenerateStreamId("price-eth-usd")
-	txHash, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitive)
+	// AI Index stream details
+	dataProvider := "0x4710a8d8f0d845da110086812a32de6d90d7ff5c"
+	streamId := "stai0000000000000000000000000000"
+
+	// Retrieve records from the last week
+	now := time.Now()
+	weekAgo := now.AddDate(0, 0, -7)
+	fromTime := int(weekAgo.Unix())
+	toTime := int(now.Unix())
+
+	primitiveActions, err := tnClient.LoadComposedActions()
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to load primitive actions: %v", err)
 	}
 
-	// Wait for transaction confirmation
-	_, err = tnClient.WaitForTx(ctx, txHash, 10*time.Second)
-	if err != nil {
-		panic(err)
-	}
-
-	// Load the primitive stream
-	primitive, err := tnClient.LoadPrimitiveActions()
-	if err != nil {
-		panic(err)
-	}
-
-	// Insert price data with Unix timestamp
-	_, err = primitive.InsertRecord(ctx, types.InsertRecordInput{
-		DataProvider: tnClient.Address().Address(),
-		StreamId:     streamId.String(),
-		EventTime:    int(time.Now().Unix()),
-		Value:        3500.50,
+	records, err := primitiveActions.GetRecord(ctx, types.GetRecordInput{
+		DataProvider: dataProvider,
+		StreamId:     streamId,
+		From:         &fromTime,
+		To:           &toTime,
 	})
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to retrieve records: %v", err)
 	}
 
-	// Query stream data using Unix timestamps
-	streamLocator := tnClient.OwnStreamLocator(streamId)
-	records, err := primitive.GetRecord(ctx, types.GetRecordInput{
-		From: util.Ptr(int(time.Now().AddDate(0, 0, -7).Unix())),
-		To:   util.Ptr(int(time.Now().Unix())),
-	})
-	if err != nil {
-		panic(err)
-	}
-
+	// Display retrieved records
+	fmt.Println("AI Index Records from Local Node:")
 	for _, record := range records {
-		fmt.Printf("Timestamp: %d, Value: %s\n", 
+		fmt.Printf("Event Time: %d, Value: %s\n", 
 			record.EventTime, 
-			record.Value.String())
+			record.Value.String(),
+		)
 	}
 }
 ```
 
-#### 2. Querying a Composed Stream (AI Index Example)
+### Troubleshooting
+
+- Ensure your local node is fully synchronized
+- Check network connectivity
+- Verify private key and authentication
+- Review node logs for any synchronization issues
+
+## Mainnet Network
+
+We have a mainnet network accessible at https://gateway.mainnet.truf.network. You can interact with it to test and experiment with the TN SDK. Please use it responsibly, as TN is currently in an experimental phase. Any contributions and feedback are welcome.
+
+### Connecting to Mainnet
+
+To connect to the mainnet, simply change the endpoint in your client initialization:
+
 ```go
 package main
 
 import (
 	"context"
 	"fmt"
-	"time"
-	
+	"log"
+
+	"github.com/kwilteam/kwil-db/core/crypto"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/trufnetwork/sdk-go/core/tnclient"
-	"github.com/trufnetwork/sdk-go/core/types"
-	"github.com/trufnetwork/sdk-go/core/util"
 )
 
 func main() {
 	ctx := context.Background()
-	
-	// Initialize client with mainnet gateway
-	pk, _ := crypto.Secp256k1PrivateKeyFromHex("<your-private-key-hex>")
+
+	// Set up mainnet connection
+	pk, err := crypto.Secp256k1PrivateKeyFromHex("your-private-key")
+	if err != nil {
+		log.Fatalf("Failed to parse private key: %v", err)
+	}
 	signer := &auth.EthPersonalSigner{Key: *pk}
+
 	tnClient, err := tnclient.NewClient(
 		ctx,
-		"https://gateway.infra.truf.network", // Mainnet endpoint
+		"https://gateway.mainnet.truf.network",  // Mainnet endpoint
 		tnclient.WithSigner(signer),
 	)
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to create TN client: %v", err)
 	}
 
-	// Configure AI Index stream parameters
-	dataProvider, _ := util.NewEthereumAddressFromString("0x4710a8d8f0d845da110086812a32de6d90d7ff5c")
-	streamId, _ := util.NewStreamId("st527bf3897aa3d6f5ae15a0af846db6")
-	
-	// Query last week's data
-	now := time.Now().Unix()
-	weekAgo := time.Now().AddDate(0, 0, -7).Unix()
-	
-	records, err := tnClient.LoadActions().GetRecord(ctx, types.GetRecordInput{
-		DataProvider: dataProvider.Address(),
-		StreamId:     streamId.String(),
-		From:         util.Ptr(int(weekAgo)),
-		To:           util.Ptr(int(now)),
-	})
-	if err != nil {
-		panic(err)
-	}
-
-	// Display results with explorer link
-	fmt.Printf("\nAI Index Historical Values (View on explorer: %s)\n",
-		"https://truf.network/explorer/0x4710a8d8f0d845da110086812a32de6d90d7ff5c/st527bf3897aa3d6f5ae15a0af846db6")
-		
-	for _, record := range records {
-		fmt.Printf("%s: %s\n",
-			time.Unix(int64(record.EventTime), 0).UTC().Format("2006-01-02"),
-			record.Value.String())
-	}
+	// Now you can perform operations on the mainnet
+	fmt.Println("Connected to Truf Network Mainnet")
 }
 ```
-
-For more comprehensive examples and usage patterns, please refer to the test files in the SDK repository. These tests provide detailed examples of various stream operations and error-handling scenarios.
-
-## Mainnet Network
-
-We have a mainnet network accessible at https://gateway.infra.truf.network. You can interact with it to test and experiment with the TN SDK. Please use it responsibly, as TN is currently in an experimental phase. Any contributions and feedback are welcome.
 
 ## Types of Streams
 
