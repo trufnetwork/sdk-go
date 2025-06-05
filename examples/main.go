@@ -46,12 +46,12 @@ func main() {
 
 	// 4. Load composed actions and retrieve records
 	// Note: AI Index is a composed stream that aggregates data from multiple primitive streams
-	primitiveActions, err := tnClient.LoadComposedActions()
+	composedActions, err := tnClient.LoadComposedActions()
 	if err != nil {
 		log.Fatalf("Failed to load primitive actions: %v", err)
 	}
 
-	records, err := primitiveActions.GetRecord(ctx, types.GetRecordInput{
+	records, err := composedActions.GetRecord(ctx, types.GetRecordInput{
 		DataProvider: dataProvider,
 		StreamId:     streamId,
 		From:         &fromTime,
@@ -65,8 +65,8 @@ func main() {
 	fmt.Println("\nAI Index Records:")
 	fmt.Println("----------------------------")
 	for _, record := range records {
-		fmt.Printf("Event Time: %d, Value: %s\n", 
-			record.EventTime, 
+		fmt.Printf("Event Time: %d, Value: %s\n",
+			record.EventTime,
 			record.Value.String(),
 		)
 	}

@@ -1,10 +1,10 @@
-# Truf Network (TN) SDK
+# TRUF.NETWORK (TN) SDK
 
-The Truf Node SDK provides developers with tools to interact with the Truf Network, a decentralized platform for publishing, composing, and consuming economic data streams.
+The TRUF.NETWORK SDK provides developers with tools to interact with the TRUF.NETWORK, a decentralized platform for publishing, composing, and consuming economic data streams.
 
 ## Support
 
-This documentation is a work in progress. If you need help, don't hesitate to [open an issue](https://github.com/trufnetwork/sdk-go/issues).
+If you need help, don't hesitate to [open an issue](https://github.com/trufnetwork/sdk-go/issues).
 
 ## Quick Start
 
@@ -38,50 +38,20 @@ go get github.com/trufnetwork/sdk-go
 3. **Start the Local Node:**
    ```bash
    # Start the node in development mode
-   make dev-start
+   task single:start
    ```
 
    **Note:** Setting up a local node as described above will initialize an empty database. This setup is primarily for testing the technology or development purposes. If you are a node operator and wish to sync with the Truf Network to access real data, please follow the [Node Operator Guide](https://github.com/trufnetwork/node/blob/main/docs/node-operator-guide.md) for instructions on connecting to the network and syncing data.
 
 4. **Verify Node Synchronization**
 
-When running a local node, it's crucial to ensure it's fully synchronized before querying data. Use the following example to check node status:
+When running a local node, it's crucial to ensure it's fully synchronized before querying data. If you are running as a node operator or are connected to the network, use the following command to check node status:
 
-```go
-package main
-
-import (
-	"context"
-	"fmt"
-	"log"
-
-	"github.com/trufnetwork/sdk-go/core/tnclient"
-)
-
-func main() {
-	ctx := context.Background()
-	
-	// Connect to local node
-	client, err := tnclient.NewClient(
-		ctx, 
-		"http://localhost:8484",  // Local node endpoint
-		// Add signer if needed
-	)
-	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
-	}
-
-	// Check node synchronization
-	nodeInfo, err := client.GetNodeInfo(ctx)
-	if err != nil {
-		log.Fatalf("Failed to get node info: %v", err)
-	}
-
-	fmt.Printf("Node Synchronization Status:\n")
-	fmt.Printf("Current Block Height: %d\n", nodeInfo.BlockHeight)
-	fmt.Printf("Network: %s\n", nodeInfo.NetworkName)
-}
+```bash
+kwild admin status
 ```
+
+**Note:** If you are running a setup without operating as a node operator or connecting to the network, this command is not needed.
 
 ### Querying Streams from Local Node
 
@@ -167,7 +137,7 @@ func main() {
 
 ## Mainnet Network
 
-We have a mainnet network accessible at https://gateway.mainnet.truf.network. You can interact with it to test and experiment with the TN SDK. Please use it responsibly, as TN is currently in an experimental phase. Any contributions and feedback are welcome.
+We have a mainnet network accessible at https://gateway.mainnet.truf.network. You can interact with it to test and experiment with the TN SDK. Please use it responsibly. Any contributions and feedback are welcome.
 
 ### Connecting to Mainnet
 
