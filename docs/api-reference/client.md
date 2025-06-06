@@ -1,116 +1,147 @@
 # Client Interface
 
-The `Client` interface is the primary entry point for interacting with the TN. It provides methods for managing streams, handling transactions, and interacting with the underlying Kwil client.
+## Overview
 
-## Methods
+The Client Interface is the primary entry point for interacting with the TRUF.NETWORK ecosystem. It provides a comprehensive set of methods for managing streams, handling transactions, and interfacing with the underlying blockchain infrastructure.
 
-### `WaitForTx`
+## Key Features
 
-```go
-WaitForTx(ctx context.Context, txHash transactions.TxHash, interval time.Duration) (*transactions.TcTxQueryResponse, error)
-```
+- Stream lifecycle management
+- Transaction handling
+- Network interaction
+- Address and identity management
 
-Waits for a transaction to be mined and returns the transaction query response.
-
-**Parameters:**
-- `ctx`: The context for the operation.
-- `txHash`: The transaction hash.
-- `interval`: The polling interval for checking the transaction status.
-
-**Returns:**
-- `*transactions.TcTxQueryResponse`: The transaction query response.
-- `error`: An error if the transaction fails or an issue occurs.
-
-### `DeployStream`
-
-```go
-DeployStream(ctx context.Context, streamId util.StreamId, streamType types.StreamType) (transactions.TxHash, error)
-```
-
-Deploys a new stream of the specified type.
-
-**Parameters:**
-- `ctx`: The context for the operation.
-- `streamId`: The unique identifier for the stream.
-- `streamType`: The type of the stream (`Primitive`, `Composed`).
-
-**Returns:**
-- `transactions.TxHash`: The transaction hash for the deployment.
-- `error`: An error if the deployment fails.
-
-### `DestroyStream`
-
-```go
-DestroyStream(ctx context.Context, streamId util.StreamId) (transactions.TxHash, error)
-```
-
-Destroys an existing stream.
-
-**Parameters:**
-- `ctx`: The context for the operation.
-- `streamId`: The unique identifier for the stream.
-
-**Returns:**
-- `transactions.TxHash`: The transaction hash for the destruction.
-- `error`: An error if the destruction fails.
-
-### `LoadPrimitiveStream`
-
-```go
-LoadPrimitiveStream(stream StreamLocator) (IPrimitiveStream, error)
-```
-
-Loads an existing primitive stream.
-
-**Parameters:**
-- `stream`: The locator for the stream.
-
-**Returns:**
-- `IPrimitiveStream`: The primitive stream interface.
-- `error`: An error if the stream fails to load.
-
-### `LoadComposedStream`
-
-```go
-LoadComposedStream(stream StreamLocator) (IComposedStream, error)
-```
-
-Loads an existing composed stream.
-
-**Parameters:**
-- `stream`: The locator for the stream.
-
-**Returns:**
-- `IComposedStream`: The composed stream interface.
-- `error`: An error if the stream fails to load.
-
-### `OwnStreamLocator`
-
-```go
-OwnStreamLocator(streamId util.StreamId) StreamLocator
-```
-
-Generates a stream locator for the given stream ID, using the current signer as the owner of the stream.
-
-**Parameters:**
-- `streamId`: The unique identifier for the stream.
-
-**Returns:**
-- `StreamLocator`: The stream locator.
-
-### `Address`
-
-```go
-Address() util.EthereumAddress
-```
-
-Gets the Ethereum address of the client.
-
-**Returns:**
-- `util.EthereumAddress`: The Ethereum address.
+## Initialization
 
 ### `NewClient`
 
+Create a client connection to the TRUF.NETWORK:
+
 ```go
-tnclient.NewClient(ctx, "https://gateway.infra.truf.network", opts)
+tnClient, err := tnclient.NewClient(
+    ctx, 
+    "https://gateway.mainnet.truf.network", 
+    tnclient.WithSigner(mySigner),
+    // Optional configuration options
+)
 ```
+
+## Core Methods
+
+### Transaction Management
+
+#### `WaitForTx`
+Waits for a transaction to be mined and confirmed.
+
+```go
+txResponse, err := tnClient.WaitForTx(
+    ctx, 
+    txHash, 
+    time.Second * 5  // Polling interval
+)
+```
+
+### Stream Lifecycle
+
+#### `DeployStream`
+Deploy a new stream (primitive or composed):
+
+```go
+streamId := util.GenerateStreamId("my-economic-stream")
+txHash, err := tnClient.DeployStream(
+    ctx, 
+    streamId, 
+    types.StreamTypePrimitive
+)
+```
+
+#### `DestroyStream`
+Remove an existing stream:
+
+```go
+txHash, err := tnClient.DestroyStream(ctx, streamId)
+```
+
+### Stream Loading
+
+#### `LoadPrimitiveStream`
+Load an existing primitive stream:
+
+```go
+primitiveStream, err := tnClient.LoadPrimitiveStream(
+    tnClient.OwnStreamLocator(streamId)
+)
+```
+
+#### `LoadComposedStream`
+Load an existing composed stream:
+
+```go
+composedStream, err := tnClient.LoadComposedStream(
+    tnClient.OwnStreamLocator(streamId)
+)
+```
+
+### Identity Management
+
+#### `OwnStreamLocator`
+Generate a stream locator using the current client's address:
+
+```go
+streamLocator := tnClient.OwnStreamLocator(streamId)
+```
+
+#### `Address`
+Retrieve the client's Ethereum address:
+
+```go
+clientAddress := tnClient.Address()
+addressString := clientAddress.String()
+```
+
+## Example: Complete Stream Workflow
+
+```go
+func createAndManageStream(ctx context.Context, tnClient *tnclient.Client) error {
+    // Generate unique stream ID
+    streamId := util.GenerateStreamId("market-data-stream")
+
+    // Deploy stream
+    deployTx, err := tnClient.DeployStream(
+        ctx, 
+        streamId, 
+        types.StreamTypePrimitive,
+    )
+    if err != nil {
+        return fmt.Errorf("stream deployment failed: %v", err)
+    }
+
+    // Wait for deployment confirmation
+    _, err = tnClient.WaitForTx(ctx, deployTx, time.Second * 5)
+    if err != nil {
+        return fmt.Errorf("deployment confirmation failed: %v", err)
+    }
+
+    // Load the stream
+    primitiveStream, err := tnClient.LoadPrimitiveStream(
+        tnClient.OwnStreamLocator(streamId)
+    )
+    if err != nil {
+        return fmt.Errorf("stream loading failed: %v", err)
+    }
+
+    // Perform stream operations...
+    return nil
+}
+```
+
+## Best Practices
+
+1. **Always handle errors**
+2. **Use appropriate context timeouts**
+3. **Log important transactions**
+4. **Implement retry mechanisms**
+
+## Considerations
+
+- Ensure proper error handling and logging

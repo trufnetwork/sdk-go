@@ -1,80 +1,80 @@
 # API Reference
 
-The Truf Node SDK offers a comprehensive set of APIs for interacting with the TN, allowing developers to create, manage, and consume data streams. This document provides detailed descriptions of all available methods in the SDK, along with examples of their usage.
+## TRUF.NETWORK SDK Overview
+
+The TRUF.NETWORK SDK provides a comprehensive toolkit for developers to interact with decentralized data streams. It enables seamless creation, management, and consumption of economic and financial data streams.
+
+### Key Features
+- Stream creation and management
+- Primitive and composed stream support
+- Flexible data retrieval
+- Advanced permission management
+- Secure, blockchain-backed data streams
 
 ## Interfaces
-- [Client](client.md)
-- [Primitive Stream](primitive-stream.md)
-- [Composed Stream](composed-stream.md)
 
-Other utilities are in the [util](util.md) documentation.
+The SDK is structured around several key interfaces:
+
+- [Client](client.md): Primary entry point for network interactions
+- [Primitive Stream](primitive-stream.md): Raw data stream management
+- [Composed Stream](composed-stream.md): Aggregated data stream handling
+
+## Core Concepts
+
+### Streams
+- **Primitive Streams**: Direct data sources with raw data points
+- **Composed Streams**: Aggregated streams combining multiple data sources
+
+### Data Management
+- Secure, immutable data recording
+- Flexible querying and indexing
+- Granular access control
 
 ## Example Usage
-
-Below is an example demonstrating how to use the TN SDK to deploy, initialize, and read from a primitive stream.
 
 ```go
 package main
 
 import (
 	"context"
-	"fmt"
-	"github.com/golang-sql/civil"
-	"github.com/kwilteam/kwil-db/core/crypto"
-	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/trufnetwork/sdk-go/core/tnclient"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
-	"time"
 )
 
 func main() {
-	// handle errors appropriately in a real application
 	ctx := context.Background()
 
-	// Create TN client
-	pk, _ := crypto.Secp256k1PrivateKeyFromHex("<your-private-key-hex>")
-	signer := &auth.EthPersonalSigner{Key: *pk}
-	tnClient, _ := tnclient.NewClient(ctx, "<https://tsn-provider-url.com>", tnclient.WithSigner(signer))
+	// Initialize client with mainnet endpoint
+	tnClient, err := tnclient.NewClient(
+		ctx, 
+		"https://gateway.mainnet.truf.network",
+		tnclient.WithSigner(mySigner),
+	)
+	if err != nil {
+		// Handle client initialization error
+	}
 
-	// Generate a stream ID
-	streamId := util.GenerateStreamId("example-stream")
-
-	// Deploy a new primitive stream
-	deployTxHash, _ := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitive)
-
-	// Wait for the transaction to be mined
-	txRes, _ := tnClient.WaitForTx(ctx, deployTxHash, time.Second)
-
-	// Load the deployed stream
-	stream, _ := tnClient.LoadPrimitiveStream(tnClient.OwnStreamLocator(streamId))
-
-	// Initialize the stream
-	txHashInit, _ := stream.InitializeStream(ctx)
-
-	// Wait for the initialization transaction to be mined
-	txResInit, _ := tnClient.WaitForTx(ctx, txHashInit, time.Second)
-	fmt.Println("Initialize transaction result:", txResInit)
-
-	// Insert records into the stream
-	txHashInsert, _ := stream.InsertRecords(ctx, []types.InsertRecordInput{
-		{
-			Value:     1,
-			DateValue: civil.Date{Year: 2023, Month: 1, Day: 1},
-		},
-	})
-
-	// Wait for the insert transaction to be mined
-	_, _ = tnClient.WaitForTx(ctx, txHashInsert, time.Second)
-
-	// Read records from the stream
-	records, _ := stream.GetRecord(ctx, types.GetRecordInput{
-		DateFrom: civil.ParseDate("2023-01-01"),
-		DateTo:   civil.ParseDate("2023-01-31"),
-	})
-	fmt.Println("Records:", records)
+	// Deploy a primitive stream
+	streamId := util.GenerateStreamId("my-economic-stream")
+	deployTx, err := tnClient.DeployStream(
+		ctx, 
+		streamId, 
+		types.StreamTypePrimitive,
+	)
+	// Handle deployment and further stream operations
 }
-
 ```
 
-Please refer to the test files in the SDK repository for more examples and detailed usage patterns. These tests provide comprehensive examples of various stream operations and error-handling scenarios.
+## Getting Started
+
+1. Install the SDK
+2. Configure your network endpoint
+3. Initialize a client
+4. Create and manage streams
+
+## Support and Community
+
+- [GitHub Repository](https://github.com/trufnetwork/sdk-go)
+- [Issue Tracker](https://github.com/trufnetwork/sdk-go/issues)
+- [Documentation](https://docs.truf.network)

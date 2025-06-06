@@ -1,6 +1,6 @@
 # Stream Permissions in TN
 
-The Truf Network (TN) provides granular control over stream access and visibility. This document outlines the permission system, how to configure it, and best practices for securing your streams.
+The TRUF.NETWORK (TN) provides granular control over stream access and visibility. This document outlines the permission system, how to configure it, and best practices for securing your streams.
 
 ## Permission Types
 

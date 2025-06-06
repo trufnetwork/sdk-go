@@ -1,6 +1,6 @@
 # Types of Streams in TN
 
-The Truf Network (TN) primarily supports two types of streams: Primitive and Composed. Additionally, both types can become System streams when accepted by the TN governance.
+The TRUF.NETWORK (TN) primarily supports two types of streams: Primitive and Composed. Additionally, both types can become System streams when accepted by the TN governance.
 
 ## Primitive Streams
 
