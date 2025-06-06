@@ -41,7 +41,7 @@ go get github.com/trufnetwork/sdk-go
    task single:start
    ```
 
-   **Note:** Setting up a local node as described above will initialize an empty database. This setup is primarily for testing the technology or development purposes. If you are a node operator and wish to sync with the Truf Network to access real data, please follow the [Node Operator Guide](https://github.com/trufnetwork/node/blob/main/docs/node-operator-guide.md) for instructions on connecting to the network and syncing data.
+   **Note:** Setting up a local node as described above will initialize an empty database. This setup is primarily for testing the technology or development purposes. If you are a node operator and wish to sync with the TRUF.NETWORK to access real data, please follow the [Node Operator Guide](https://github.com/trufnetwork/node/blob/main/docs/node-operator-guide.md) for instructions on connecting to the network and syncing data.
 
 4. **Verify Node Synchronization**
 
@@ -176,7 +176,7 @@ func main() {
 	}
 
 	// Now you can perform operations on the mainnet
-	fmt.Println("Connected to Truf Network Mainnet")
+	fmt.Println("Connected to TRUF.NETWORK Mainnet")
 }
 ```
 
@@ -228,4 +228,236 @@ For additional support or questions, please [open an issue](https://github.com/t
 ## License
 
 The SDK-Go repository is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE.md) for more details.
+
+## Stream Creation and Management
+
+The TN SDK provides comprehensive support for creating and managing both primitive and composed streams. 
+
+### Primitive Streams
+
+Primitive streams are raw data sources that can represent various types of data points. To create a primitive stream:
+
+```go
+// Generate a unique stream ID
+primitiveStreamId := util.GenerateStreamId("my-market-data-stream")
+
+// Deploy the primitive stream
+deployTx, err := tnClient.DeployStream(ctx, primitiveStreamId, types.StreamTypePrimitive)
+
+// Insert records into the primitive stream
+primitiveActions, err := tnClient.LoadPrimitiveActions()
+insertTx, err := primitiveActions.InsertRecords(ctx, []types.InsertRecordInput{
+    {
+        DataProvider: dataProviderAddress,
+        StreamId:     primitiveStreamId.String(),
+        EventTime:    int(time.Now().Unix()),
+        Value:        100.5,
+    },
+})
+```
+
+### Composed Streams
+
+Composed streams aggregate and process data from multiple primitive or other composed streams. They use a taxonomy to define how child streams are combined:
+
+```go
+// Deploy a composed stream
+composedStreamId := util.GenerateStreamId("my-composite-index")
+deployTx, err := tnClient.DeployStream(ctx, composedStreamId, types.StreamTypeComposed)
+
+// Load composed actions
+composedActions, err := tnClient.LoadComposedActions()
+
+// Set taxonomy (define how child streams are combined)
+taxonomyTx, err := composedActions.InsertTaxonomy(ctx, types.Taxonomy{
+    ParentStream: tnClient.OwnStreamLocator(composedStreamId),
+    TaxonomyItems: []types.TaxonomyItem{
+        {
+            ChildStream: tnClient.OwnStreamLocator(primitiveStreamId1),
+            Weight:      0.6, // 60% weight
+        },
+        {
+            ChildStream: tnClient.OwnStreamLocator(primitiveStreamId2),
+            Weight:      0.4, // 40% weight
+        },
+    },
+})
+```
+
+### Complex Stream Creation Example
+
+For a comprehensive example demonstrating stream creation, taxonomy setup, and data retrieval, see the `examples/complex_stream_example/main.go` file. This example shows:
+
+- Deploying primitive streams
+- Inserting records into primitive streams
+- Creating a composed stream
+- Setting up stream taxonomy
+- Retrieving composed stream records
+
+Key steps include:
+1. Generating unique stream IDs
+2. Deploying primitive and composed streams
+3. Inserting records into primitive streams
+4. Defining stream taxonomy
+5. Retrieving composed stream records
+
+This example provides a practical walkthrough of creating and managing streams in the TRUF.NETWORK ecosystem.
+
+### Stream Locators and Data Providers
+
+#### Stream Locators
+
+A `StreamLocator` is a unique identifier for a stream that consists of two key components:
+1. `StreamId`: A unique identifier for the stream
+2. `DataProvider`: The Ethereum address of the stream's creator/owner
+
+The `OwnStreamLocator()` method is a convenience function that automatically creates a `StreamLocator` using:
+- The provided `StreamId`
+- The current client's Ethereum address
+
+Example:
+```go
+// Creates a StreamLocator with:
+// - The given stream ID
+// - The current client's address as the data provider
+streamLocator := tnClient.OwnStreamLocator(myStreamId)
+```
+
+This is particularly useful when you're creating and managing your own streams, as it automatically uses your client's address.
+
+#### Data Providers
+
+A `DataProvider` is the Ethereum address responsible for creating and managing a stream. When inserting records or performing operations on a stream, you need to specify the data provider's address.
+
+To get the current client's address, use:
+```go
+// Get the current client's Ethereum address
+dataProviderAddress := tnClient.Address()
+
+// Get the address as a string for use in stream operations
+dataProviderAddressString := dataProviderAddress.Address()
+```
+
+Key differences:
+- `tnClient.Address()` returns an `EthereumAddress` object
+- `dataProviderAddress.Address()` returns the address as a string, which is used in stream operations
+
+### Example of Stream Creation with Locators and Providers
+
+```go
+// Generate a stream ID
+streamId := util.GenerateStreamId("my-stream")
+
+// Deploy the stream using the current client's address
+deployTx, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitive)
+
+// Create a stream locator
+streamLocator := tnClient.OwnStreamLocator(streamId)
+
+// Get the data provider address
+dataProvider := tnClient.Address()
+
+// Insert a record using the data provider address
+insertTx, err := primitiveActions.InsertRecords(ctx, []types.InsertRecordInput{
+    {
+        DataProvider: dataProvider.Address(),
+        StreamId:     streamId.String(),
+        EventTime:    int(time.Now().Unix()),
+        Value:        100.5,
+    },
+})
+```
+
+This approach ensures that:
+- Streams are uniquely identified
+- Records are correctly attributed to their creator
+- Stream operations are performed with the correct addressing
+
+### Stream Deletion and Resource Management
+
+#### Why Delete Streams?
+
+Stream deletion is crucial for:
+- Cleaning up unused or test streams
+- Managing resource consumption
+- Maintaining a clean and organized stream ecosystem
+
+#### Stream Deletion Process
+
+Streams can be deleted using the `DestroyStream()` method:
+
+```go
+// Destroy a specific stream
+destroyTx, err := tnClient.DestroyStream(ctx, streamId)
+if err != nil {
+    // Handle deletion error
+    log.Printf("Failed to destroy stream: %v", err)
+}
+
+// Wait for the destroy transaction to be mined
+_, err = tnClient.WaitForTx(ctx, destroyTx, time.Second*5)
+if err != nil {
+    log.Printf("Error waiting for stream destruction: %v", err)
+}
+```
+
+#### Best Practices for Stream Deletion
+
+1. **Cleanup in Reverse Order**
+   - Delete composed streams before their child primitive streams
+   - Ensures proper resource management and prevents orphaned references
+
+2. **Error Handling**
+   - Always check for errors during stream deletion
+   - Log and handle potential issues gracefully
+
+3. **Deferred Deletion**
+   - Use `defer` for automatic cleanup in test or example scenarios
+   - Ensures resources are freed even if an error occurs
+
+Example of Deferred Stream Deletion:
+```go
+func main() {
+    // Defer stream destruction
+    defer func() {
+        streamIds := []util.StreamId{
+            composedStreamId,
+            primitiveStreamId1,
+            primitiveStreamId2,
+        }
+
+        for _, streamId := range streamIds {
+            destroyTx, err := tnClient.DestroyStream(ctx, streamId)
+            if err != nil {
+                log.Printf("Failed to destroy stream %s: %v", streamId, err)
+                continue
+            }
+
+            // Wait for the destroy transaction
+            _, err = tnClient.WaitForTx(ctx, destroyTx, time.Second*5)
+            if err != nil {
+                log.Printf("Error waiting for destroy transaction: %v", err)
+            }
+        }
+    }()
+
+    // Rest of the stream creation and management code
+}
+```
+
+#### Considerations
+
+- Stream deletion is a permanent action
+- Deleted streams cannot be recovered
+- Ensure you have the necessary permissions to delete a stream
+- In production, implement additional safeguards before deletion
+
+### When to Delete Streams
+
+- After completing testing
+- When streams are no longer needed
+- To free up resources
+- As part of a stream lifecycle management strategy
+
+By following these guidelines, you can effectively manage stream resources in the TRUF.NETWORK ecosystem.
 

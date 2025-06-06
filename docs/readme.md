@@ -6,6 +6,5 @@
 - [Stream Lifecycle Documentation](./stream-lifecycle.md)
 - [Stream Permissions Guide](./stream-permissions.md)
 - [Type of Streams Guide](./type-of-streams.md)
-- [Default TN Contracts](./contracts.md)
 
 [Back to root](../README.md)

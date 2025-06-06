@@ -1,23 +1,17 @@
 # Stream Interface
 
-The `IStream` and provides methods for interacting with any stream. It's the common interface for both primitive and composed streams.
+## Overview
+
+The Stream Interface is the core abstraction for data streams in the TRUF.NETWORK ecosystem. It provides a comprehensive set of methods for managing stream lifecycle, visibility, and access control.
+
+## Key Concepts
+
+- **Immutable Data**: Streams store data points that cannot be altered once recorded
+- **Visibility Control**: Fine-grained access management
+- **Flexible Querying**: Multiple methods for data retrieval
+- **Permissions Management**: Granular control over stream access
 
 ## Methods
-
-### `InitializeStream`
-
-```go
-InitializeStream(ctx context.Context) (transactions.TxHash, error)
-```
-
-Initializes the primitive stream.
-
-**Parameters:**
-- `ctx`: The context for the operation.
-
-**Returns:**
-- `transactions.TxHash`: The transaction hash for the initialization.
-- `error`: An error if the initialization fails.
 
 ### `GetRecord`
 
@@ -147,19 +141,14 @@ Disables a stream from using this stream as a child.
 - `transactions.TxHash`: The transaction hash for the operation.
 - `error`: An error if the operation fails.
 
-### `SetDefaultBaseDate`
+## Best Practices
 
-```go
-SetDefaultBaseDate(ctx context.Context, baseDate string) (transactions.TxHash, error)
-```
+1. **Always handle errors**
+2. **Use context with appropriate timeouts**
+3. **Validate wallet addresses**
+4. **Log permission changes**
+5. **Implement retry mechanisms**
 
-Insert a default base date based on its category.
+## Considerations
 
-**Parameters:**
-- `ctx`: The context for the operation.
-- `baseDate`: The base date in string with format yyyy-mm-dd
-
-**Returns:**
-- `transactions.TxHash`: The transaction hash for the operation.
-- `error`: An error if the operation fails.
-
+- Visibility changes are blockchain transactions

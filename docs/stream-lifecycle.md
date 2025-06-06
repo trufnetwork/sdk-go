@@ -1,6 +1,6 @@
 # Stream Lifecycle
 
-Understanding streams' lifecycle and associated transactions is crucial for effective interaction with the Truf Network (TN). This document outlines the key stages in a stream's lifecycle and provides best practices for managing transaction dependencies.
+Understanding streams' lifecycle and associated transactions is crucial for effective interaction with the TRUF.NETWORK (TN). This document outlines the key stages in a stream's lifecycle and provides best practices for managing transaction dependencies.
 
 ## Transaction Lifecycle
 
@@ -36,19 +36,7 @@ default:
 }
 ```
 
-### 2. Initialization
-
-After deployment, the stream must be initialized.
-
-```go
-txHashInit, err := stream.InitializeStream(ctx)
-if err != nil {
-    // Handle error
-}
-// Wait for the transaction to be mined (similar to deployment)
-```
-
-### 3. Configuration and Data Operations
+### 2. Configuration and Data Operations
 
 Configuration and data operations can be executed in the same block, so there's no need to wait between them.
 
@@ -60,10 +48,13 @@ if err != nil {
 }
 
 // Insert records
+dataProvider := tnClient.Address()
 txHash2, err := stream.InsertRecords(ctx, []types.InsertRecordInput{
     {
-        Value:     1,
-        DateValue: civil.Date{Year: 2023, Month: 1, Day: 1},
+        DataProvider: dataProvider.Address(),
+        StreamId:     streamId.String(),
+        EventTime:    int(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC).Unix()),
+        Value:        1.0,
     },
 })
 if err != nil {
@@ -74,7 +65,7 @@ if err != nil {
 // You can wait for both transactions concurrently if needed
 ```
 
-### 4. Destruction (If Needed)
+### 3. Destruction (If Needed)
 
 Streams can be destroyed when no longer needed.
 
