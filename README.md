@@ -198,7 +198,7 @@ See [type of streams](./docs/type-of-streams.md) and [default TN contracts](./do
 
 ### Stream ID Composition
 
-Stream IDs are unique identifiers generated for each stream. They ensure consistent referencing across the network. It's used as the contract name. A contract identifier is a hash over the deployer address (data provider) and the stream ID.
+Stream IDs are unique identifiers generated for each stream. They ensure consistent referencing across the network.
 
 ### Types of Data Points
 
