@@ -117,6 +117,12 @@ func (c *Client) LoadComposedActions() (clientType.IComposedAction, error) {
 	})
 }
 
+func (c *Client) LoadRoleManagementActions() (clientType.IRoleManagement, error) {
+	return tn_api.LoadRoleManagementActions(tn_api.NewRoleManagementOptions{
+		Client: c.kwilClient,
+	})
+}
+
 func (c *Client) OwnStreamLocator(streamId util.StreamId) clientType.StreamLocator {
 	return clientType.StreamLocator{
 		StreamId:     streamId,
