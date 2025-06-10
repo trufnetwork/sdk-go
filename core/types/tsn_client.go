@@ -24,6 +24,8 @@ type Client interface {
 	LoadPrimitiveActions() (IPrimitiveAction, error)
 	// LoadComposedActions loads a already deployed composed stream, permitting its API usage
 	LoadComposedActions() (IComposedAction, error)
+	// LoadRoleManagementActions loads the role management contract API, permitting its API usage
+	LoadRoleManagementActions() (IRoleManagement, error)
 	/*
 	 * utils for the client
 	 */

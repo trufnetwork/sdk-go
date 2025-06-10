@@ -137,4 +137,25 @@ stream.AllowComposeStream(ctx, allowedStreamLocator)
 
 - Changing permissions requires blockchain transactions. Always wait for transaction confirmation before assuming the change has taken effect.
 
+## Network Writer Role for Stream Creation
+
+To ensure the integrity and quality of data streams on the Truf Network, the creation of new streams (both primitive and composed) is a permissioned operation. This process is governed by a **`system:network_writer`** role within the network's role-based access control (RBAC) system.
+
+Only wallets that are members of the `system:network_writer` role are authorized to deploy new streams using the SDK's `DeployStream` or `BatchDeployStreams` functions.
+
+**How to get access:**
+
+If you are a partner or data provider interested in deploying streams on the TRUF.NETWORK, please contact our team. We will guide you through the process of obtaining the necessary permissions by granting your wallet the `system:network_writer` role.
+
+### SDK Role Management API (For TRUF.NETWORK Internal Use / Advanced Partners)
+
+The SDK provides an API for advanced partners and internal use to programmatically interact with the role management system. These functions allow for granting, revoking, and checking role memberships.
+
+-   `Client.LoadRoleManagementActions()`: Loads the `IRoleManagement` interface.
+-   `IRoleManagement.GrantRole(ctx, GrantRoleInput, ...TxOpt)`: Grants a role to one or more wallets.
+-   `IRoleManagement.RevokeRole(ctx, RevokeRoleInput, ...TxOpt)`: Revokes a role from one or more wallets.
+-   `IRoleManagement.IsMemberOf(ctx, IsMemberOfInput)`: Checks if one or more wallets are members of a specific role.
+
+**Note:** For general stream creation, users should typically contact the TRUF.NETWORK team directly rather than attempting to manage the `system:network_writer` role themselves. The `system:network_writer` role is managed by `system:network_writers_manager`.
+
 By leveraging these permission controls, you can create secure, flexible data streams that meet your specific needs while maintaining control over your valuable data within the TN ecosystem.
