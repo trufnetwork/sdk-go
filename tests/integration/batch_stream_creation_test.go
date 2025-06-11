@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
-	// kwilcrypto "github.com/kwilteam/kwil-db/core/crypto" // Will be removed if not used elsewhere
-	// "github.com/kwilteam/kwil-db/core/crypto/auth" // Will be removed if not used elsewhere
+	kwilcrypto "github.com/kwilteam/kwil-db/core/crypto"
+	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	kwiltypes "github.com/kwilteam/kwil-db/core/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/trufnetwork/sdk-go/core/tnclient"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
 )
@@ -24,10 +25,14 @@ func TestBatchDeployAndExistenceOperations(t *testing.T) {
 	})
 	require.NoError(t, err, "Failed to setup server fixture")
 
-	tnClient := fixture.Client()
-	require.NotNil(t, tnClient, "Client from fixture should not be nil")
-
 	ctx := context.Background()
+	deployerWallet, err := kwilcrypto.Secp256k1PrivateKeyFromHex(AnonWalletPK)
+	require.NoError(t, err, "failed to parse anon wallet private key")
+	tnClient, err := tnclient.NewClient(ctx, TestKwilProvider, tnclient.WithSigner(auth.GetUserSigner(deployerWallet)))
+	require.NoError(t, err, "failed to create client")
+
+	authorizeWalletToDeployStreams(t, ctx, fixture, deployerWallet)
+
 	signerAddress := tnClient.Address()
 
 	// =========================================================================

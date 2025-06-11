@@ -6,15 +6,19 @@ import (
 	"testing"
 	"time"
 
+	kwilcrypto "github.com/kwilteam/kwil-db/core/crypto"
+	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	kwiltypes "github.com/kwilteam/kwil-db/core/types"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/trufnetwork/sdk-go/core/tnclient"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
 )
 
 func TestBatchOperations(t *testing.T) {
+	ctx := context.Background()
 	fixture := NewServerFixture(t)
 	err := fixture.Setup()
 	t.Cleanup(func() {
@@ -22,10 +26,12 @@ func TestBatchOperations(t *testing.T) {
 	})
 	require.NoError(t, err, "Failed to setup server fixture")
 
-	tnClient := fixture.Client()
-	require.NotNil(t, tnClient, "Client from fixture should not be nil")
+	deployerWallet, err := kwilcrypto.Secp256k1PrivateKeyFromHex(AnonWalletPK)
+	require.NoError(t, err, "failed to parse anon wallet private key")
+	tnClient, err := tnclient.NewClient(ctx, TestKwilProvider, tnclient.WithSigner(auth.GetUserSigner(deployerWallet)))
+	require.NoError(t, err, "failed to create client")
 
-	ctx := context.Background()
+	authorizeWalletToDeployStreams(t, ctx, fixture, deployerWallet)
 
 	t.Run("TestSequentialSmallBatches", func(t *testing.T) {
 		streamId := util.GenerateStreamId("test-sequential-small")
@@ -54,7 +60,7 @@ func TestBatchOperations(t *testing.T) {
 		txHashes := make([]kwiltypes.Hash, 0, numBatches)
 		startTime := time.Now()
 
-		for batch := 0; batch < numBatches; batch++ {
+		for batch := 0; batch <= numBatches; batch++ {
 			records := make([]types.InsertRecordInput, recordsPerBatch)
 			for i := 0; i < recordsPerBatch; i++ {
 				records[i] = types.InsertRecordInput{
@@ -126,7 +132,7 @@ func TestBatchOperations(t *testing.T) {
 		txHashes := make([]kwiltypes.Hash, 0, numBatches)
 		startTime := time.Now()
 
-		for batch := 0; batch < numBatches; batch++ {
+		for batch := 0; batch <= numBatches; batch++ {
 			records := make([]types.InsertRecordInput, recordsPerBatch)
 			for i := 0; i < recordsPerBatch; i++ {
 				records[i] = types.InsertRecordInput{
@@ -197,7 +203,7 @@ func TestBatchOperations(t *testing.T) {
 		txHashes := make([]kwiltypes.Hash, 0, numRecords)
 		startTime := time.Now()
 
-		for i := 0; i < numRecords; i++ {
+		for i := 0; i <= numRecords; i++ {
 			records := []types.InsertRecordInput{
 				{
 					DataProvider: streamLocator.DataProvider.Address(),

@@ -6,13 +6,17 @@ import (
 	"time"
 
 	"github.com/golang-sql/civil"
+	kwilcrypto "github.com/kwilteam/kwil-db/core/crypto"
+	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/trufnetwork/sdk-go/core/tnclient"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
 )
 
 func TestDeployComposedStreamsWithTaxonomy(t *testing.T) {
+	ctx := context.Background()
 	fixture := NewServerFixture(t)
 	err := fixture.Setup()
 	t.Cleanup(func() {
@@ -20,10 +24,12 @@ func TestDeployComposedStreamsWithTaxonomy(t *testing.T) {
 	})
 	require.NoError(t, err, "Failed to setup server fixture")
 
-	tnClient := fixture.Client()
-	require.NotNil(t, tnClient, "Client from fixture should not be nil")
+	deployerWallet, err := kwilcrypto.Secp256k1PrivateKeyFromHex(AnonWalletPK)
+	require.NoError(t, err, "failed to parse anon wallet private key")
+	tnClient, err := tnclient.NewClient(ctx, TestKwilProvider, tnclient.WithSigner(auth.GetUserSigner(deployerWallet)))
+	require.NoError(t, err, "failed to create client")
 
-	ctx := context.Background()
+	authorizeWalletToDeployStreams(t, ctx, fixture, deployerWallet)
 
 	// Generate unique stream IDs and locators
 	primitiveStreamId := util.GenerateStreamId("test-primitive-stream-one")
@@ -68,7 +74,7 @@ func TestDeployComposedStreamsWithTaxonomy(t *testing.T) {
 	waitTxToBeMinedWithSuccess(t, ctx, tnClient, deployTxHash)
 
 	// List all streams
-	streams, err := tnClient.ListStreams(ctx, types.ListStreamsInput{ BlockHeight: 0 })
+	streams, err := tnClient.ListStreams(ctx, types.ListStreamsInput{BlockHeight: 0})
 	assertNoErrorOrFail(t, err, "Failed to list all streams")
 
 	//Check that only the primitive and composed streams are listed
