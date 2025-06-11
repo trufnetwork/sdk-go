@@ -11,30 +11,29 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/joho/godotenv"
 	kwilcrypto "github.com/kwilteam/kwil-db/core/crypto"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
-	"github.com/trufnetwork/sdk-go/core/tnclient"
-	"github.com/trufnetwork/sdk-go/core/util"
 )
 
 // Constants for the test setup
 const (
-	networkName      = "truf-test-network"
-	TestKwilProvider = "http://localhost:8484"
-	TestPrivateKey   = "1111111111111111111111111111111111111111111111111111111111111111" // Test private key
-	DB_PRIVATE_KEY   = "0000000000000000000000000000000000000000000000000000000000000001"
-	DB_PUBLIC_KEY    = "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+	networkName       = "truf-test-network"
+	TestKwilProvider  = "http://localhost:8484"
+	managerPrivateKey = "1111111111111111111111111111111111111111111111111111111111111111" // manager wallet for system roles
+	DB_PRIVATE_KEY    = "0000000000000000000000000000000000000000000000000000000000000001" // database owner wallet
+	DB_PUBLIC_KEY     = "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
 )
 
 // ServerFixture is a fixture for setting up and tearing down a Trufnetwork server for testing
 type ServerFixture struct {
-	t          *testing.T
-	docker     *docker
-	client     *tnclient.Client
-	ctx        context.Context
-	containers struct {
+	t                 *testing.T
+	docker            *docker
+	ctx               context.Context
+	Endpoint          string
+	ManagerPrivateKey *kwilcrypto.Secp256k1PrivateKey
+	DBOwnerPrivateKey *kwilcrypto.Secp256k1PrivateKey
+	containers        struct {
 		postgres containerSpec
 		tndb     containerSpec
 	}
@@ -61,11 +60,22 @@ type docker struct {
 func NewServerFixture(t *testing.T) *ServerFixture {
 	ctx := context.Background()
 	d := newDocker(t)
+	managerPk, err := kwilcrypto.Secp256k1PrivateKeyFromHex(managerPrivateKey)
+	if err != nil {
+		t.Fatalf("failed to parse manager private key: %v", err)
+	}
+	dbOwnerPk, err := kwilcrypto.Secp256k1PrivateKeyFromHex(DB_PRIVATE_KEY)
+	if err != nil {
+		t.Fatalf("failed to parse db owner private key: %v", err)
+	}
 
 	return &ServerFixture{
-		t:      t,
-		docker: d,
-		ctx:    ctx,
+		t:                 t,
+		docker:            d,
+		ctx:               ctx,
+		Endpoint:          TestKwilProvider,
+		ManagerPrivateKey: managerPk,
+		DBOwnerPrivateKey: dbOwnerPk,
 		containers: struct {
 			postgres containerSpec
 			tndb     containerSpec
@@ -188,7 +198,12 @@ func (s *ServerFixture) Setup() error {
 	} else {
 		providerArg := fmt.Sprintf("PROVIDER=%s", TestKwilProvider)
 		privateKeyArg := fmt.Sprintf("PRIVATE_KEY=%s", DB_PRIVATE_KEY)
-		migrateCmd := exec.CommandContext(s.ctx, "task", "action:migrate", providerArg, privateKeyArg)
+		// derive 0x-address from manager private key
+		mgrPk, _ := kwilcrypto.Secp256k1PrivateKeyFromHex(managerPrivateKey)
+		mgrSigner := &auth.EthPersonalSigner{Key: *mgrPk}
+		mgrAddr, _ := auth.EthSecp256k1Authenticator{}.Identifier(mgrSigner.CompactID())
+		adminWalletArg := fmt.Sprintf("ADMIN_WALLET=%s", mgrAddr)
+		migrateCmd := exec.CommandContext(s.ctx, "task", "action:migrate", providerArg, privateKeyArg, adminWalletArg)
 		migrateCmd.Dir = nodeRepoDir
 
 		s.t.Logf("Executing command in %s: %s", migrateCmd.Dir, strings.Join(migrateCmd.Args, " "))
@@ -199,84 +214,6 @@ func (s *ServerFixture) Setup() error {
 		}
 		s.t.Logf("Migration task successful. Output: %s", string(migrateOut))
 	}
-
-	// Create client
-	s.t.Log("Creating private key...")
-	pk, err := kwilcrypto.Secp256k1PrivateKeyFromHex(TestPrivateKey)
-	if err != nil {
-		return fmt.Errorf("failed to parse private key: %w", err)
-	}
-	s.t.Log("Successfully created private key")
-
-	s.t.Log("Creating TN client...")
-	s.t.Logf("Using provider: %s", TestKwilProvider)
-
-	// Get the Ethereum address from the public key
-	pubKeyBytes := pk.Public().Bytes()
-	// Remove the first byte which is the compression flag
-	pubKeyBytes = pubKeyBytes[1:]
-	addr, err := util.NewEthereumAddressFromBytes(crypto.Keccak256(pubKeyBytes)[12:])
-	if err != nil {
-		return fmt.Errorf("failed to get address from public key: %w", err)
-	}
-	s.t.Logf("Using signer with address: %s", addr.Address())
-
-	s.t.Log("Attempting to create client...")
-	var lastErr error
-	for i := 0; i < 60; i++ { // 60 seconds max wait
-		s.t.Logf("Attempt %d/60: Creating client with provider URL %s", i+1, TestKwilProvider)
-
-		// First check if the server is accepting connections
-		cmd := exec.Command("curl", "-s", "-w", "\n%{http_code}", "http://localhost:8484/api/v1/health")
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			lastErr = fmt.Errorf("health check command failed: %w", err)
-			s.t.Logf("Health check command failed: %v", err)
-			time.Sleep(time.Second)
-			continue
-		}
-
-		// Split output into response body and status code
-		parts := strings.Split(string(out), "\n")
-		if len(parts) != 2 {
-			lastErr = fmt.Errorf("unexpected health check output format: %s", string(out))
-			s.t.Logf("Health check output format error: %s", string(out))
-			time.Sleep(time.Second)
-			continue
-		}
-
-		statusCode := strings.TrimSpace(parts[1])
-		s.t.Logf("Health check response - Status: %s", statusCode)
-		if statusCode != "200" {
-			lastErr = fmt.Errorf("health check returned non-200 status: %s", statusCode)
-			s.t.Logf("Health check failed with status %s", statusCode)
-			time.Sleep(time.Second)
-			continue
-		}
-
-		s.t.Log("Health check passed, attempting to create client...")
-		// Try to create the client now that we know the server is accepting connections
-		s.client, err = tnclient.NewClient(
-			s.ctx,
-			TestKwilProvider,
-			tnclient.WithSigner(&auth.EthPersonalSigner{Key: *pk}),
-		)
-		if err != nil {
-			lastErr = fmt.Errorf("failed to create TN client: %w", err)
-			s.t.Logf("Client creation failed: %v", err)
-			time.Sleep(time.Second)
-			continue
-		}
-
-		// Successfully created client
-		s.t.Log("Client created successfully")
-		break
-	}
-
-	if s.client == nil {
-		return fmt.Errorf("failed to create client after 60 attempts. Last error: %w", lastErr)
-	}
-
 	return nil
 }
 
@@ -291,11 +228,6 @@ func (s *ServerFixture) Teardown() {
 
 	// Clean up any other resources
 	s.docker.cleanup()
-}
-
-// Client returns the client for interacting with the server
-func (s *ServerFixture) Client() *tnclient.Client {
-	return s.client
 }
 
 // newDocker creates a new docker helper

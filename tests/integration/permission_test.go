@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang-sql/civil"
 	"github.com/kwilteam/kwil-db/core/crypto"
+	kwilcrypto "github.com/kwilteam/kwil-db/core/crypto"
 	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,6 +18,7 @@ import (
 
 // TestPermissions demonstrates the deployment and permission management of primitive and composed streams in TN.
 func TestPermissions(t *testing.T) {
+	ctx := context.Background()
 	fixture := NewServerFixture(t)
 	err := fixture.Setup()
 	t.Cleanup(func() {
@@ -24,11 +26,13 @@ func TestPermissions(t *testing.T) {
 	})
 	require.NoError(t, err, "Failed to setup server fixture")
 
-	ownerTnClient := fixture.Client()
-	require.NotNil(t, ownerTnClient, "Owner client from fixture should not be nil")
-	streamOwnerAddress := ownerTnClient.Address()
+	ownerWallet, err := kwilcrypto.Secp256k1PrivateKeyFromHex(AnonWalletPK)
+	require.NoError(t, err, "failed to parse anon wallet private key")
+	authorizeWalletToDeployStreams(t, ctx, fixture, ownerWallet)
 
-	ctx := context.Background()
+	ownerTnClient, err := tnclient.NewClient(ctx, TestKwilProvider, tnclient.WithSigner(auth.GetUserSigner(ownerWallet)))
+	require.NoError(t, err, "failed to create client")
+	streamOwnerAddress := ownerTnClient.Address()
 
 	// Set up reader assets
 	// The reader represents a separate entity that will attempt to access the streams

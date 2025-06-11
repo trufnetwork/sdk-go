@@ -4,8 +4,11 @@ import (
 	"context"
 	"testing"
 
+	kwilcrypto "github.com/kwilteam/kwil-db/core/crypto"
+	"github.com/kwilteam/kwil-db/core/crypto/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/trufnetwork/sdk-go/core/tnclient"
 
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
@@ -14,6 +17,7 @@ import (
 // TestPrimitiveActions demonstrates the process of deploying, initializing, writing to,
 // and reading from a primitive action in TN using the TN SDK.
 func TestPrimitiveActions(t *testing.T) {
+	ctx := context.Background()
 	fixture := NewServerFixture(t)
 	err := fixture.Setup()
 	t.Cleanup(func() {
@@ -21,10 +25,12 @@ func TestPrimitiveActions(t *testing.T) {
 	})
 	require.NoError(t, err, "Failed to setup server fixture")
 
-	tnClient := fixture.Client()
-	require.NotNil(t, tnClient, "Client from fixture should not be nil")
+	deployerWallet, err := kwilcrypto.Secp256k1PrivateKeyFromHex(AnonWalletPK)
+	require.NoError(t, err, "failed to parse anon wallet private key")
+	tnClient, err := tnclient.NewClient(ctx, TestKwilProvider, tnclient.WithSigner(auth.GetUserSigner(deployerWallet)))
+	require.NoError(t, err, "failed to create client")
 
-	ctx := context.Background()
+	authorizeWalletToDeployStreams(t, ctx, fixture, deployerWallet)
 
 	// Generate a unique stream ID and locator
 	// The stream ID is used to uniquely identify the stream within TN
