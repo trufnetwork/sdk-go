@@ -66,10 +66,31 @@ func TestRoleManagement(t *testing.T) {
 		return res[0].IsMember
 	}
 
+	listMembers := func() []apitypes.RoleMember {
+		members, err := roleMgmt.ListRoleMembers(ctx, apitypes.ListRoleMembersInput{
+			Owner:    "system",
+			RoleName: "network_writer",
+			Limit:    100,
+			Offset:   0,
+		})
+		require.NoError(t, err)
+		return members
+	}
+
+	containsWallet := func(list []apitypes.RoleMember, target util.EthereumAddress) bool {
+		for _, m := range list {
+			if m.Wallet == target {
+				return true
+			}
+		}
+		return false
+	}
+
 	// Initial assertions – none of the three wallets are writers.
 	assert.False(t, isWriter(managerAddr))
 	assert.False(t, isWriter(newWriterAddr))
 	assert.False(t, isWriter(randomAddr))
+	assert.False(t, containsWallet(listMembers(), newWriterAddr))
 
 	//---------------------------------------------------------------------
 	// Grant role to newWriter
@@ -83,6 +104,7 @@ func TestRoleManagement(t *testing.T) {
 	waitTxToBeMinedWithSuccess(t, ctx, managerClient, grantTx)
 
 	assert.True(t, isWriter(newWriterAddr))
+	assert.True(t, containsWallet(listMembers(), newWriterAddr), "new writer should appear in list_role_members after grant")
 
 	//---------------------------------------------------------------------
 	// newWriter deploys a primitive stream – should succeed
@@ -112,6 +134,7 @@ func TestRoleManagement(t *testing.T) {
 	waitTxToBeMinedWithSuccess(t, ctx, managerClient, revokeTx)
 
 	assert.False(t, isWriter(newWriterAddr))
+	assert.False(t, containsWallet(listMembers(), newWriterAddr), "revoked writer should be absent from list_role_members")
 
 	// Deployment should now fail on-chain for newWriter (submission succeeds, tx fails)
 	streamIDRevoked := util.GenerateStreamId("role-management-go-test-revoked")

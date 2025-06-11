@@ -155,6 +155,7 @@ The SDK provides an API for advanced partners and internal use to programmatical
 -   `IRoleManagement.GrantRole(ctx, GrantRoleInput, ...TxOpt)`: Grants a role to one or more wallets.
 -   `IRoleManagement.RevokeRole(ctx, RevokeRoleInput, ...TxOpt)`: Revokes a role from one or more wallets.
 -   `IRoleManagement.AreMembersOf(ctx, AreMembersOfInput)`: Checks if one or more wallets are members of a specific role.
+-   `IRoleManagement.ListRoleMembers(ctx, ListRoleMembersInput)`: Lists current members of a role with optional pagination.
 
 **Note:** For general stream creation, users should typically contact the TRUF.NETWORK team directly rather than attempting to manage the `system:network_writer` role themselves. The `system:network_writer` role is managed by `system:network_writers_manager`.
 
