@@ -19,15 +19,22 @@ The Stream Interface is the core abstraction for data streams in the TRUF.NETWOR
 GetRecord(ctx context.Context, input types.GetRecordInput) ([]types.StreamRecord, error)
 ```
 
-Retrieves records from the stream based on the input criteria.
+Retrieves the **raw time-series data** for the specified stream. Internally the SDK calls the on-chain action `get_record`, which automatically delegates to either `get_record_primitive` or `get_record_composed` depending on the type of the stream.
 
-**Parameters:**
-- `ctx`: The context for the operation.
-- `input`: The input criteria for retrieving records.
+**Behaviour**
+1. If both `From` and `To` are `nil`, the latest data-point (LOCF-filled for composed streams) is returned.
+2. Gap-filling logic is applied to primitive streams so that the value immediately preceding `From` is included—this guarantees that visualisations can safely draw a continuous line.
+3. For composed streams, the value is calculated recursively by aggregating the weighted values of all child primitives **at each point in time**.  All permission checks (`read`, `compose`) are enforced inside the SQL action.
 
-**Returns:**
-- `[]types.StreamRecord`: The retrieved records.
-- `error`: An error if the retrieval fails.
+**Input fields (types.GetRecordInput):**
+- `DataProvider` (string)   Owner address of the stream.
+- `StreamId`     (string)   ID of the stream (`stxxxxxxxxxxxxxxxxxxxxxxxxxxxx`).
+- `From`, `To`   (*int)     Unix timestamp range (inclusive).  Pass `nil` to make the bound open-ended.
+- `FrozenAt`     (*int)     Time-travel flag. Only events created **on or before** this block-timestamp are considered.
+
+**Returned slice:** each `StreamRecord` contains
+- `EventTime` (int)   Unix timestamp of the point.
+- `Value`     (apd.Decimal) Raw numeric value.
 
 ### `GetIndex`
 
@@ -35,15 +42,46 @@ Retrieves records from the stream based on the input criteria.
 GetIndex(ctx context.Context, input types.GetIndexInput) ([]types.StreamIndex, error)
 ```
 
-Retrieves the index of the stream based on the input criteria.
+Returns a **rebased index** of the stream where the value at `BaseDate` (defaults to metadata key `default_base_time`) is normalised to **100**.
 
-**Parameters:**
-- `ctx`: The context for the operation.
-- `input`: The input criteria for retrieving the indices.
+Mathematically:
+```
+index(t) = 100 × value(t) / value(baseDate)
+```
 
-**Returns:**
-- `[]types.StreamIndex`: The retrieved indices.
-- `error`: An error if the retrieval fails.
+The same recursive aggregation, gap-filling and permission rules described in `GetRecord` apply here; the only difference is the final normalisation step.
+
+Important details
+1. If `BaseDate` is `nil` the function will fall back to the first available record for the stream.
+2. Division-by-zero protection is enforced in the SQL action—an error is thrown when the base value is 0.
+3. For single-point queries (`From==To==nil`) only the latest indexed value is returned.
+
+The returned slice is identical to `GetRecord` but semantically represents an **index** instead of raw values.
+
+### `GetIndexChange`
+
+```go
+GetIndexChange(ctx context.Context, input types.GetRecordInput, timeInterval int) ([]types.StreamIndex, error)
+```
+
+Computes the **percentage change** of the index over a fixed time interval. Internally the SDK obtains the indexed series via `get_index` and then, for every returned row whose timestamp is `t`, finds the closest index value **at or before** `t − timeInterval`.
+
+Formula:
+```
+Δindex(t) = ( index(t) − index(t − Δ) ) / index(t − Δ) × 100
+```
+where `Δ = timeInterval` (in seconds).
+
+Only rows for which a matching *previous* value exists and is non-zero are emitted. This is performed server-side by the SQL action `get_index_change`, ensuring minimal bandwidth usage.
+
+Typical use-cases:
+- **Day-over-day change**: pass `86400` seconds.
+- **Year-on-year change**: pass `31 536 000` seconds.
+
+**Extra parameter:**
+- `timeInterval` (int)  Interval in seconds used for the delta computation (mandatory).
+
+**Return value:** Same shape as `GetIndex` but each `Value` now represents **percentage change**, e.g. `2.5` means **+2.5 %**.
 
 ### `SetReadVisibility`
 
