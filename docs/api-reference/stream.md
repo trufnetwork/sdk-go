@@ -141,6 +141,46 @@ Disables a stream from using this stream as a child.
 - `transactions.TxHash`: The transaction hash for the operation.
 - `error`: An error if the operation fails.
 
+### `CallProcedure`
+
+```go
+CallProcedure(ctx context.Context, procedure string, args []any) (*kwiltypes.QueryResult, error)
+```
+
+Invokes a **read-only** stored procedure on the underlying database and returns a `QueryResult` that you can inspect or decode into typed structs using `contractsapi.DecodeCallResult[T]`.
+
+**Parameters:**
+- `ctx`: Operation context.
+- `procedure`: The name of the stored procedure to execute.
+- `args`: A positional slice (`[]any`) containing the arguments expected by the procedure. Use `nil` for optional parameters you wish to skip.
+
+**Returns:**
+- `*kwiltypes.QueryResult`: The raw query result.
+- `error`: An error if the call fails.
+
+#### Example: Calling a Custom Read-Only Procedure
+
+```go
+// Load the generic Action API
+actions, _ := tnClient.LoadActions()
+
+// Prepare arguments
+from := int(time.Now().AddDate(0, 0, -7).Unix())
+to   := int(time.Now().Unix())
+args := []any{from, to, nil, nil, 31_536_000} // 1-year interval
+
+// Call the procedure
+result, err := actions.CallProcedure(ctx, "get_divergence_index_change", args)
+if err != nil {
+    return err
+}
+
+fmt.Println("Columns:", result.ColumnNames)
+for _, row := range result.Values {
+    fmt.Println(row)
+}
+```
+
 ## Best Practices
 
 1. **Always handle errors**
