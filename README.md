@@ -25,17 +25,20 @@ go get github.com/trufnetwork/sdk-go
 ### Setting Up a Local Node
 
 1. **Prerequisites:**
+
    - Docker
    - Docker Compose
    - Git
 
 2. **Clone the TN Node Repository:**
+
    ```bash
    git clone https://github.com/trufnetwork/node.git
    cd node
    ```
 
 3. **Start the Local Node:**
+
    ```bash
    # Start the node in development mode
    task single:start
@@ -120,8 +123,8 @@ func main() {
 	// Display retrieved records
 	fmt.Println("AI Index Records from Local Node:")
 	for _, record := range records {
-		fmt.Printf("Event Time: %d, Value: %s\n", 
-			record.EventTime, 
+		fmt.Printf("Event Time: %d, Value: %s\n",
+			record.EventTime,
 			record.Value.String(),
 		)
 	}
@@ -184,7 +187,7 @@ func main() {
 
 - **Primitive Streams**: Direct data sources from providers. Examples include indexes from known sources, aggregation output such as sentiment analysis, and off-chain/on-chain data.
 - **Composed Streams**: Aggregate and process data from multiple streams.
-- **System Streams**: Contract-managed streams audited and accepted by TN governance to ensure quality. 
+- **System Streams**: Contract-managed streams audited and accepted by TN governance to ensure quality.
 
 See [type of streams](./docs/type-of-streams.md) and [default TN contracts](./docs/contracts.md) guides for more information.
 
@@ -231,7 +234,7 @@ The SDK-Go repository is licensed under the Apache License, Version 2.0. See [LI
 
 ## Stream Creation and Management
 
-The TN SDK provides comprehensive support for creating and managing both primitive and composed streams. 
+The TN SDK provides comprehensive support for creating and managing both primitive and composed streams.
 
 ### Primitive Streams
 
@@ -295,6 +298,7 @@ For a comprehensive example demonstrating stream creation, taxonomy setup, and d
 - Retrieving composed stream records
 
 Key steps include:
+
 1. Generating unique stream IDs
 2. Deploying primitive and composed streams
 3. Inserting records into primitive streams
@@ -308,14 +312,17 @@ This example provides a practical walkthrough of creating and managing streams i
 #### Stream Locators
 
 A `StreamLocator` is a unique identifier for a stream that consists of two key components:
+
 1. `StreamId`: A unique identifier for the stream
 2. `DataProvider`: The Ethereum address of the stream's creator/owner
 
 The `OwnStreamLocator()` method is a convenience function that automatically creates a `StreamLocator` using:
+
 - The provided `StreamId`
 - The current client's Ethereum address
 
 Example:
+
 ```go
 // Creates a StreamLocator with:
 // - The given stream ID
@@ -330,6 +337,7 @@ This is particularly useful when you're creating and managing your own streams, 
 A `DataProvider` is the Ethereum address responsible for creating and managing a stream. When inserting records or performing operations on a stream, you need to specify the data provider's address.
 
 To get the current client's address, use:
+
 ```go
 // Get the current client's Ethereum address
 dataProviderAddress := tnClient.Address()
@@ -339,6 +347,7 @@ dataProviderAddressString := dataProviderAddress.Address()
 ```
 
 Key differences:
+
 - `tnClient.Address()` returns an `EthereumAddress` object
 - `dataProviderAddress.Address()` returns the address as a string, which is used in stream operations
 
@@ -369,6 +378,7 @@ insertTx, err := primitiveActions.InsertRecords(ctx, []types.InsertRecordInput{
 ```
 
 This approach ensures that:
+
 - Streams are uniquely identified
 - Records are correctly attributed to their creator
 - Stream operations are performed with the correct addressing
@@ -378,6 +388,7 @@ This approach ensures that:
 #### Why Delete Streams?
 
 Stream deletion is crucial for:
+
 - Cleaning up unused or test streams
 - Managing resource consumption
 - Maintaining a clean and organized stream ecosystem
@@ -404,10 +415,12 @@ if err != nil {
 #### Best Practices for Stream Deletion
 
 1. **Cleanup in Reverse Order**
+
    - Delete composed streams before their child primitive streams
    - Ensures proper resource management and prevents orphaned references
 
 2. **Error Handling**
+
    - Always check for errors during stream deletion
    - Log and handle potential issues gracefully
 
@@ -416,6 +429,7 @@ if err != nil {
    - Ensures resources are freed even if an error occurs
 
 Example of Deferred Stream Deletion:
+
 ```go
 func main() {
     // Defer stream destruction
@@ -461,3 +475,6 @@ func main() {
 
 By following these guidelines, you can effectively manage stream resources in the TRUF.NETWORK ecosystem.
 
+## Documentation
+
+For more detailed information about stream management and the full SDK API, please refer to the [API Reference](docs/api-reference.md).
