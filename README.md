@@ -221,17 +221,6 @@ TN supports granular control over stream access and visibility. Streams can be p
 
 - **Transaction Confirmation**: Always wait for transaction confirmation before performing dependent actions. For more information, see the [Stream Lifecycle](./docs/stream-lifecycle.md) section.
 
-## Further Reading
-
-- [TN-SDK Documentation](./docs/readme.md)
-- [Truflation Whitepaper](https://whitepaper.truflation.com/)
-
-For additional support or questions, please [open an issue](https://github.com/trufnetwork/sdk-go/issues) or contact our support team.
-
-## License
-
-The SDK-Go repository is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE.md) for more details.
-
 ## Stream Creation and Management
 
 The TN SDK provides comprehensive support for creating and managing both primitive and composed streams.
@@ -475,6 +464,13 @@ func main() {
 
 By following these guidelines, you can effectively manage stream resources in the TRUF.NETWORK ecosystem.
 
-## Documentation
+## Further Reading
 
-For more detailed information about stream management and the full SDK API, please refer to the [API Reference](docs/api-reference.md).
+- [TN-SDK Documentation](./docs/readme.md)
+- [Truflation Whitepaper](https://whitepaper.truflation.com/)
+
+For additional support or questions, please [open an issue](https://github.com/trufnetwork/sdk-go/issues) or contact our support team.
+
+## License
+
+The SDK-Go repository is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE.md) for more details.
