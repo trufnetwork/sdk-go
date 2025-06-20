@@ -36,6 +36,7 @@ Feel free to replace the procedure name and arguments with your own.
 3. In this directory run:
 
    ```bash
+   go mod tidy
    go run .
    ```
 

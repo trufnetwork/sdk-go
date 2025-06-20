@@ -16,6 +16,7 @@ type GetRecordInput struct {
 	To           *int
 	FrozenAt     *int
 	BaseDate     *int
+	Prefix       *string
 }
 
 type GetIndexInput = GetRecordInput

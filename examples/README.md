@@ -36,6 +36,7 @@ Before running the example:
 ## Running the Example
 
 ```bash
+go mod tidy
 go run main.go
 ```
 

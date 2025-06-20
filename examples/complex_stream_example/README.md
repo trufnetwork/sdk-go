@@ -76,6 +76,7 @@ defer func() {
 2. Adjust the `endpoint` to match your TN node (local or mainnet)
 3. Run the example:
    ```bash
+   go mod tidy
    go run main.go
    ```
 
