@@ -146,7 +146,12 @@ func (s *Action) GetRecord(ctx context.Context, input types.GetRecordInput) ([]t
 	args = append(args, transformOrNil(input.To, func(date int) any { return date }))
 	args = append(args, transformOrNil(input.FrozenAt, func(date int) any { return date }))
 
-	results, err := s.call(ctx, "get_record", args)
+	prefix := ""
+	if input.Prefix != nil {
+			prefix = *input.Prefix
+	}
+
+	results, err := s.call(ctx, prefix + "get_record", args)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -193,7 +198,12 @@ func (s *Action) GetIndex(ctx context.Context, input types.GetIndexInput) ([]typ
 	args = append(args, transformOrNil(input.FrozenAt, func(date int) any { return date }))
 	args = append(args, transformOrNil(input.BaseDate, func(date int) any { return date }))
 
-	results, err := s.call(ctx, "get_index", args)
+	prefix := ""
+	if input.Prefix != nil {
+			prefix = *input.Prefix
+	}
+
+	results, err := s.call(ctx, prefix + "get_index", args)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
