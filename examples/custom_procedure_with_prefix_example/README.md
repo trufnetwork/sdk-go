@@ -36,6 +36,7 @@ Prior to execution:
 ## Execution
 
 ```bash
+go mod tidy
 go run .
 ```
 
