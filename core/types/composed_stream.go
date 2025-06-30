@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/kwilteam/kwil-db/core/types"
 	"github.com/pkg/errors"
+	"github.com/trufnetwork/kwil-db/core/types"
 )
 
 type Taxonomy struct {

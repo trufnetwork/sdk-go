@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	kwilcrypto "github.com/kwilteam/kwil-db/core/crypto"
-	"github.com/kwilteam/kwil-db/core/crypto/auth"
+	kwilcrypto "github.com/trufnetwork/kwil-db/core/crypto"
+	"github.com/trufnetwork/kwil-db/core/crypto/auth"
 )
 
 // Constants for the test setup

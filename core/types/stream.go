@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/cockroachdb/apd/v3"
-	kwilType "github.com/kwilteam/kwil-db/core/types"
-	"github.com/kwilteam/kwil-db/node/types"
+	kwilType "github.com/trufnetwork/kwil-db/core/types"
+	"github.com/trufnetwork/kwil-db/node/types"
 	"github.com/trufnetwork/sdk-go/core/util"
 )
 

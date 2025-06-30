@@ -2,10 +2,10 @@ package types
 
 import (
 	"context"
-	"github.com/kwilteam/kwil-db/core/gatewayclient"
+	"github.com/trufnetwork/kwil-db/core/gatewayclient"
 	"time"
 
-	"github.com/kwilteam/kwil-db/core/types"
+	"github.com/trufnetwork/kwil-db/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
 )
 

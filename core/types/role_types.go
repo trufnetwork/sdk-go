@@ -3,8 +3,8 @@ package types
 import (
 	"context"
 
-	kwilClientType "github.com/kwilteam/kwil-db/core/client/types" // for TxOpt
-	"github.com/kwilteam/kwil-db/node/types"
+	kwilClientType "github.com/trufnetwork/kwil-db/core/client/types" // for TxOpt
+	"github.com/trufnetwork/kwil-db/node/types"
 	"github.com/trufnetwork/sdk-go/core/util"
 )
 
