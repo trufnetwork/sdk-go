@@ -3,8 +3,8 @@ module github.com/trufnetwork/sdk-go/examples/complex_stream_example
 go 1.24.1
 
 require (
-	github.com/kwilteam/kwil-db/core v0.4.2-0.20250506000241-da9d3ddea45e
-	github.com/trufnetwork/sdk-go v0.3.2-0.20250620093045-0155e2dac953
+	github.com/trufnetwork/kwil-db/core v0.4.3-0.20250629214713-33a43e717089
+	github.com/trufnetwork/sdk-go v0.3.2-0.20250630062504-841b40cdb709
 )
 
 require (
@@ -17,9 +17,9 @@ require (
 	github.com/go-playground/validator/v10 v10.22.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jrick/logrotate v1.1.2 // indirect
-	github.com/kwilteam/kwil-db v0.10.2 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/trufnetwork/kwil-db v0.10.3-0.20250629214713-33a43e717089 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.35.0 // indirect
