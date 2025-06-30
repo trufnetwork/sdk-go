@@ -4,8 +4,8 @@ import (
 	"context"
 	"strconv"
 
-	kwiltypes "github.com/kwilteam/kwil-db/core/types"
 	"github.com/pkg/errors"
+	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
 )

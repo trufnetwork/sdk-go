@@ -3,10 +3,10 @@ package contractsapi
 import (
 	"context"
 
-	kwilClientType "github.com/kwilteam/kwil-db/core/client/types"
-	"github.com/kwilteam/kwil-db/core/gatewayclient"
-	kwiltypes "github.com/kwilteam/kwil-db/core/types"
 	"github.com/pkg/errors"
+	kwilClientType "github.com/trufnetwork/kwil-db/core/client/types"
+	"github.com/trufnetwork/kwil-db/core/gatewayclient"
+	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
 )

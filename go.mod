@@ -4,12 +4,13 @@ go 1.24.1
 
 require (
 	github.com/cockroachdb/apd/v3 v3.2.1
-	github.com/ethereum/go-ethereum v1.14.13
 	github.com/go-playground/validator/v10 v10.22.0
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9
-	github.com/kwilteam/kwil-db/core v0.4.2-0.20250506000241-da9d3ddea45e
+	github.com/joho/godotenv v1.5.1
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
+	github.com/trufnetwork/kwil-db v0.10.3-0.20250629214713-33a43e717089
+	github.com/trufnetwork/kwil-db/core v0.4.3-0.20250629214713-33a43e717089
 	go.uber.org/zap v1.27.0
 )
 
@@ -21,10 +22,7 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/holiman/uint256 v1.3.2 // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/jrick/logrotate v1.1.2 // indirect
-	github.com/kwilteam/kwil-db v0.10.2 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect

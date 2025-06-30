@@ -4,7 +4,7 @@ go 1.24.1
 
 require (
 	github.com/kwilteam/kwil-db/core v0.4.2-0.20250506000241-da9d3ddea45e
-	github.com/trufnetwork/sdk-go main
+	github.com/trufnetwork/sdk-go v0.3.2-0.20250620093045-0155e2dac953
 )
 
 require (

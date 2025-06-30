@@ -2,9 +2,9 @@ package types
 
 import (
 	"context"
-	"github.com/kwilteam/kwil-db/node/types"
+	"github.com/trufnetwork/kwil-db/node/types"
 
-	kwilClientType "github.com/kwilteam/kwil-db/core/client/types"
+	kwilClientType "github.com/trufnetwork/kwil-db/core/client/types"
 )
 
 type InsertRecordInput struct {

@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	"github.com/cockroachdb/apd/v3"
-	kwiltypes "github.com/kwilteam/kwil-db/core/types"
 	"github.com/pkg/errors"
+	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
 )
@@ -148,10 +148,10 @@ func (s *Action) GetRecord(ctx context.Context, input types.GetRecordInput) ([]t
 
 	prefix := ""
 	if input.Prefix != nil {
-			prefix = *input.Prefix
+		prefix = *input.Prefix
 	}
 
-	results, err := s.call(ctx, prefix + "get_record", args)
+	results, err := s.call(ctx, prefix+"get_record", args)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -200,10 +200,10 @@ func (s *Action) GetIndex(ctx context.Context, input types.GetIndexInput) ([]typ
 
 	prefix := ""
 	if input.Prefix != nil {
-			prefix = *input.Prefix
+		prefix = *input.Prefix
 	}
 
-	results, err := s.call(ctx, prefix + "get_index", args)
+	results, err := s.call(ctx, prefix+"get_index", args)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

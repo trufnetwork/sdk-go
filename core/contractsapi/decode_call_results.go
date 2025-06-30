@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"strings"
 
-	kwiltypes "github.com/kwilteam/kwil-db/core/types"
 	"github.com/pkg/errors"
+	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
 )
 
 // fieldMappingInfo holds information about how a QueryResult column maps to a struct field.

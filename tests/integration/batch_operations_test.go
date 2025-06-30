@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	kwilcrypto "github.com/kwilteam/kwil-db/core/crypto"
-	"github.com/kwilteam/kwil-db/core/crypto/auth"
-	kwiltypes "github.com/kwilteam/kwil-db/core/types"
+	kwilcrypto "github.com/trufnetwork/kwil-db/core/crypto"
+	"github.com/trufnetwork/kwil-db/core/crypto/auth"
+	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
