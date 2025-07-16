@@ -9,8 +9,8 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
-	github.com/trufnetwork/kwil-db v0.10.3-0.20250629214713-33a43e717089
-	github.com/trufnetwork/kwil-db/core v0.4.3-0.20250629214713-33a43e717089
+	github.com/trufnetwork/kwil-db v0.10.3-0.20250714184403-500f214cd4b5
+	github.com/trufnetwork/kwil-db/core v0.4.3-0.20250714184403-500f214cd4b5
 	go.uber.org/zap v1.27.0
 )
 

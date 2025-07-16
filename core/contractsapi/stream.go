@@ -109,6 +109,19 @@ func (s *Action) call(ctx context.Context, method string, args []any) (*kwilType
 	return result.QueryResult, nil
 }
 
+// callWithLogs performs a call and returns the full CallResult for cache metadata extraction
+func (s *Action) callWithLogs(ctx context.Context, method string, args []any) (*kwilTypes.CallResult, error) {
+	result, err := s._client.Call(ctx, "", method, args)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	if result.Error != nil {
+		return nil, errors.New(*result.Error)
+	}
+
+	return result, nil
+}
+
 func (s *Action) execute(ctx context.Context, method string, args [][]any) (kwilTypes.Hash, error) {
 	return s._client.Execute(ctx, "", method, args)
 }
