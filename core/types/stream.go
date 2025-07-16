@@ -17,6 +17,7 @@ type GetRecordInput struct {
 	FrozenAt     *int
 	BaseDate     *int
 	Prefix       *string
+	UseCache     *bool
 }
 
 type GetIndexInput = GetRecordInput
@@ -37,6 +38,7 @@ type GetFirstRecordInput struct {
 	StreamId     string
 	After        *int
 	FrozenAt     *int
+	UseCache     *bool
 }
 
 type StreamRecord struct {
@@ -81,14 +83,20 @@ type IAction interface {
 
 	// GetRecord reads the records of the stream within the given date range
 	GetRecord(ctx context.Context, input GetRecordInput) ([]StreamRecord, error)
+	// GetRecordWithMetadata reads the records of the stream with cache metadata
+	GetRecordWithMetadata(ctx context.Context, input GetRecordInput) (StreamRecordWithMetadata, error)
 	// GetIndex reads the index of the stream within the given date range
 	GetIndex(ctx context.Context, input GetIndexInput) ([]StreamIndex, error)
+	// GetIndexWithMetadata reads the index of the stream with cache metadata
+	GetIndexWithMetadata(ctx context.Context, input GetIndexInput) (StreamIndexWithMetadata, error)
 	// GetIndexChange reads the index change of the stream within the given date range
 	GetIndexChange(ctx context.Context, input GetIndexChangeInput) ([]StreamIndexChange, error)
 	// GetType gets the type of the stream -- Primitive or Composed
 	GetType(ctx context.Context, locator StreamLocator) (StreamType, error)
 	// GetFirstRecord gets the first record of the stream
 	GetFirstRecord(ctx context.Context, input GetFirstRecordInput) (*StreamRecord, error)
+	// GetFirstRecordWithMetadata gets the first record of the stream with cache metadata
+	GetFirstRecordWithMetadata(ctx context.Context, input GetFirstRecordInput) (*StreamRecord, *CacheMetadata, error)
 
 	// SetReadVisibility sets the read visibility of the stream -- Private or Public
 	SetReadVisibility(ctx context.Context, input VisibilityInput) (types.Hash, error)

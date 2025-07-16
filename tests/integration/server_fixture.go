@@ -20,7 +20,7 @@ import (
 const (
 	networkName       = "truf-test-network"
 	TestKwilProvider  = "http://localhost:8484"
-	managerPrivateKey = "1111111111111111111111111111111111111111111111111111111111111111" // manager wallet for system roles
+	managerPrivateKey = "0000000000000000000000000000000000000000000000000000000000000001" // manager wallet for system roles
 	DB_PRIVATE_KEY    = "0000000000000000000000000000000000000000000000000000000000000001" // database owner wallet
 	DB_PUBLIC_KEY     = "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
 )
