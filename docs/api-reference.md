@@ -306,7 +306,7 @@ The returned slice is identical to `GetRecord` but semantically represents an **
 #### `GetIndexChange`
 
 ```go
-GetIndexChange(ctx context.Context, input types.GetRecordInput, timeInterval int) ([]types.StreamIndex, error)
+GetIndexChange(ctx context.Context, input types.GetIndexChangeInput) ([]types.StreamIndexChange, error)
 ```
 
 Computes the **percentage change** of the index over a fixed time interval. Internally the SDK obtains the indexed series via `get_index` and then, for every returned row whose timestamp is `t`, finds the closest index value **at or before** `t − timeInterval`.
@@ -326,9 +326,10 @@ Typical use-cases:
 - **Day-over-day change**: pass `86400` seconds.
 - **Year-on-year change**: pass `31 536 000` seconds.
 
-**Extra parameter:**
+**Input fields (types.GetIndexChangeInput):**
 
-- `timeInterval` (int) Interval in seconds used for the delta computation (mandatory).
+All fields from `GetIndexInput` plus:
+- `TimeInterval` (int) Interval in seconds used for the delta computation (mandatory).
 
 **Return value:** Same shape as `GetIndex` but each `Value` now represents **percentage change**, e.g. `2.5` means **+2.5 %**.
 
