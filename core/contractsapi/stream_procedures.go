@@ -239,6 +239,59 @@ func (s *Action) GetIndex(ctx context.Context, input types.GetIndexInput) ([]typ
 	return outputs, nil
 }
 
+type GetIndexChangeRawOutput = GetRecordRawOutput
+
+func (s *Action) GetIndexChange(ctx context.Context, input types.GetIndexChangeInput) ([]types.StreamIndexChange, error) {
+	var args []any
+	args = append(args, input.DataProvider)
+	args = append(args, input.StreamId)
+	args = append(args, transformOrNil(input.From, func(date int) any { return date }))
+	args = append(args, transformOrNil(input.To, func(date int) any { return date }))
+	args = append(args, transformOrNil(input.FrozenAt, func(date int) any { return date }))
+	args = append(args, transformOrNil(input.BaseDate, func(date int) any { return date }))
+	args = append(args, input.TimeInterval)
+
+	prefix := ""
+	if input.Prefix != nil {
+		prefix = *input.Prefix
+	}
+
+	results, err := s.call(ctx, prefix+"get_index_change", args)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	rawOutputs, err := DecodeCallResult[GetIndexChangeRawOutput](results)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	var outputs []types.StreamIndexChange
+	for _, rawOutput := range rawOutputs {
+		value, _, err := apd.NewFromString(rawOutput.Value)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		outputs = append(outputs, types.StreamIndexChange{
+			EventTime: func() int {
+				if rawOutput.EventTime == "" {
+					return 0
+				}
+
+				eventTime, err := strconv.Atoi(rawOutput.EventTime)
+				if err != nil {
+					return 0
+				}
+
+				return eventTime
+			}(),
+			Value: *value,
+		})
+	}
+
+	return outputs, nil
+}
+
 // streamExistsResult is used to decode the output of the stream_exists_batch procedure.
 // Note: The exact JSON tags will depend on the actual output of the SQL procedure.
 // Assuming it returns columns named data_provider, stream_id, and exists.

@@ -21,6 +21,17 @@ type GetRecordInput struct {
 
 type GetIndexInput = GetRecordInput
 
+type GetIndexChangeInput struct {
+	DataProvider string
+	StreamId     string
+	From         *int
+	To           *int
+	FrozenAt     *int
+	BaseDate     *int
+	TimeInterval int
+	Prefix       *string
+}
+
 type GetFirstRecordInput struct {
 	DataProvider string
 	StreamId     string
@@ -34,6 +45,8 @@ type StreamRecord struct {
 }
 
 type StreamIndex = StreamRecord
+
+type StreamIndexChange = StreamRecord
 
 type ReadWalletInput struct {
 	Stream StreamLocator
@@ -70,6 +83,8 @@ type IAction interface {
 	GetRecord(ctx context.Context, input GetRecordInput) ([]StreamRecord, error)
 	// GetIndex reads the index of the stream within the given date range
 	GetIndex(ctx context.Context, input GetIndexInput) ([]StreamIndex, error)
+	// GetIndexChange reads the index change of the stream within the given date range
+	GetIndexChange(ctx context.Context, input GetIndexChangeInput) ([]StreamIndexChange, error)
 	// GetType gets the type of the stream -- Primitive or Composed
 	GetType(ctx context.Context, locator StreamLocator) (StreamType, error)
 	// GetFirstRecord gets the first record of the stream
