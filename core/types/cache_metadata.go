@@ -133,5 +133,5 @@ func (cm *CacheMetadata) IsExpired(maxAge time.Duration) bool {
 		return false // No cache timestamp, cannot determine expiration
 	}
 	
-	return *dataAge > maxAge
+	return *dataAge >= maxAge
 }
