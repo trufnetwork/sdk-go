@@ -42,14 +42,10 @@ type GetFirstRecordInput struct {
 	UseCache     *bool
 }
 
-type StreamRecord struct {
+type StreamResult struct {
 	EventTime int
 	Value     apd.Decimal
 }
-
-type StreamIndex = StreamRecord
-
-type StreamIndexChange = StreamRecord
 
 type ReadWalletInput struct {
 	Stream StreamLocator
@@ -83,23 +79,15 @@ type IAction interface {
 	CallProcedure(ctx context.Context, procedure string, args []any) (*kwilType.QueryResult, error)
 
 	// GetRecord reads the records of the stream within the given date range
-	GetRecord(ctx context.Context, input GetRecordInput) ([]StreamRecord, error)
-	// GetRecordWithMetadata reads the records of the stream with cache metadata
-	GetRecordWithMetadata(ctx context.Context, input GetRecordInput) (StreamRecordWithMetadata, error)
+	GetRecord(ctx context.Context, input GetRecordInput) (ActionResult, error)
 	// GetIndex reads the index of the stream within the given date range
-	GetIndex(ctx context.Context, input GetIndexInput) ([]StreamIndex, error)
-	// GetIndexWithMetadata reads the index of the stream with cache metadata
-	GetIndexWithMetadata(ctx context.Context, input GetIndexInput) (StreamIndexWithMetadata, error)
+	GetIndex(ctx context.Context, input GetIndexInput) (ActionResult, error)
 	// GetIndexChange reads the index change of the stream within the given date range
-	GetIndexChange(ctx context.Context, input GetIndexChangeInput) ([]StreamIndexChange, error)
-	// GetIndexChangeWithMetadata reads the index change of the stream with cache metadata
-	GetIndexChangeWithMetadata(ctx context.Context, input GetIndexChangeInput) (StreamIndexChangeWithMetadata, error)
+	GetIndexChange(ctx context.Context, input GetIndexChangeInput) (ActionResult, error)
 	// GetType gets the type of the stream -- Primitive or Composed
 	GetType(ctx context.Context, locator StreamLocator) (StreamType, error)
 	// GetFirstRecord gets the first record of the stream
-	GetFirstRecord(ctx context.Context, input GetFirstRecordInput) (*StreamRecord, error)
-	// GetFirstRecordWithMetadata gets the first record of the stream with cache metadata
-	GetFirstRecordWithMetadata(ctx context.Context, input GetFirstRecordInput) (*StreamRecord, *CacheMetadata, error)
+	GetFirstRecord(ctx context.Context, input GetFirstRecordInput) (ActionResult, error)
 
 	// SetReadVisibility sets the read visibility of the stream -- Private or Public
 	SetReadVisibility(ctx context.Context, input VisibilityInput) (types.Hash, error)

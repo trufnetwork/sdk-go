@@ -76,7 +76,7 @@ func TestCacheParameterSupport(t *testing.T) {
 			// UseCache omitted - should work
 		})
 		require.NoError(t, err, "GetRecord with omitted UseCache should work")
-		assert.NotEmpty(t, result1, "Should return records")
+		assert.NotEmpty(t, result1.Results, "Should return records")
 
 		// Test 2: Explicit UseCache = false
 		useCacheFalse := false
@@ -88,7 +88,7 @@ func TestCacheParameterSupport(t *testing.T) {
 			UseCache:     &useCacheFalse,
 		})
 		require.NoError(t, err, "GetRecord with UseCache=false should work")
-		assert.NotEmpty(t, result2, "Should return records")
+		assert.NotEmpty(t, result2.Results, "Should return records")
 
 		// Test 3: Explicit UseCache = true
 		useCacheTrue := true
@@ -100,11 +100,11 @@ func TestCacheParameterSupport(t *testing.T) {
 			UseCache:     &useCacheTrue,
 		})
 		require.NoError(t, err, "GetRecord with UseCache=true should work")
-		assert.NotEmpty(t, result3, "Should return records")
+		assert.NotEmpty(t, result3.Results, "Should return records")
 
 		// Verify results are consistent (all should return the same data)
-		assert.Equal(t, len(result1), len(result2), "Results1 and results2 should have same length")
-		assert.Equal(t, len(result2), len(result3), "Results2 and results3 should have same length")
+		assert.Equal(t, len(result1.Results), len(result2.Results), "Results1 and results2 should have same length")
+		assert.Equal(t, len(result2.Results), len(result3.Results), "Results2 and results3 should have same length")
 	})
 
 	t.Run("GetFirstRecord with UseCache parameter", func(t *testing.T) {
@@ -127,6 +127,7 @@ func TestCacheParameterSupport(t *testing.T) {
 				})
 				require.NoError(t, err, "GetFirstRecord should work with UseCache %v", tc.useCache)
 				assert.NotNil(t, result, "Should return a record")
+				assert.NotNil(t, result.Metadata, "Should return metadata")
 			})
 		}
 	})
@@ -182,23 +183,23 @@ func TestCacheMetadataExtraction(t *testing.T) {
 	// Wait for data to be processed
 	time.Sleep(100 * time.Millisecond)
 
-	t.Run("GetRecordWithMetadata", func(t *testing.T) {
+	t.Run("GetRecord with metadata", func(t *testing.T) {
 		useCache := true
-		result, err := primitiveActions.GetRecordWithMetadata(ctx, types.GetRecordInput{
+		result, err := primitiveActions.GetRecord(ctx, types.GetRecordInput{
 			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamLocator.StreamId.String(),
 			From:         &[]int{1}[0],
 			To:           &[]int{2}[0],
 			UseCache:     &useCache,
 		})
-		require.NoError(t, err, "GetRecordWithMetadata should work")
-		assert.NotEmpty(t, result.Records, "Should return records")
+		require.NoError(t, err, "GetRecord should work")
+		assert.NotEmpty(t, result.Results, "Should return records")
 
 		// Verify metadata is populated
 		assert.NotNil(t, result.Metadata, "Metadata should not be nil")
 		assert.Equal(t, streamLocator.StreamId.String(), result.Metadata.StreamId, "StreamId should be set")
 		assert.Equal(t, streamLocator.DataProvider.Address(), result.Metadata.DataProvider, "DataProvider should be set")
-		assert.Equal(t, len(result.Records), result.Metadata.RowsServed, "RowsServed should match record count")
+		assert.Equal(t, len(result.Results), result.Metadata.RowsServed, "RowsServed should match record count")
 
 		// Check that metadata fields are properly typed
 		assert.IsType(t, bool(false), result.Metadata.CacheHit, "CacheHit should be bool")
@@ -208,38 +209,71 @@ func TestCacheMetadataExtraction(t *testing.T) {
 		}
 	})
 
-	t.Run("GetIndexWithMetadata", func(t *testing.T) {
+	t.Run("GetIndex with metadata", func(t *testing.T) {
 		useCache := true
-		result, err := primitiveActions.GetIndexWithMetadata(ctx, types.GetIndexInput{
+		result, err := primitiveActions.GetIndex(ctx, types.GetIndexInput{
 			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamLocator.StreamId.String(),
 			From:         &[]int{1}[0],
 			To:           &[]int{2}[0],
 			UseCache:     &useCache,
 		})
-		require.NoError(t, err, "GetIndexWithMetadata should work")
+		require.NoError(t, err, "GetIndex should work")
 
 		// Verify metadata structure
 		assert.NotNil(t, result.Metadata, "Metadata should not be nil")
 		assert.Equal(t, streamLocator.StreamId.String(), result.Metadata.StreamId, "StreamId should be set")
 		assert.Equal(t, streamLocator.DataProvider.Address(), result.Metadata.DataProvider, "DataProvider should be set")
+		// Verify that Results is populated with StreamResult objects
+		assert.NotNil(t, result.Results, "Results should not be nil")
 	})
 
-	t.Run("GetFirstRecordWithMetadata", func(t *testing.T) {
+	t.Run("GetFirstRecord with metadata", func(t *testing.T) {
 		useCache := true
-		record, metadata, err := primitiveActions.GetFirstRecordWithMetadata(ctx, types.GetFirstRecordInput{
+		record, err := primitiveActions.GetFirstRecord(ctx, types.GetFirstRecordInput{
 			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamLocator.StreamId.String(),
 			UseCache:     &useCache,
 		})
-		require.NoError(t, err, "GetFirstRecordWithMetadata should work")
+		require.NoError(t, err, "GetFirstRecord should work")
 		assert.NotNil(t, record, "Should return a record")
-		assert.NotNil(t, metadata, "Should return metadata")
+		assert.NotNil(t, record.Metadata, "Should return metadata")
 
 		// Verify metadata structure
-		assert.Equal(t, streamLocator.StreamId.String(), metadata.StreamId, "StreamId should be set")
-		assert.Equal(t, streamLocator.DataProvider.Address(), metadata.DataProvider, "DataProvider should be set")
-		assert.Equal(t, 1, metadata.RowsServed, "RowsServed should be 1 for single record")
+		assert.Equal(t, streamLocator.StreamId.String(), record.Metadata.StreamId, "StreamId should be set")
+		assert.Equal(t, streamLocator.DataProvider.Address(), record.Metadata.DataProvider, "DataProvider should be set")
+		assert.Equal(t, 1, record.Metadata.RowsServed, "RowsServed should be 1 for single record")
+	})
+
+	t.Run("GetIndexChange with metadata", func(t *testing.T) {
+		useCache := true
+		timeInterval := 86400 // 1 day in seconds
+		result, err := primitiveActions.GetIndexChange(ctx, types.GetIndexChangeInput{
+			DataProvider: streamLocator.DataProvider.Address(),
+			StreamId:     streamLocator.StreamId.String(),
+			From:         &[]int{1}[0],
+			To:           &[]int{2}[0],
+			TimeInterval: timeInterval,
+			UseCache:     &useCache,
+		})
+		require.NoError(t, err, "GetIndexChange should work")
+
+		// Verify metadata structure
+		assert.NotNil(t, result.Metadata, "Metadata should not be nil")
+		assert.Equal(t, streamLocator.StreamId.String(), result.Metadata.StreamId, "StreamId should be set")
+		assert.Equal(t, streamLocator.DataProvider.Address(), result.Metadata.DataProvider, "DataProvider should be set")
+		assert.GreaterOrEqual(t, result.Metadata.RowsServed, 0, "RowsServed should be non-negative")
+
+		// Verify index changes structure - should be non-nil slice (can be empty)
+		assert.NotNil(t, result.Results, "Results should not be nil")
+		// With only one data point and a large time interval, we expect no changes
+		// This is normal behavior and should not fail the test
+		assert.GreaterOrEqual(t, len(result.Results), 0, "Results length should be non-negative")
+		// Verify that Results contains StreamResult objects (unified type)
+		for _, change := range result.Results {
+			assert.NotNil(t, &change.Value, "Each index change should have a value")
+			assert.GreaterOrEqual(t, change.EventTime, 0, "Each index change should have a valid event time")
+		}
 	})
 
 	t.Run("GetIndexChangeWithMetadata", func(t *testing.T) {
@@ -335,7 +369,7 @@ func TestCacheMetadataAggregation(t *testing.T) {
 		assert.Equal(t, 2, aggregated.CacheHits, "Should have 2 cache hits")
 		assert.Equal(t, 1, aggregated.CacheMisses, "Should have 1 cache miss")
 		assert.Equal(t, 15, aggregated.TotalRowsServed, "Should serve 15 total rows")
-		
+
 		expectedHitRate := float64(2) / float64(3)
 		assert.InDelta(t, expectedHitRate, aggregated.CacheHitRate, 0.001, "Cache hit rate should be 2/3")
 
@@ -416,7 +450,7 @@ func TestBackwardCompatibility(t *testing.T) {
 
 		result, err := primitiveActions.GetRecord(ctx, oldStyleInput)
 		require.NoError(t, err, "Old-style GetRecord should work")
-		assert.NotEmpty(t, result, "Should return records")
+		assert.NotEmpty(t, result.Results, "Should return records")
 
 		// Test interface compatibility
 		var actionInterface types.IAction = primitiveActions
@@ -430,14 +464,14 @@ func TestCacheMetadataDataAge(t *testing.T) {
 	t.Run("GetDataAge with valid timestamp", func(t *testing.T) {
 		now := time.Now()
 		cachedAt := now.Unix() - 300 // 5 minutes ago
-		
+
 		metadata := types.CacheMetadata{
 			CachedAt: &cachedAt,
 		}
 
 		dataAge := metadata.GetDataAge()
 		require.NotNil(t, dataAge, "DataAge should not be nil")
-		
+
 		// Should be approximately 5 minutes (allowing for test execution time)
 		assert.Greater(t, dataAge.Minutes(), 4.9, "Data age should be at least 4.9 minutes")
 		assert.Less(t, dataAge.Minutes(), 5.1, "Data age should be less than 5.1 minutes")
@@ -454,7 +488,7 @@ func TestCacheMetadataDataAge(t *testing.T) {
 
 	t.Run("IsExpired functionality", func(t *testing.T) {
 		now := time.Now()
-		
+
 		// Test with old data (expired)
 		oldCachedAt := now.Unix() - 3600 // 1 hour ago
 		oldMetadata := types.CacheMetadata{

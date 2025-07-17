@@ -139,64 +139,16 @@ func (s *Action) CallProcedure(ctx context.Context, procedure string, args []any
 	return s.call(ctx, procedure, args)
 }
 
-func (s *Action) GetRecord(ctx context.Context, input types.GetRecordInput) ([]types.StreamRecord, error) {
+func (s *Action) GetRecord(ctx context.Context, input types.GetRecordInput) (types.ActionResult, error) {
 	var args []any
 	args = append(args, input.DataProvider)
 	args = append(args, input.StreamId)
 	args = append(args, transformOrNil(input.From, func(date int) any { return date }))
 	args = append(args, transformOrNil(input.To, func(date int) any { return date }))
 	args = append(args, transformOrNil(input.FrozenAt, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.UseCache, func(cache bool) any { return cache }))
-
-	prefix := ""
-	if input.Prefix != nil {
-		prefix = *input.Prefix
+	if input.UseCache != nil {
+		args = append(args, *input.UseCache)
 	}
-
-	results, err := s.call(ctx, prefix+"get_record", args)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	rawOutputs, err := DecodeCallResult[GetRecordRawOutput](results)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	var outputs []types.StreamRecord
-	for _, rawOutput := range rawOutputs {
-		value, _, err := apd.NewFromString(rawOutput.Value)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		outputs = append(outputs, types.StreamRecord{
-			EventTime: func() int {
-				if rawOutput.EventTime == "" {
-					return 0
-				}
-
-				eventTime, err := strconv.Atoi(rawOutput.EventTime)
-				if err != nil {
-					return 0
-				}
-
-				return eventTime
-			}(),
-			Value: *value,
-		})
-	}
-
-	return outputs, nil
-}
-
-func (s *Action) GetRecordWithMetadata(ctx context.Context, input types.GetRecordInput) (types.StreamRecordWithMetadata, error) {
-	var args []any
-	args = append(args, input.DataProvider)
-	args = append(args, input.StreamId)
-	args = append(args, transformOrNil(input.From, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.To, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.FrozenAt, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.UseCache, func(cache bool) any { return cache }))
 
 	prefix := ""
 	if input.Prefix != nil {
@@ -205,21 +157,21 @@ func (s *Action) GetRecordWithMetadata(ctx context.Context, input types.GetRecor
 
 	callResult, err := s.callWithLogs(ctx, prefix+"get_record", args)
 	if err != nil {
-		return types.StreamRecordWithMetadata{}, errors.WithStack(err)
+		return types.ActionResult{}, errors.WithStack(err)
 	}
 
 	rawOutputs, err := DecodeCallResult[GetRecordRawOutput](callResult.QueryResult)
 	if err != nil {
-		return types.StreamRecordWithMetadata{}, errors.WithStack(err)
+		return types.ActionResult{}, errors.WithStack(err)
 	}
 
-	var outputs []types.StreamRecord
+	var outputs []types.StreamResult
 	for _, rawOutput := range rawOutputs {
 		value, _, err := apd.NewFromString(rawOutput.Value)
 		if err != nil {
-			return types.StreamRecordWithMetadata{}, errors.WithStack(err)
+			return types.ActionResult{}, errors.WithStack(err)
 		}
-		outputs = append(outputs, types.StreamRecord{
+		outputs = append(outputs, types.StreamResult{
 			EventTime: func() int {
 				if rawOutput.EventTime == "" {
 					return 0
@@ -251,7 +203,7 @@ func (s *Action) GetRecordWithMetadata(ctx context.Context, input types.GetRecor
 	// Parse cache metadata from logs
 	metadata, err := types.ParseCacheMetadata(logs)
 	if err != nil {
-		return types.StreamRecordWithMetadata{}, errors.WithStack(err)
+		return types.ActionResult{}, errors.WithStack(err)
 	}
 
 	// Enhance metadata with query context
@@ -271,15 +223,15 @@ func (s *Action) GetRecordWithMetadata(ctx context.Context, input types.GetRecor
 	}
 	metadata.RowsServed = len(outputs)
 
-	return types.StreamRecordWithMetadata{
-		Records:  outputs,
+	return types.ActionResult{
+		Results:  outputs,
 		Metadata: metadata,
 	}, nil
 }
 
 type GetIndexRawOutput = GetRecordRawOutput
 
-func (s *Action) GetIndex(ctx context.Context, input types.GetIndexInput) ([]types.StreamIndex, error) {
+func (s *Action) GetIndex(ctx context.Context, input types.GetIndexInput) (types.ActionResult, error) {
 	var args []any
 	args = append(args, input.DataProvider)
 	args = append(args, input.StreamId)
@@ -287,58 +239,9 @@ func (s *Action) GetIndex(ctx context.Context, input types.GetIndexInput) ([]typ
 	args = append(args, transformOrNil(input.To, func(date int) any { return date }))
 	args = append(args, transformOrNil(input.FrozenAt, func(date int) any { return date }))
 	args = append(args, transformOrNil(input.BaseDate, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.UseCache, func(cache bool) any { return cache }))
-
-	prefix := ""
-	if input.Prefix != nil {
-		prefix = *input.Prefix
+	if input.UseCache != nil {
+		args = append(args, *input.UseCache)
 	}
-
-	results, err := s.call(ctx, prefix+"get_index", args)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	rawOutputs, err := DecodeCallResult[GetIndexRawOutput](results)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	var outputs []types.StreamIndex
-	for _, rawOutput := range rawOutputs {
-		value, _, err := apd.NewFromString(rawOutput.Value)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		outputs = append(outputs, types.StreamIndex{
-			EventTime: func() int {
-				if rawOutput.EventTime == "" {
-					return 0
-				}
-
-				eventTime, err := strconv.Atoi(rawOutput.EventTime)
-				if err != nil {
-					return 0
-				}
-
-				return eventTime
-			}(),
-			Value: *value,
-		})
-	}
-
-	return outputs, nil
-}
-
-func (s *Action) GetIndexWithMetadata(ctx context.Context, input types.GetIndexInput) (types.StreamIndexWithMetadata, error) {
-	var args []any
-	args = append(args, input.DataProvider)
-	args = append(args, input.StreamId)
-	args = append(args, transformOrNil(input.From, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.To, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.FrozenAt, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.BaseDate, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.UseCache, func(cache bool) any { return cache }))
 
 	prefix := ""
 	if input.Prefix != nil {
@@ -347,21 +250,21 @@ func (s *Action) GetIndexWithMetadata(ctx context.Context, input types.GetIndexI
 
 	callResult, err := s.callWithLogs(ctx, prefix+"get_index", args)
 	if err != nil {
-		return types.StreamIndexWithMetadata{}, errors.WithStack(err)
+		return types.ActionResult{}, errors.WithStack(err)
 	}
 
 	rawOutputs, err := DecodeCallResult[GetIndexRawOutput](callResult.QueryResult)
 	if err != nil {
-		return types.StreamIndexWithMetadata{}, errors.WithStack(err)
+		return types.ActionResult{}, errors.WithStack(err)
 	}
 
-	var outputs []types.StreamIndex
+	var outputs []types.StreamResult
 	for _, rawOutput := range rawOutputs {
 		value, _, err := apd.NewFromString(rawOutput.Value)
 		if err != nil {
-			return types.StreamIndexWithMetadata{}, errors.WithStack(err)
+			return types.ActionResult{}, errors.WithStack(err)
 		}
-		outputs = append(outputs, types.StreamIndex{
+		outputs = append(outputs, types.StreamResult{
 			EventTime: func() int {
 				if rawOutput.EventTime == "" {
 					return 0
@@ -393,14 +296,14 @@ func (s *Action) GetIndexWithMetadata(ctx context.Context, input types.GetIndexI
 	// Parse cache metadata from logs
 	metadata, err := types.ParseCacheMetadata(logs)
 	if err != nil {
-		return types.StreamIndexWithMetadata{}, errors.WithStack(err)
+		return types.ActionResult{}, errors.WithStack(err)
 	}
 
 	// Enhance metadata with query context
 	metadata.StreamId = input.StreamId
 	metadata.DataProvider = input.DataProvider
 	metadata.RowsServed = len(outputs)
-	
+
 	if input.From != nil {
 		from := int64(*input.From)
 		metadata.From = &from
@@ -414,15 +317,15 @@ func (s *Action) GetIndexWithMetadata(ctx context.Context, input types.GetIndexI
 		metadata.FrozenAt = &frozenAt
 	}
 
-	return types.StreamIndexWithMetadata{
-		Indices:  outputs,
+	return types.ActionResult{
+		Results:  outputs,
 		Metadata: metadata,
 	}, nil
 }
 
 type GetIndexChangeRawOutput = GetRecordRawOutput
 
-func (s *Action) GetIndexChange(ctx context.Context, input types.GetIndexChangeInput) ([]types.StreamIndexChange, error) {
+func (s *Action) GetIndexChange(ctx context.Context, input types.GetIndexChangeInput) (types.ActionResult, error) {
 	var args []any
 	args = append(args, input.DataProvider)
 	args = append(args, input.StreamId)
@@ -431,29 +334,32 @@ func (s *Action) GetIndexChange(ctx context.Context, input types.GetIndexChangeI
 	args = append(args, transformOrNil(input.FrozenAt, func(date int) any { return date }))
 	args = append(args, transformOrNil(input.BaseDate, func(date int) any { return date }))
 	args = append(args, input.TimeInterval)
+	if input.UseCache != nil {
+		args = append(args, *input.UseCache)
+	}
 
 	prefix := ""
 	if input.Prefix != nil {
 		prefix = *input.Prefix
 	}
 
-	results, err := s.call(ctx, prefix+"get_index_change", args)
+	callResult, err := s.callWithLogs(ctx, prefix+"get_index_change", args)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return types.ActionResult{}, errors.WithStack(err)
 	}
 
-	rawOutputs, err := DecodeCallResult[GetIndexChangeRawOutput](results)
+	rawOutputs, err := DecodeCallResult[GetIndexChangeRawOutput](callResult.QueryResult)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return types.ActionResult{}, errors.WithStack(err)
 	}
 
-	var outputs []types.StreamIndexChange
+	outputs := make([]types.StreamResult, 0)
 	for _, rawOutput := range rawOutputs {
 		value, _, err := apd.NewFromString(rawOutput.Value)
 		if err != nil {
-			return nil, errors.WithStack(err)
+			return types.ActionResult{}, errors.WithStack(err)
 		}
-		outputs = append(outputs, types.StreamIndexChange{
+		outputs = append(outputs, types.StreamResult{
 			EventTime: func() int {
 				if rawOutput.EventTime == "" {
 					return 0
@@ -470,7 +376,46 @@ func (s *Action) GetIndexChange(ctx context.Context, input types.GetIndexChangeI
 		})
 	}
 
-	return outputs, nil
+	// Parse logs string into individual log lines for cache metadata extraction
+	var logs []string
+	if callResult.Logs != "" {
+		lines := strings.Split(callResult.Logs, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line != "" {
+				logs = append(logs, line)
+			}
+		}
+	}
+
+	// Parse cache metadata from logs
+	metadata, err := types.ParseCacheMetadata(logs)
+	if err != nil {
+		return types.ActionResult{}, errors.WithStack(err)
+	}
+
+	// Enhance metadata with query context
+	metadata.StreamId = input.StreamId
+	metadata.DataProvider = input.DataProvider
+	metadata.RowsServed = len(outputs)
+
+	if input.From != nil {
+		from := int64(*input.From)
+		metadata.From = &from
+	}
+	if input.To != nil {
+		to := int64(*input.To)
+		metadata.To = &to
+	}
+	if input.FrozenAt != nil {
+		frozenAt := int64(*input.FrozenAt)
+		metadata.FrozenAt = &frozenAt
+	}
+
+	return types.ActionResult{
+		Results:  outputs,
+		Metadata: metadata,
+	}, nil
 }
 
 func (s *Action) GetIndexChangeWithMetadata(ctx context.Context, input types.GetIndexChangeInput) (types.StreamIndexChangeWithMetadata, error) {
@@ -680,82 +625,34 @@ func (s *Action) BatchFilterStreamsByExistence(ctx context.Context, streamsInput
 	return filteredLocators, nil
 }
 
-func (s *Action) GetFirstRecord(ctx context.Context, input types.GetFirstRecordInput) (*types.StreamRecord, error) {
+func (s *Action) GetFirstRecord(ctx context.Context, input types.GetFirstRecordInput) (types.ActionResult, error) {
 	var args []any
 	args = append(args, input.DataProvider)
 	args = append(args, input.StreamId)
 	args = addArgOrNull(args, input.After, true)
 	args = addArgOrNull(args, input.FrozenAt, true)
-	args = append(args, transformOrNil(input.UseCache, func(cache bool) any { return cache }))
-
-	results, err := s.call(ctx, "get_first_record", args)
-	if err != nil {
-		return nil, errors.WithStack(err)
+	if input.UseCache != nil {
+		args = append(args, *input.UseCache)
 	}
-
-	rawOutputs, err := DecodeCallResult[GetRecordRawOutput](results)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	if len(rawOutputs) == 0 {
-		return nil, nil
-	}
-
-	rawOutput := rawOutputs[0]
-	value, _, err := apd.NewFromString(rawOutput.Value)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	eventTime, err := func() (int, error) {
-		if rawOutput.EventTime == "" {
-			return 0, nil
-		}
-
-		eventTime, err := strconv.Atoi(rawOutput.EventTime)
-		if err != nil {
-			return 0, errors.WithStack(err)
-		}
-
-		return eventTime, nil
-	}()
-	if err != nil {
-		return nil, err
-	}
-
-	return &types.StreamRecord{
-		EventTime: eventTime,
-		Value:     *value,
-	}, nil
-}
-
-func (s *Action) GetFirstRecordWithMetadata(ctx context.Context, input types.GetFirstRecordInput) (*types.StreamRecord, *types.CacheMetadata, error) {
-	var args []any
-	args = append(args, input.DataProvider)
-	args = append(args, input.StreamId)
-	args = addArgOrNull(args, input.After, true)
-	args = addArgOrNull(args, input.FrozenAt, true)
-	args = append(args, transformOrNil(input.UseCache, func(cache bool) any { return cache }))
-
+	
 	callResult, err := s.callWithLogs(ctx, "get_first_record", args)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return types.ActionResult{}, errors.WithStack(err)
 	}
 
 	rawOutputs, err := DecodeCallResult[GetRecordRawOutput](callResult.QueryResult)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return types.ActionResult{}, errors.WithStack(err)
 	}
 
 	if len(rawOutputs) == 0 {
-		return nil, nil, nil
+		return types.ActionResult{}, nil
 	}
 
 	rawOutput := rawOutputs[0]
 	value, _, err := apd.NewFromString(rawOutput.Value)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return types.ActionResult{}, errors.WithStack(err)
 	}
 
 	eventTime, err := func() (int, error) {
@@ -769,7 +666,7 @@ func (s *Action) GetFirstRecordWithMetadata(ctx context.Context, input types.Get
 		return eventTime, nil
 	}()
 	if err != nil {
-		return nil, nil, err
+		return types.ActionResult{}, err
 	}
 
 	// Parse logs string into individual log lines for cache metadata extraction
@@ -787,7 +684,7 @@ func (s *Action) GetFirstRecordWithMetadata(ctx context.Context, input types.Get
 	// Parse cache metadata from logs
 	metadata, err := types.ParseCacheMetadata(logs)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return types.ActionResult{}, errors.WithStack(err)
 	}
 
 	// Enhance metadata with query context
@@ -803,10 +700,11 @@ func (s *Action) GetFirstRecordWithMetadata(ctx context.Context, input types.Get
 		metadata.FrozenAt = &frozenAt
 	}
 
-	record := &types.StreamRecord{
-		EventTime: eventTime,
-		Value:     *value,
-	}
-
-	return record, &metadata, nil
+	return types.ActionResult{
+		Results: []types.StreamResult{{
+			EventTime: eventTime,
+			Value:     *value,
+		}},
+		Metadata: metadata,
+	}, nil
 }

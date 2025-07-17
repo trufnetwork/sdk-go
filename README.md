@@ -122,7 +122,7 @@ func main() {
 
 	// Display retrieved records
 	fmt.Println("AI Index Records from Local Node:")
-	for _, record := range records {
+	for _, record := range records.Results {
 		fmt.Printf("Event Time: %d, Value: %s\n",
 			record.EventTime,
 			record.Value.String(),
