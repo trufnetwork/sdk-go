@@ -279,7 +279,7 @@ func TestCacheMetadataExtraction(t *testing.T) {
 	t.Run("GetIndexChangeWithMetadata", func(t *testing.T) {
 		useCache := true
 		timeInterval := 86400 // 1 day in seconds
-		result, err := primitiveActions.GetIndexChangeWithMetadata(ctx, types.GetIndexChangeInput{
+		result, err := primitiveActions.GetIndexChange(ctx, types.GetIndexChangeInput{
 			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamLocator.StreamId.String(),
 			From:         &[]int{1}[0],
@@ -296,10 +296,10 @@ func TestCacheMetadataExtraction(t *testing.T) {
 		assert.GreaterOrEqual(t, result.Metadata.RowsServed, 0, "RowsServed should be non-negative")
 
 		// Verify index changes structure - should be non-nil slice (can be empty)
-		assert.NotNil(t, result.IndexChanges, "IndexChanges should not be nil")
+		assert.NotNil(t, result.Results, "Results should not be nil")
 		// With only one data point and a large time interval, we expect no changes
 		// This is normal behavior and should not fail the test
-		assert.GreaterOrEqual(t, len(result.IndexChanges), 0, "IndexChanges length should be non-negative")
+		assert.GreaterOrEqual(t, len(result.Results), 0, "Results length should be non-negative")
 	})
 }
 
