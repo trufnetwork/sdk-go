@@ -473,6 +473,97 @@ func (s *Action) GetIndexChange(ctx context.Context, input types.GetIndexChangeI
 	return outputs, nil
 }
 
+func (s *Action) GetIndexChangeWithMetadata(ctx context.Context, input types.GetIndexChangeInput) (types.StreamIndexChangeWithMetadata, error) {
+	var args []any
+	args = append(args, input.DataProvider)
+	args = append(args, input.StreamId)
+	args = append(args, transformOrNil(input.From, func(date int) any { return date }))
+	args = append(args, transformOrNil(input.To, func(date int) any { return date }))
+	args = append(args, transformOrNil(input.FrozenAt, func(date int) any { return date }))
+	args = append(args, transformOrNil(input.BaseDate, func(date int) any { return date }))
+	args = append(args, input.TimeInterval)
+	args = append(args, transformOrNil(input.UseCache, func(cache bool) any { return cache }))
+
+	prefix := ""
+	if input.Prefix != nil {
+		prefix = *input.Prefix
+	}
+
+	callResult, err := s.callWithLogs(ctx, prefix+"get_index_change", args)
+	if err != nil {
+		return types.StreamIndexChangeWithMetadata{}, errors.WithStack(err)
+	}
+
+	rawOutputs, err := DecodeCallResult[GetIndexChangeRawOutput](callResult.QueryResult)
+	if err != nil {
+		return types.StreamIndexChangeWithMetadata{}, errors.WithStack(err)
+	}
+
+	outputs := make([]types.StreamIndexChange, 0)
+	for _, rawOutput := range rawOutputs {
+		value, _, err := apd.NewFromString(rawOutput.Value)
+		if err != nil {
+			return types.StreamIndexChangeWithMetadata{}, errors.WithStack(err)
+		}
+		outputs = append(outputs, types.StreamIndexChange{
+			EventTime: func() int {
+				if rawOutput.EventTime == "" {
+					return 0
+				}
+
+				eventTime, err := strconv.Atoi(rawOutput.EventTime)
+				if err != nil {
+					return 0
+				}
+
+				return eventTime
+			}(),
+			Value: *value,
+		})
+	}
+
+	// Parse logs string into individual log lines for cache metadata extraction
+	var logs []string
+	if callResult.Logs != "" {
+		lines := strings.Split(callResult.Logs, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line != "" {
+				logs = append(logs, line)
+			}
+		}
+	}
+
+	// Parse cache metadata from logs
+	metadata, err := types.ParseCacheMetadata(logs)
+	if err != nil {
+		return types.StreamIndexChangeWithMetadata{}, errors.WithStack(err)
+	}
+
+	// Enhance metadata with query context
+	metadata.StreamId = input.StreamId
+	metadata.DataProvider = input.DataProvider
+	metadata.RowsServed = len(outputs)
+	
+	if input.From != nil {
+		from := int64(*input.From)
+		metadata.From = &from
+	}
+	if input.To != nil {
+		to := int64(*input.To)
+		metadata.To = &to
+	}
+	if input.FrozenAt != nil {
+		frozenAt := int64(*input.FrozenAt)
+		metadata.FrozenAt = &frozenAt
+	}
+
+	return types.StreamIndexChangeWithMetadata{
+		IndexChanges: outputs,
+		Metadata:     metadata,
+	}, nil
+}
+
 // streamExistsResult is used to decode the output of the stream_exists_batch procedure.
 // Note: The exact JSON tags will depend on the actual output of the SQL procedure.
 // Assuming it returns columns named data_provider, stream_id, and exists.
