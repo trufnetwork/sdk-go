@@ -51,6 +51,12 @@ type StreamIndexWithMetadata struct {
 	Metadata CacheMetadata   `json:"cache_metadata"`
 }
 
+// StreamIndexChangeWithMetadata extends StreamIndexChange with cache metadata
+type StreamIndexChangeWithMetadata struct {
+	IndexChanges []StreamIndexChange `json:"index_changes"`
+	Metadata     CacheMetadata       `json:"cache_metadata"`
+}
+
 
 // ParseCacheMetadata extracts cache metadata from action logs
 func ParseCacheMetadata(logs []string) (CacheMetadata, error) {

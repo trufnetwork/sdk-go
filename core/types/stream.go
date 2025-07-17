@@ -31,6 +31,7 @@ type GetIndexChangeInput struct {
 	BaseDate     *int
 	TimeInterval int
 	Prefix       *string
+	UseCache     *bool
 }
 
 type GetFirstRecordInput struct {
@@ -91,6 +92,8 @@ type IAction interface {
 	GetIndexWithMetadata(ctx context.Context, input GetIndexInput) (StreamIndexWithMetadata, error)
 	// GetIndexChange reads the index change of the stream within the given date range
 	GetIndexChange(ctx context.Context, input GetIndexChangeInput) ([]StreamIndexChange, error)
+	// GetIndexChangeWithMetadata reads the index change of the stream with cache metadata
+	GetIndexChangeWithMetadata(ctx context.Context, input GetIndexChangeInput) (StreamIndexChangeWithMetadata, error)
 	// GetType gets the type of the stream -- Primitive or Composed
 	GetType(ctx context.Context, locator StreamLocator) (StreamType, error)
 	// GetFirstRecord gets the first record of the stream

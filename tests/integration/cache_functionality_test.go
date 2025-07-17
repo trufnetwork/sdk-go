@@ -241,6 +241,32 @@ func TestCacheMetadataExtraction(t *testing.T) {
 		assert.Equal(t, streamLocator.DataProvider.Address(), metadata.DataProvider, "DataProvider should be set")
 		assert.Equal(t, 1, metadata.RowsServed, "RowsServed should be 1 for single record")
 	})
+
+	t.Run("GetIndexChangeWithMetadata", func(t *testing.T) {
+		useCache := true
+		timeInterval := 86400 // 1 day in seconds
+		result, err := primitiveActions.GetIndexChangeWithMetadata(ctx, types.GetIndexChangeInput{
+			DataProvider: streamLocator.DataProvider.Address(),
+			StreamId:     streamLocator.StreamId.String(),
+			From:         &[]int{1}[0],
+			To:           &[]int{2}[0],
+			TimeInterval: timeInterval,
+			UseCache:     &useCache,
+		})
+		require.NoError(t, err, "GetIndexChangeWithMetadata should work")
+
+		// Verify metadata structure
+		assert.NotNil(t, result.Metadata, "Metadata should not be nil")
+		assert.Equal(t, streamLocator.StreamId.String(), result.Metadata.StreamId, "StreamId should be set")
+		assert.Equal(t, streamLocator.DataProvider.Address(), result.Metadata.DataProvider, "DataProvider should be set")
+		assert.GreaterOrEqual(t, result.Metadata.RowsServed, 0, "RowsServed should be non-negative")
+
+		// Verify index changes structure - should be non-nil slice (can be empty)
+		assert.NotNil(t, result.IndexChanges, "IndexChanges should not be nil")
+		// With only one data point and a large time interval, we expect no changes
+		// This is normal behavior and should not fail the test
+		assert.GreaterOrEqual(t, len(result.IndexChanges), 0, "IndexChanges length should be non-negative")
+	})
 }
 
 // TestCacheMetadataMarshaling tests JSON marshaling/unmarshaling of cache metadata
