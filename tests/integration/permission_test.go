@@ -70,7 +70,7 @@ func TestPermissions(t *testing.T) {
 	})
 
 	// Helper function to check if retrieved records match expected values
-	var checkRecords = func(t *testing.T, rec []types.StreamRecord) {
+	var checkRecords = func(t *testing.T, rec []types.StreamResult) {
 		assert.Equal(t, 1, len(rec))
 		assert.Equal(t, "1.000000000000000000", rec[0].Value.String())
 		assert.Equal(t, int(civil.Date{Year: 2020, Month: 1, Day: 1}.In(time.UTC).Unix()), rec[0].EventTime)
@@ -120,9 +120,9 @@ func TestPermissions(t *testing.T) {
 		})
 
 		// ok - public read
-		rec, err := readerPrimitiveAction.GetRecord(ctx, readPrimitiveInput)
+		result, err := readerPrimitiveAction.GetRecord(ctx, readPrimitiveInput)
 		assertNoErrorOrFail(t, err, "Failed to read records")
-		checkRecords(t, rec)
+		checkRecords(t, result.Results)
 
 		// set the stream to private
 		txHash, err := ownerPrimitiveAction.SetReadVisibility(ctx, types.VisibilityInput{
@@ -139,9 +139,9 @@ func TestPermissions(t *testing.T) {
 
 		// ok - private being owner
 		// read the stream
-		rec, err = ownerPrimitiveAction.GetRecord(ctx, readPrimitiveInput)
+		result, err = ownerPrimitiveAction.GetRecord(ctx, readPrimitiveInput)
 		assertNoErrorOrFail(t, err, "Failed to read records")
-		checkRecords(t, rec)
+		checkRecords(t, result.Results)
 
 		// fail - private without access
 		_, err = readerPrimitiveAction.GetRecord(ctx, readPrimitiveInput)
@@ -157,9 +157,9 @@ func TestPermissions(t *testing.T) {
 		waitTxToBeMinedWithSuccess(t, ctx, ownerTnClient, txHash)
 
 		// read the stream
-		rec, err = readerPrimitiveAction.GetRecord(ctx, readPrimitiveInput)
+		result, err = readerPrimitiveAction.GetRecord(ctx, readPrimitiveInput)
 		assertNoErrorOrFail(t, err, "Failed to read records")
-		checkRecords(t, rec)
+		checkRecords(t, result.Results)
 	})
 
 	// Test composed stream functionality and permissions
@@ -222,9 +222,9 @@ func TestPermissions(t *testing.T) {
 			})
 
 			// ok all public
-			rec, err := readerComposedAction.GetRecord(ctx, readComposedInput)
+			result, err := readerComposedAction.GetRecord(ctx, readComposedInput)
 			assertNoErrorOrFail(t, err, "Failed to read records")
-			checkRecords(t, rec)
+			checkRecords(t, result.Results)
 
 			// set just the composed stream to private
 			txHash, err := ownerComposedAction.SetReadVisibility(ctx, types.VisibilityInput{
@@ -267,9 +267,9 @@ func TestPermissions(t *testing.T) {
 			waitTxToBeMinedWithSuccess(t, ctx, ownerTnClient, txHash)
 
 			// ok - primitive private but w/ access
-			rec, err = readerComposedAction.GetRecord(ctx, readComposedInput)
+			result, err = readerComposedAction.GetRecord(ctx, readComposedInput)
 			assertNoErrorOrFail(t, err, "Failed to read records")
-			checkRecords(t, rec)
+			checkRecords(t, result.Results)
 
 			// set the composed stream to private
 			txHash, err = ownerComposedAction.SetReadVisibility(ctx, types.VisibilityInput{
@@ -288,9 +288,9 @@ func TestPermissions(t *testing.T) {
 			waitTxToBeMinedWithSuccess(t, ctx, ownerTnClient, txHash)
 
 			// ok - all private but w/ access
-			rec, err = readerComposedAction.GetRecord(ctx, readComposedInput)
+			result, err = readerComposedAction.GetRecord(ctx, readComposedInput)
 			assertNoErrorOrFail(t, err, "Failed to read records")
-			checkRecords(t, rec)
+			checkRecords(t, result.Results)
 		})
 
 		// Test stream composition permissions
@@ -313,9 +313,9 @@ func TestPermissions(t *testing.T) {
 			})
 
 			// ok - public compose
-			rec, err := readerComposedAction.GetRecord(ctx, readComposedInput)
+			result, err := readerComposedAction.GetRecord(ctx, readComposedInput)
 			assertNoErrorOrFail(t, err, "Failed to read records")
-			checkRecords(t, rec)
+			checkRecords(t, result.Results)
 
 			// set the stream to private
 			txHash, err := ownerPrimitiveAction.SetComposeVisibility(ctx, types.VisibilityInput{
@@ -331,9 +331,9 @@ func TestPermissions(t *testing.T) {
 			assert.Equal(t, util.PrivateVisibility, *composeVisibility)
 
 			// ok - reading primitive directly
-			rec, err = readerPrimitiveAction.GetRecord(ctx, readPrimitiveInput)
+			result, err = readerPrimitiveAction.GetRecord(ctx, readPrimitiveInput)
 			assertNoErrorOrFail(t, err, "Failed to read records")
-			checkRecords(t, rec)
+			checkRecords(t, result.Results)
 
 			// fail - private without access
 			_, err = readerComposedAction.GetRecord(ctx, readComposedInput)
@@ -349,9 +349,9 @@ func TestPermissions(t *testing.T) {
 			waitTxToBeMinedWithSuccess(t, ctx, ownerTnClient, txHash)
 
 			// read the stream
-			rec, err = readerComposedAction.GetRecord(ctx, readComposedInput)
+			result, err = readerComposedAction.GetRecord(ctx, readComposedInput)
 			assertNoErrorOrFail(t, err, "Failed to read records")
-			checkRecords(t, rec)
+			checkRecords(t, result.Results)
 		})
 	})
 

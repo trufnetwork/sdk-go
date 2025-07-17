@@ -88,7 +88,7 @@ func TestGetIndexChange(t *testing.T) {
 		fromTime := 1000
 		toTime := 1300
 
-		indexChanges, err := deployedPrimitiveStream.GetIndexChange(ctx, types.GetIndexChangeInput{
+		result, err := deployedPrimitiveStream.GetIndexChange(ctx, types.GetIndexChangeInput{
 			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamId.String(),
 			From:         &fromTime,
@@ -100,10 +100,10 @@ func TestGetIndexChange(t *testing.T) {
 		// We should get changes for times where we have previous data points
 		// The first data point (1000) won't have a change because there's no previous point
 		// Points at 1100, 1200, 1300 should have changes relative to points 100 seconds earlier
-		assert.True(t, len(indexChanges) >= 1, "Expected at least one index change")
+		assert.True(t, len(result.Results) >= 1, "Expected at least one index change")
 
 		// Verify that we get meaningful change values
-		for _, change := range indexChanges {
+		for _, change := range result.Results {
 			assert.True(t, change.EventTime >= fromTime, "Event time should be within range")
 			assert.True(t, change.EventTime <= toTime, "Event time should be within range")
 			// The value should be a percentage change, which could be positive or negative
@@ -117,7 +117,7 @@ func TestGetIndexChange(t *testing.T) {
 		fromTime := 1000
 		toTime := 1300
 
-		indexChanges, err := deployedPrimitiveStream.GetIndexChange(ctx, types.GetIndexChangeInput{
+		result, err := deployedPrimitiveStream.GetIndexChange(ctx, types.GetIndexChangeInput{
 			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamId.String(),
 			From:         &fromTime,
@@ -128,7 +128,7 @@ func TestGetIndexChange(t *testing.T) {
 
 		// With 200s interval, only points at 1200 and 1300 should have changes
 		// (relative to points at 1000 and 1100 respectively)
-		for _, change := range indexChanges {
+		for _, change := range result.Results {
 			assert.True(t, change.EventTime >= fromTime, "Event time should be within range")
 			assert.True(t, change.EventTime <= toTime, "Event time should be within range")
 			assert.NotNil(t, &change.Value, "Index change value should not be nil")
@@ -142,7 +142,7 @@ func TestGetIndexChange(t *testing.T) {
 		toTime := 1300
 		baseDate := 1000 // Use first record as base
 
-		indexChanges, err := deployedPrimitiveStream.GetIndexChange(ctx, types.GetIndexChangeInput{
+		result, err := deployedPrimitiveStream.GetIndexChange(ctx, types.GetIndexChangeInput{
 			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamId.String(),
 			From:         &fromTime,
@@ -153,7 +153,7 @@ func TestGetIndexChange(t *testing.T) {
 		assertNoErrorOrFail(t, err, "Failed to get index changes with base date")
 
 		// Verify results
-		for _, change := range indexChanges {
+		for _, change := range result.Results {
 			assert.True(t, change.EventTime >= fromTime, "Event time should be within range")
 			assert.True(t, change.EventTime <= toTime, "Event time should be within range")
 			assert.NotNil(t, &change.Value, "Index change value should not be nil")
@@ -166,7 +166,7 @@ func TestGetIndexChange(t *testing.T) {
 		fromTime := 1000
 		toTime := 1300
 
-		indexChanges, err := deployedPrimitiveStream.GetIndexChange(ctx, types.GetIndexChangeInput{
+		result, err := deployedPrimitiveStream.GetIndexChange(ctx, types.GetIndexChangeInput{
 			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamId.String(),
 			From:         &fromTime,
@@ -177,6 +177,6 @@ func TestGetIndexChange(t *testing.T) {
 
 		// With such a large interval, we might get empty results or very few results
 		// This is expected behavior as there won't be previous data points to compare against
-		assert.True(t, len(indexChanges) >= 0, "Should handle large time intervals gracefully")
+		assert.True(t, len(result.Results) >= 0, "Should handle large time intervals gracefully")
 	})
 }

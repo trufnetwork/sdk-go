@@ -127,13 +127,13 @@ func TestDeployComposedStreamsWithTaxonomy(t *testing.T) {
 	assertNoErrorOrFail(t, err, "Failed to load composed stream")
 
 	// Get records from the composed stream
-	records, err := composedStream.GetRecord(ctx, types.GetRecordInput{
+	result, err := composedStream.GetRecord(ctx, types.GetRecordInput{
 		DataProvider: dataProviderAddress.Address(),
 		StreamId:     composedStreamId.String(),
 	})
 	assertNoErrorOrFail(t, err, "Failed to get records")
-	assert.Equal(t, 1, len(records), "Unexpected number of records")
-	assert.Equal(t, "15.000000000000000000", records[0].Value.String(), "10 * 50/100 + 20 * 50/100 != 15")
+	assert.Equal(t, 1, len(result.Results), "Unexpected number of records")
+	assert.Equal(t, "15.000000000000000000", result.Results[0].Value.String(), "10 * 50/100 + 20 * 50/100 != 15")
 
 	// Negative test cases
 

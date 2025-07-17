@@ -70,7 +70,8 @@ func TestPrimitiveActions(t *testing.T) {
 			StreamId:     streamId.String(),
 		})
 		assert.NoError(t, err, "Expected no error")
-		assert.Nil(t, firstRecord, "Expected nil record from empty stream")
+		assert.Nil(t, firstRecord.Results, "Expected nil record from empty stream")
+		assert.NotNil(t, firstRecord.Metadata, "Expected metadata to be returned")
 
 		// Query first record with after date from empty stream
 		afterDate := 1
@@ -80,7 +81,8 @@ func TestPrimitiveActions(t *testing.T) {
 			After:        &afterDate,
 		})
 		assert.NoError(t, err, "Expected no error")
-		assert.Nil(t, firstRecordAfter, "Expected nil record from empty stream with after date")
+		assert.Nil(t, firstRecordAfter.Results, "Expected nil record from empty stream with after date")
+		assert.NotNil(t, firstRecordAfter.Metadata, "Expected metadata to be returned")
 	})
 
 	t.Run("DeploymentWriteAndReadOperations", func(t *testing.T) {
@@ -99,7 +101,7 @@ func TestPrimitiveActions(t *testing.T) {
 		// This demonstrates how to read data from the stream
 		mockedDateFromUnix := 1
 		mockedDateToUnix := 1
-		records, err := deployedPrimitiveStream.GetRecord(ctx, types.GetRecordInput{
+		result, err := deployedPrimitiveStream.GetRecord(ctx, types.GetRecordInput{
 			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamId.String(),
 			From:         &mockedDateFromUnix,
@@ -109,9 +111,9 @@ func TestPrimitiveActions(t *testing.T) {
 
 		// Verify the record's content
 		// This ensures that the inserted data matches what we expect
-		assert.Len(t, records, 1, "Expected exactly one record")
-		assert.Equal(t, "1.000000000000000000", records[0].Value.String(), "Unexpected record value")
-		assert.Equal(t, 1, records[0].EventTime, "Unexpected record date")
+		assert.Len(t, result.Results, 1, "Expected exactly one record")
+		assert.Equal(t, "1.000000000000000000", result.Results[0].Value.String(), "Unexpected record value")
+		assert.Equal(t, 1, result.Results[0].EventTime, "Unexpected record date")
 
 		// Query the first record from the stream
 		firstRecord, err := deployedPrimitiveStream.GetFirstRecord(ctx, types.GetFirstRecordInput{
@@ -122,11 +124,12 @@ func TestPrimitiveActions(t *testing.T) {
 
 		// Verify the first record's content
 		assert.NotNil(t, firstRecord, "Expected non-nil record")
-		assert.Equal(t, "1.000000000000000000", firstRecord.Value.String(), "Unexpected first record value")
-		assert.Equal(t, 1, firstRecord.EventTime, "Unexpected first record date")
+		assert.NotNil(t, firstRecord.Metadata, "Expected metadata to be returned")
+		assert.Equal(t, "1.000000000000000000", firstRecord.Results[0].Value.String(), "Unexpected first record value")
+		assert.Equal(t, 1, firstRecord.Results[0].EventTime, "Unexpected first record date")
 
 		// Query index from the stream
-		index, err := deployedPrimitiveStream.GetIndex(ctx, types.GetIndexInput{
+		indexResult, err := deployedPrimitiveStream.GetIndex(ctx, types.GetIndexInput{
 			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamId.String(),
 			From:         &mockedDateFromUnix,
@@ -136,8 +139,8 @@ func TestPrimitiveActions(t *testing.T) {
 
 		// Verify the index's content
 		// This ensures that the inserted data matches what we expect
-		assert.Len(t, index, 1, "Expected exactly one index")
-		assert.Equal(t, "100.000000000000000000", index[0].Value.String(), "Unexpected index value")
-		assert.Equal(t, 1, index[0].EventTime, "Unexpected index date")
+		assert.Len(t, indexResult.Results, 1, "Expected exactly one index")
+		assert.Equal(t, "100.000000000000000000", indexResult.Results[0].Value.String(), "Unexpected index value")
+		assert.Equal(t, 1, indexResult.Results[0].EventTime, "Unexpected index date")
 	})
 }

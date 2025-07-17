@@ -250,16 +250,47 @@ The Stream Interface is the core abstraction for data streams in the TRUF.NETWOR
 - **Visibility Control**: Fine-grained access management
 - **Flexible Querying**: Multiple methods for data retrieval
 - **Permissions Management**: Granular control over stream access
+- **Unified Data Types**: All stream data operations return `StreamResult` or `ActionResult` for consistency
+
+### Data Type Unification
+
+The SDK uses a unified approach for all stream data operations:
+
+- **StreamResult**: Core data structure with `EventTime` and `Value` fields
+- **ActionResult**: Contains an array of `StreamResult` plus `CacheMetadata`
+- All data retrieval methods (`GetRecord`, `GetIndex`, `GetIndexChange`) return `ActionResult`
+- This unified approach eliminates the need for separate `StreamIndex` and `StreamIndexChange` types, and provides cache metadata by default
 
 ### Methods
 
 #### `GetRecord`
 
 ```go
-GetRecord(ctx context.Context, input types.GetRecordInput) ([]types.StreamRecord, error)
+GetRecord(ctx context.Context, input types.GetRecordInput) (types.ActionResult, error)
 ```
 
-Retrieves the **raw time-series data** for the specified stream. Internally the SDK calls the on-chain action `get_record`, which automatically delegates to either `get_record_primitive` or `get_record_composed` depending on the type of the stream.
+Retrieves the **raw time-series data** for the specified stream, including cache metadata. Internally the SDK calls the on-chain action `get_record`, which automatically delegates to either `get_record_primitive` or `get_record_composed` depending on the type of the stream.
+
+**Returns `types.ActionResult`:**
+- `Results`: Array of `StreamResult` containing the actual data
+- `Metadata`: Cache performance and hit/miss statistics
+
+**Usage Example:**
+```go
+result, err := primitiveActions.GetRecord(ctx, input)
+if err != nil {
+    return err
+}
+
+// Access the results
+for _, record := range result.Results {
+    fmt.Printf("Time: %d, Value: %s\n", record.EventTime, record.Value.String())
+}
+
+// Access cache metadata
+fmt.Printf("Cache Hit: %v\n", result.Metadata.CacheHit)
+fmt.Printf("Rows Served: %d\n", result.Metadata.RowsServed)
+```
 
 **Behaviour**
 
@@ -274,7 +305,7 @@ Retrieves the **raw time-series data** for the specified stream. Internally the 
 - `From`, `To` (\*int) Unix timestamp range (inclusive). Pass `nil` to make the bound open-ended.
 - `FrozenAt` (\*int) Time-travel flag. Only events created **on or before** this block-timestamp are considered.
 
-**Returned slice:** each `StreamRecord` contains
+**Returned slice:** each `StreamResult` contains
 
 - `EventTime` (int) Unix timestamp of the point.
 - `Value` (apd.Decimal) Raw numeric value.
@@ -282,7 +313,7 @@ Retrieves the **raw time-series data** for the specified stream. Internally the 
 #### `GetIndex`
 
 ```go
-GetIndex(ctx context.Context, input types.GetIndexInput) ([]types.StreamIndex, error)
+GetIndex(ctx context.Context, input types.GetIndexInput) ([]types.StreamResult, error)
 ```
 
 Returns a **rebased index** of the stream where the value at `BaseDate` (defaults to metadata key `default_base_time`) is normalised to **100**.
@@ -301,12 +332,12 @@ Important details
 2. Division-by-zero protection is enforced in the SQL action—an error is thrown when the base value is 0.
 3. For single-point queries (`From==To==nil`) only the latest indexed value is returned.
 
-The returned slice is identical to `GetRecord` but semantically represents an **index** instead of raw values.
+The returned `types.ActionResult` has the same structure as `GetRecord` but semantically represents an **index** instead of raw values, with each record's `Value` field containing the indexed data. Access the results via the `Results` field.
 
 #### `GetIndexChange`
 
 ```go
-GetIndexChange(ctx context.Context, input types.GetIndexChangeInput) ([]types.StreamIndexChange, error)
+GetIndexChange(ctx context.Context, input types.GetIndexChangeInput) (types.ActionResult, error)
 ```
 
 Computes the **percentage change** of the index over a fixed time interval. Internally the SDK obtains the indexed series via `get_index` and then, for every returned row whose timestamp is `t`, finds the closest index value **at or before** `t − timeInterval`.
@@ -331,7 +362,7 @@ Typical use-cases:
 All fields from `GetIndexInput` plus:
 - `TimeInterval` (int) Interval in seconds used for the delta computation (mandatory).
 
-**Return value:** Same shape as `GetIndex` but each `Value` now represents **percentage change**, e.g. `2.5` means **+2.5 %**.
+**Return value:** Returns `[]types.StreamResult` where each `Value` now represents **percentage change**, e.g. `2.5` means **+2.5 %**.
 
 #### `SetReadVisibility`
 

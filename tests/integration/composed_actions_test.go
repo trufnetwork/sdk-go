@@ -148,7 +148,7 @@ func TestComposedActions(t *testing.T) {
 		// Query records within a specific date range
 		mockDateFrom := 4
 		mockDateTo := 5
-		records, err := deployedComposedStream.GetRecord(ctx, types.GetRecordInput{
+		result, err := deployedComposedStream.GetRecord(ctx, types.GetRecordInput{
 			DataProvider: signerAddress.Address(),
 			StreamId:     streamId.String(),
 			From:         &mockDateFrom,
@@ -156,22 +156,22 @@ func TestComposedActions(t *testing.T) {
 		})
 
 		assertNoErrorOrFail(t, err, "Failed to get records")
-		assert.Equal(t, 2, len(records))
+		assert.Equal(t, 2, len(result.Results))
 
 		// Query the records before the set start date
 		mockDateFrom2 := 1
 		mockDateTo2 := 2
-		recordsBefore, errBefore := deployedComposedStream.GetRecord(ctx, types.GetRecordInput{
+		resultBefore, errBefore := deployedComposedStream.GetRecord(ctx, types.GetRecordInput{
 			DataProvider: signerAddress.Address(),
 			StreamId:     streamId.String(),
 			From:         &mockDateFrom2,
 			To:           &mockDateTo2,
 		})
 		assert.NoError(t, errBefore, "Expected no error when querying records before start date")
-		assert.Nil(t, recordsBefore, "Records before start date should not be nil as there is no active record before the start date")
+		assert.Nil(t, resultBefore.Results, "Results before start date should not be nil as there is no active record before the start date")
 
 		// Function to check the record values
-		var checkRecord = func(record types.StreamRecord, expectedValue float64) {
+		var checkRecord = func(record types.StreamResult, expectedValue float64) {
 			val, err := record.Value.Float64()
 			assertNoErrorOrFail(t, err, "Failed to parse value")
 			assert.Equal(t, expectedValue, val)
@@ -181,15 +181,15 @@ func TestComposedActions(t *testing.T) {
 		// (( v1 * w1 ) + ( v2 * w2 )) / (w1 + w2)
 		// (( 4 *  1 ) + (  6 *  2 )) / ( 1 +  2) = 16 / 3 = 5.333
 		// (( 5 *  1 ) + (  7 *  2 )) / ( 1 +  2) = 19 / 3 = 6.333
-		checkRecord(records[0], 5.333333333333333)
-		checkRecord(records[1], 6.333333333333333)
+		checkRecord(result.Results[0], 5.333333333333333)
+		checkRecord(result.Results[1], 6.333333333333333)
 
 		// Step 5: Query the composed stream for index
 		// Query the index within a specific date range
 		mockDateFrom3 := 3
 		mockDateTo3 := 4
 		mockBaseDate := 3
-		index, err := deployedComposedStream.GetIndex(ctx, types.GetIndexInput{
+		indexResult, err := deployedComposedStream.GetIndex(ctx, types.GetIndexInput{
 			DataProvider: signerAddress.Address(),
 			StreamId:     streamId.String(),
 			From:         &mockDateFrom3,
@@ -198,20 +198,20 @@ func TestComposedActions(t *testing.T) {
 		})
 
 		assertNoErrorOrFail(t, err, "Failed to get index")
-		assert.Equal(t, 2, len(index))
-		checkRecord(index[0], 100)                // index on base date is expected to be 100
-		checkRecord(index[1], 124.44444444444444) // it is x% away from the base date + 1 in percentage
+		assert.Equal(t, 2, len(indexResult.Results))
+		checkRecord(indexResult.Results[0], 100)                // index on base date is expected to be 100
+		checkRecord(indexResult.Results[1], 124.44444444444444) // it is x% away from the base date + 1 in percentage
 
 		// Query the index before the set start date
 		mockDateFrom4 := 1
 		mockDateTo4 := 2
-		indexBefore, errBefore := deployedComposedStream.GetIndex(ctx, types.GetIndexInput{
+		indexBeforeResult, errBefore := deployedComposedStream.GetIndex(ctx, types.GetIndexInput{
 			DataProvider: signerAddress.Address(),
 			StreamId:     streamId.String(),
 			From:         &mockDateFrom4,
 			To:           &mockDateTo4,
 		})
 		assert.NoError(t, errBefore, "Expected no error when querying index before start date")
-		assert.Nil(t, indexBefore, "Index before start date should not be nil as there is no active index before the start date")
+		assert.Nil(t, indexBeforeResult.Results, "Index before start date should not be nil as there is no active index before the start date")
 	})
 }

@@ -17,14 +17,14 @@ func main() {
 
 	// 1. Set up local node connection
 	// Replace with your actual private key
-	pk, err := crypto.Secp256k1PrivateKeyFromHex("your-private-key")
+	pk, err := crypto.Secp256k1PrivateKeyFromHex("0000000000000000000000000000000000000000000000000000000000000001")
 	if err != nil {
 		log.Fatalf("Failed to parse private key: %v", err)
 	}
 	signer := &auth.EthPersonalSigner{Key: *pk}
 
 	// Choose endpoint: Use "http://localhost:8484" for local node or "https://gateway.mainnet.truf.network" for mainnet
-	endpoint := "http://localhost:8484" // Change to mainnet URL if needed
+	endpoint := "https://gateway.mainnet.truf.network" // Change to mainnet URL if needed
 	tnClient, err := tnclient.NewClient(
 		ctx,
 		endpoint,
@@ -62,12 +62,17 @@ func main() {
 	}
 
 	// 5. Display retrieved records
-	fmt.Println("\nAI Index Records:")
+	fmt.Println("\nAI Index Results:")
 	fmt.Println("----------------------------")
-	for _, record := range records {
+	for _, record := range records.Results {
 		fmt.Printf("Event Time: %d, Value: %s\n",
 			record.EventTime,
 			record.Value.String(),
 		)
 	}
+
+	// 6. Display cache metadata
+	fmt.Printf("\nCache Metadata:\n")
+	fmt.Printf("Cache Hit: %v\n", records.Metadata.CacheHit)
+	fmt.Printf("Rows Served: %d\n", records.Metadata.RowsServed)
 }

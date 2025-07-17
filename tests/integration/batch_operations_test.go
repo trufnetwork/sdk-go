@@ -95,14 +95,14 @@ func TestBatchOperations(t *testing.T) {
 		dateFrom := baseTimestamp
 		dateTo := baseTimestamp + (numBatches * 86400)
 
-		records, err := deployedStream.GetRecord(ctx, types.GetRecordInput{
+		result, err := deployedStream.GetRecord(ctx, types.GetRecordInput{
 			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamLocator.StreamId.String(),
 			From:         &dateFrom,
 			To:           &dateTo,
 		})
 		assertNoErrorOrFail(t, err, "Failed to query records")
-		assert.Equal(t, totalRecords, len(records), "Unexpected number of records")
+		assert.Equal(t, totalRecords, len(result.Results), "Unexpected number of records")
 	})
 
 	t.Run("TestSequentialLargeBatches", func(t *testing.T) {
@@ -167,14 +167,14 @@ func TestBatchOperations(t *testing.T) {
 		dateFrom := baseTimestamp
 		dateTo := baseTimestamp + (numBatches * 86400)
 
-		records, err := deployedStream.GetRecord(ctx, types.GetRecordInput{
+		result, err := deployedStream.GetRecord(ctx, types.GetRecordInput{
 			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamLocator.StreamId.String(),
 			From:         &dateFrom,
 			To:           &dateTo,
 		})
 		assertNoErrorOrFail(t, err, "Failed to query records")
-		assert.Equal(t, totalRecords, len(records), "Unexpected number of records")
+		assert.Equal(t, totalRecords, len(result.Results), "Unexpected number of records")
 	})
 
 	t.Run("TestRapidSingleRecordInserts", func(t *testing.T) {
@@ -219,7 +219,7 @@ func TestBatchOperations(t *testing.T) {
 		}
 
 		insertionDuration := time.Since(startTime)
-		fmt.Printf("[Single Records] All insertions completed in %v (avg %v per record)\n",
+		fmt.Printf("[Single Results] All insertions completed in %v (avg %v per record)\n",
 			insertionDuration,
 			insertionDuration/time.Duration(numRecords))
 
@@ -229,19 +229,19 @@ func TestBatchOperations(t *testing.T) {
 			waitTxToBeMinedWithSuccess(t, ctx, tnClient, txHash)
 		}
 		waitDuration := time.Since(waitStart)
-		fmt.Printf("[Single Records] All transactions confirmed in %v\n", waitDuration)
+		fmt.Printf("[Single Results] All transactions confirmed in %v\n", waitDuration)
 
 		// Verify all records were inserted
 		dateFrom := baseTimestamp
 		dateTo := baseTimestamp + (numRecords * 3600)
 
-		records, err := deployedStream.GetRecord(ctx, types.GetRecordInput{
+		result, err := deployedStream.GetRecord(ctx, types.GetRecordInput{
 			DataProvider: streamLocator.DataProvider.Address(),
 			StreamId:     streamLocator.StreamId.String(),
 			From:         &dateFrom,
 			To:           &dateTo,
 		})
 		assertNoErrorOrFail(t, err, "Failed to query records")
-		assert.Equal(t, numRecords, len(records), "Unexpected number of records")
+		assert.Equal(t, numRecords, len(result.Results), "Unexpected number of records")
 	})
 }
