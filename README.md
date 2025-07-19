@@ -110,7 +110,7 @@ func main() {
 		log.Fatalf("Failed to load primitive actions: %v", err)
 	}
 
-	records, err := primitiveActions.GetRecord(ctx, types.GetRecordInput{
+	result, err := primitiveActions.GetRecord(ctx, types.GetRecordInput{
 		DataProvider: dataProvider,
 		StreamId:     streamId,
 		From:         &fromTime,
@@ -122,7 +122,7 @@ func main() {
 
 	// Display retrieved records
 	fmt.Println("AI Index Records from Local Node:")
-	for _, record := range records.Results {
+	for _, record := range result.Results {
 		fmt.Printf("Event Time: %d, Value: %s\n",
 			record.EventTime,
 			record.Value.String(),

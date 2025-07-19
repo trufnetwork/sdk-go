@@ -261,6 +261,88 @@ The SDK uses a unified approach for all stream data operations:
 - All data retrieval methods (`GetRecord`, `GetIndex`, `GetIndexChange`) return `ActionResult`
 - This unified approach eliminates the need for separate `StreamIndex` and `StreamIndexChange` types, and provides cache metadata by default
 
+### Cache Metadata
+
+All stream data operations return cache metadata that provides insights into query performance and cache behavior:
+
+#### CacheMetadata Structure
+
+```go
+type CacheMetadata struct {
+    // Cache hit/miss statistics
+    CacheHit      bool  `json:"cache_hit"`        // Whether the query hit the cache
+    CacheDisabled bool  `json:"cache_disabled"`   // Whether caching is disabled
+    
+    // Cache timing information
+    CachedAt      *int64 `json:"cached_at"`       // Unix timestamp when data was cached
+    
+    // Query context (populated by SDK)
+    StreamId      string `json:"stream_id"`       // Stream identifier
+    DataProvider  string `json:"data_provider"`   // Data provider address
+    From          *int64 `json:"from"`           // Query start time
+    To            *int64 `json:"to"`             // Query end time
+    FrozenAt      *int64 `json:"frozen_at"`      // Time-travel timestamp
+    RowsServed    int    `json:"rows_served"`    // Number of rows returned
+}
+```
+
+#### Cache Metadata Methods
+
+The `CacheMetadata` type provides helper methods for analyzing cache performance:
+
+- `GetDataAge() *time.Duration`: Returns the age of cached data. Returns `nil` if no cache timestamp is available.
+- `IsExpired(maxAge time.Duration) bool`: Checks if cached data is older than the specified duration.
+
+#### Performance Analysis
+
+Use cache metadata to optimize query performance:
+
+```go
+result, err := primitiveActions.GetRecord(ctx, types.GetRecordInput{
+    DataProvider: provider,
+    StreamId:     streamId,
+    From:         &from,
+    To:           &to,
+    UseCache:     &[]bool{true}[0],
+})
+if err != nil {
+    return err
+}
+
+// Analyze cache performance
+if result.Metadata.CacheHit {
+    fmt.Printf("Cache hit! Served %d rows from cache\n", result.Metadata.RowsServed)
+    if dataAge := result.Metadata.GetDataAge(); dataAge != nil {
+        fmt.Printf("Cache age: %v\n", *dataAge)
+    }
+} else {
+    fmt.Printf("Cache miss - data retrieved from database\n")
+}
+
+// Check if cache data is too old
+if result.Metadata.IsExpired(5 * time.Minute) {
+    fmt.Println("Warning: Cache data is older than 5 minutes")
+}
+```
+
+#### Cache Metadata Aggregation
+
+For batch operations, use `AggregateCacheMetadata` to analyze overall cache performance:
+
+```go
+// Collect metadata from multiple queries
+var metadataList []types.CacheMetadata
+// ... perform multiple queries and collect metadata ...
+
+// Aggregate statistics
+aggregated := types.AggregateCacheMetadata(metadataList)
+fmt.Printf("Cache hit rate: %.2f%% (%d hits / %d queries)\n", 
+    aggregated.CacheHitRate * 100, 
+    aggregated.CacheHits, 
+    aggregated.TotalQueries)
+fmt.Printf("Total rows served: %d\n", aggregated.TotalRowsServed)
+```
+
 ### Methods
 
 #### `GetRecord`
@@ -277,7 +359,13 @@ Retrieves the **raw time-series data** for the specified stream, including cache
 
 **Usage Example:**
 ```go
-result, err := primitiveActions.GetRecord(ctx, input)
+// Basic usage without caching
+result, err := primitiveActions.GetRecord(ctx, types.GetRecordInput{
+    DataProvider: provider,
+    StreamId:     streamId,
+    From:         &from,
+    To:           &to,
+})
 if err != nil {
     return err
 }
@@ -292,6 +380,37 @@ fmt.Printf("Cache Hit: %v\n", result.Metadata.CacheHit)
 fmt.Printf("Rows Served: %d\n", result.Metadata.RowsServed)
 ```
 
+**Cache-Optimized Usage:**
+```go
+// Enable caching for improved performance
+useCache := true
+result, err := primitiveActions.GetRecord(ctx, types.GetRecordInput{
+    DataProvider: provider,
+    StreamId:     streamId,
+    From:         &from,
+    To:           &to,
+    UseCache:     &useCache,
+})
+if err != nil {
+    return err
+}
+
+// Performance analysis
+if result.Metadata.CacheHit {
+    fmt.Printf("✓ Cache hit! Query served in optimized time\n")
+    if dataAge := result.Metadata.GetDataAge(); dataAge != nil {
+        fmt.Printf("Cache age: %v\n", *dataAge)
+    }
+} else {
+    fmt.Printf("○ Cache miss - data retrieved from source\n")
+}
+
+// Validate cache freshness
+if result.Metadata.IsExpired(10 * time.Minute) {
+    fmt.Println("⚠ Warning: Cache data is older than 10 minutes")
+}
+```
+
 **Behaviour**
 
 1. If both `From` and `To` are `nil`, the latest data-point (LOCF-filled for composed streams) is returned.
@@ -304,6 +423,9 @@ fmt.Printf("Rows Served: %d\n", result.Metadata.RowsServed)
 - `StreamId` (string) ID of the stream (`stxxxxxxxxxxxxxxxxxxxxxxxxxxxx`).
 - `From`, `To` (\*int) Unix timestamp range (inclusive). Pass `nil` to make the bound open-ended.
 - `FrozenAt` (\*int) Time-travel flag. Only events created **on or before** this block-timestamp are considered.
+- `BaseDate` (\*int) Base date for index calculations. If not provided, defaults to the stream's `default_base_time` metadata.
+- `Prefix` (\*string) Optional prefix filter for stream operations.
+- `UseCache` (\*bool) Enable/disable caching for this query. When `nil`, defaults to `false`. When `true`, enables server-side caching for improved performance on repeated queries.
 
 **Returned slice:** each `StreamResult` contains
 
@@ -361,8 +483,62 @@ Typical use-cases:
 
 All fields from `GetIndexInput` plus:
 - `TimeInterval` (int) Interval in seconds used for the delta computation (mandatory).
+- `UseCache` (\*bool) Enable/disable caching for this query. When `nil`, defaults to `false`. When `true`, enables server-side caching for improved performance on repeated queries.
 
-**Return value:** Returns `[]types.StreamResult` where each `Value` now represents **percentage change**, e.g. `2.5` means **+2.5 %**.
+**Return value:** Returns `types.ActionResult` where each `Value` in the `Results` array represents **percentage change**, e.g. `2.5` means **+2.5 %**.
+
+#### `GetFirstRecord`
+
+```go
+GetFirstRecord(ctx context.Context, input types.GetFirstRecordInput) (types.ActionResult, error)
+```
+
+Retrieves the first record from a stream, optionally after a specified timestamp.
+
+**Parameters:**
+
+- `ctx`: The context for the operation
+- `input`: GetFirstRecordInput containing query parameters
+
+**Input fields (types.GetFirstRecordInput):**
+
+- `DataProvider` (string): Owner address of the stream
+- `StreamId` (string): ID of the stream
+- `After` (\*int): Optional timestamp to search after. If provided, returns the first record after this time
+- `FrozenAt` (\*int): Time-travel flag. Only events created on or before this block-timestamp are considered
+- `UseCache` (\*bool): Enable/disable caching for this query. When `nil`, defaults to `false`
+
+**Returns `types.ActionResult`:**
+- `Results`: Array containing a single `StreamResult` with the first record
+- `Metadata`: Cache performance and hit/miss statistics
+
+**Usage Example:**
+```go
+// Get the very first record in a stream
+result, err := primitiveActions.GetFirstRecord(ctx, types.GetFirstRecordInput{
+    DataProvider: provider,
+    StreamId:     streamId,
+    UseCache:     &[]bool{true}[0],
+})
+if err != nil {
+    return err
+}
+
+if len(result.Results) > 0 {
+    firstRecord := result.Results[0]
+    fmt.Printf("First record: Time=%d, Value=%s\n", 
+        firstRecord.EventTime, firstRecord.Value.String())
+}
+
+// Get the first record after a specific timestamp
+after := int(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC).Unix())
+result, err = primitiveActions.GetFirstRecord(ctx, types.GetFirstRecordInput{
+    DataProvider: provider,
+    StreamId:     streamId,
+    After:        &after,
+    UseCache:     &[]bool{true}[0],
+})
+```
 
 #### `SetReadVisibility`
 
@@ -514,6 +690,88 @@ for _, row := range result.Values {
 }
 ```
 
+### Performance Optimization
+
+#### Cache Strategy
+
+The SDK provides intelligent caching to optimize query performance:
+
+**When to Use Caching:**
+- Repeated queries with identical parameters
+- Dashboard or monitoring applications
+- Data visualization with frequent refreshes
+- Batch processing where data consistency is acceptable
+
+**Cache Behavior:**
+- Cache is pre-configured for specific streams by node operators
+- No automatic invalidation when new data arrives - cache refreshes periodically based on operator configuration
+- When `FrozenAt` or `BaseDate` parameters are specified, cache is bypassed
+- Cache date is returned allowing users to determine acceptable data freshness
+- Users can contact node operators for additional cached streams or host their own node
+
+**Performance Tips:**
+```go
+// 1. Use caching for repeated queries
+useCache := true
+result, err := stream.GetRecord(ctx, types.GetRecordInput{
+    DataProvider: provider,
+    StreamId:     streamId,
+    UseCache:     &useCache,
+})
+
+// 2. Monitor cache hit rates (batch example)
+if aggregated.CacheHitRate < 0.5 {
+    log.Printf("Low cache hit rate: %.2f%%", aggregated.CacheHitRate*100)
+}
+
+// 3. Check cache date to determine data freshness
+// The cache doesn't expire but shows when data was cached
+if result.Metadata.CachedAt != nil &&
+   time.Since(time.Unix(*result.Metadata.CachedAt, 0)) > 5*time.Minute {
+    // Data is older than 5 minutes - decide if this is acceptable
+    // Contact node operator if more frequent updates are needed
+}
+```
+
+#### Batch Operations
+
+For multiple stream queries, leverage batch operations and cache aggregation:
+
+```go
+// Batch cache analysis
+var allMetadata []types.CacheMetadata
+
+// Perform multiple queries
+for _, streamId := range streamIds {
+    result, err := stream.GetRecord(ctx, types.GetRecordInput{
+        DataProvider: provider,
+        StreamId:     streamId,
+        UseCache:     &[]bool{true}[0],
+    })
+    if err != nil {
+        continue
+    }
+    allMetadata = append(allMetadata, result.Metadata)
+}
+
+// Analyze overall performance
+aggregated := types.AggregateCacheMetadata(allMetadata)
+fmt.Printf("Overall cache performance: %.2f%% hit rate\n", 
+    aggregated.CacheHitRate*100)
+```
+
+#### Query Optimization
+
+**Time Range Queries:**
+- Use specific time ranges instead of open-ended queries when possible
+- Note: `FrozenAt` parameter bypasses cache - use for consistent historical data when cache freshness is not suitable
+- Consider pagination for large datasets
+
+**Index Operations:**
+- Note: `BaseDate` parameter bypasses cache - use when precise index calculations are required
+- For frequently accessed base dates, consider working with node operators to ensure proper caching
+- Monitor cache metadata to understand data freshness for your use case
+
 ### Best Practices
 
 1. **Always handle errors**
@@ -521,10 +779,16 @@ for _, row := range result.Values {
 3. **Validate wallet addresses**
 4. **Log permission changes**
 5. **Implement retry mechanisms**
+6. **Use caching strategically for improved performance**
+7. **Monitor cache hit rates and data freshness**
+8. **Aggregate cache metadata for batch operations**
 
 ### Considerations
 
 - Visibility changes are blockchain transactions
+- Cache metadata is always returned, even when caching is disabled
+- Cache refresh intervals are configured by node operators
+- Cache is bypassed when `FrozenAt` or `BaseDate` parameters are used
 
 ## Primitive Stream Interface
 
