@@ -703,10 +703,11 @@ The SDK provides intelligent caching to optimize query performance:
 - Batch processing where data consistency is acceptable
 
 **Cache Behavior:**
-- Cache keys include all query parameters (DataProvider, StreamId, From, To, FrozenAt, BaseDate)
-- Cache TTL is configurable server-side
-- Cache invalidation occurs when new data is inserted
-- Cache statistics are returned with every query
+- Cache is pre-configured for specific streams by node operators
+- No automatic invalidation when new data arrives - cache refreshes periodically based on operator configuration
+- When `FrozenAt` or `BaseDate` parameters are specified, cache is bypassed
+- Cache date is returned allowing users to determine acceptable data freshness
+- Users can contact node operators for additional cached streams or host their own node
 
 **Performance Tips:**
 ```go
@@ -723,10 +724,11 @@ if result.Metadata.CacheHitRate < 0.5 {
     log.Printf("Low cache hit rate: %.2f%%", result.Metadata.CacheHitRate*100)
 }
 
-// 3. Validate cache freshness for time-sensitive applications
-maxAge := 5 * time.Minute
-if result.Metadata.IsExpired(maxAge) {
-    // Consider refreshing data or using cache=false
+// 3. Check cache date to determine data freshness
+// The cache doesn't expire but shows when data was cached
+if time.Since(result.Metadata.CachedAt) > 5*time.Minute {
+    // Data is older than 5 minutes - decide if this is acceptable
+    // Contact node operator if more frequent updates are needed
 }
 ```
 
@@ -761,13 +763,13 @@ fmt.Printf("Overall cache performance: %.2f%% hit rate\n",
 
 **Time Range Queries:**
 - Use specific time ranges instead of open-ended queries when possible
-- Leverage `FrozenAt` for consistent historical data
+- Note: `FrozenAt` parameter bypasses cache - use for consistent historical data when cache freshness is not suitable
 - Consider pagination for large datasets
 
 **Index Operations:**
-- Cache index calculations for frequently accessed base dates
-- Use `BaseDate` parameter to maintain consistent index baselines
-- Monitor index change calculations for performance insights
+- Note: `BaseDate` parameter bypasses cache - use when precise index calculations are required
+- For frequently accessed base dates, consider working with node operators to ensure proper caching
+- Monitor cache metadata to understand data freshness for your use case
 
 ### Best Practices
 
@@ -784,8 +786,8 @@ fmt.Printf("Overall cache performance: %.2f%% hit rate\n",
 
 - Visibility changes are blockchain transactions
 - Cache metadata is always returned, even when caching is disabled
-- Cache TTL and invalidation policies are configured server-side
-- Cache keys include all query parameters for precise matching
+- Cache refresh intervals are configured by node operators
+- Cache is bypassed when `FrozenAt` or `BaseDate` parameters are used
 
 ## Primitive Stream Interface
 
