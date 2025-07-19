@@ -726,7 +726,8 @@ if aggregated.CacheHitRate < 0.5 {
 
 // 3. Check cache date to determine data freshness
 // The cache doesn't expire but shows when data was cached
-if time.Since(result.Metadata.CachedAt) > 5*time.Minute {
+if result.Metadata.CachedAt != nil &&
+   time.Since(time.Unix(*result.Metadata.CachedAt, 0)) > 5*time.Minute {
     // Data is older than 5 minutes - decide if this is acceptable
     // Contact node operator if more frequent updates are needed
 }
