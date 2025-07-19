@@ -719,9 +719,9 @@ result, err := stream.GetRecord(ctx, types.GetRecordInput{
     UseCache:     &useCache,
 })
 
-// 2. Monitor cache hit rates
-if result.Metadata.CacheHitRate < 0.5 {
-    log.Printf("Low cache hit rate: %.2f%%", result.Metadata.CacheHitRate*100)
+// 2. Monitor cache hit rates (batch example)
+if aggregated.CacheHitRate < 0.5 {
+    log.Printf("Low cache hit rate: %.2f%%", aggregated.CacheHitRate*100)
 }
 
 // 3. Check cache date to determine data freshness
