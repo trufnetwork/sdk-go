@@ -36,51 +36,7 @@ The SDK is structured around several key interfaces:
 
 ### Cache Support
 
-Starting with SDK-go vNext the helpers that fetch data from a stream can transparently leverage the node-side cache layer (enabled when the connected node has the `tn_cache` extension).
-
-* **`useCache` parameter** – optional boolean flag now available on all high-level data-retrieval helpers (`GetRecord`, `GetIndex`, `GetFirstRecord`, `GetIndexChange`, `Batch*` variants). If omitted, the method behaves exactly like earlier versions (cache disabled by default for calls that don’t specify the flag).
-* **`types.CacheAwareResponse`** – these helpers now return a struct that embeds the normal payload **and** cache context:
-
-```go
-type CacheAwareResponse[T any] struct {
-    Results  T                `json:"results"`
-    Metadata *types.CacheMetadata `json:"cache_metadata,omitempty"`
-    Logs     []string         `json:"logs,omitempty"`
-}
-```
-
-* **`types.CacheMetadata`** – enriched structure returned in `Metadata`:
-
-| Field            | Type    | Description                                            |
-|------------------|---------|--------------------------------------------------------|
-| `CacheHit`       | bool    | Whether the query was served by the cache              |
-| `CacheDisabled`  | bool    | True if the node had cache disabled for this query     |
-| `CacheHeight`   | *int64  | **NEW** – block height at which the cached data was produced |
-| `RowsServed`     | int     | Number of rows returned by the query (SDK-calculated)  |
-| `StreamId`       | string  | Stream identifier supplied by the SDK                  |
-| `DataProvider`   | string  | Address of the data-provider                           |
-
-> **Note**: `CacheHeight` is only present if the node included height information in its NOTICE logs (requires a v0.10.0+ node with `tn_cache` ≥ 0.6.0).
-
-Example checking cache metadata:
-
-```go
-records, err := primitiveActions.GetRecord(ctx, types.GetRecordInput{
-    DataProvider: streamLocator.DataProvider.Address(),
-    StreamId:     streamLocator.StreamId.String(),
-    From:         intPtr(1),
-    To:           intPtr(100),
-    UseCache:     boolPtr(true),
-})
-
-if err == nil && records.Metadata != nil && records.Metadata.CacheHit {
-    fmt.Printf("cache hit at height %d\n",
-        derefInt64(records.Metadata.CacheHeight),
-    )
-}
-```
-
-The legacy method signatures remain available but are **deprecated**; a one-time warning is logged when they are used.
+The SDK supports transparent caching through an optional `useCache` parameter on data retrieval methods (`GetRecord`, `GetIndex`, `GetFirstRecord`, `GetIndexChange`). When enabled, queries can leverage node-side caching for improved performance, with detailed cache metadata returned in all responses.
 
 ## Example Usage
 
