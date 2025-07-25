@@ -63,7 +63,7 @@ jobs:
 
       - name: Run all Go tests (unit + integration)
         env:
-          NODE_REPO_DIR: tmp-node
+          NODE_REPO_DIR: ${{ github.workspace }}/tmp-node
         run: |
           go test ./... -v
 
