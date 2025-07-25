@@ -204,9 +204,6 @@ func TestCacheMetadataExtraction(t *testing.T) {
 		// Check that metadata fields are properly typed
 		assert.IsType(t, bool(false), result.Metadata.CacheHit, "CacheHit should be bool")
 		assert.IsType(t, bool(false), result.Metadata.CacheDisabled, "CacheDisabled should be bool")
-		if result.Metadata.CachedAt != nil {
-			assert.IsType(t, int64(0), *result.Metadata.CachedAt, "CachedAt should be *int64")
-		}
 	})
 
 	t.Run("GetIndex with metadata", func(t *testing.T) {
@@ -309,9 +306,8 @@ func TestCacheMetadataMarshaling(t *testing.T) {
 		metadata := types.CacheMetadata{
 			CacheHit:      true,
 			CacheDisabled: false,
-			CachedAt:      &[]int64{1234567890}[0],
 			StreamId:      "test_stream",
-			DataProvider:  "0x123456789abcdef",
+			DataProvider:  "test_provider",
 			From:          &[]int64{1}[0],
 			To:            &[]int64{10}[0],
 			RowsServed:    5,
@@ -333,9 +329,6 @@ func TestCacheMetadataMarshaling(t *testing.T) {
 		assert.Equal(t, metadata.DataProvider, unmarshaledMetadata.DataProvider, "DataProvider should be preserved")
 		assert.Equal(t, metadata.RowsServed, unmarshaledMetadata.RowsServed, "RowsServed should be preserved")
 
-		if metadata.CachedAt != nil && unmarshaledMetadata.CachedAt != nil {
-			assert.Equal(t, *metadata.CachedAt, *unmarshaledMetadata.CachedAt, "CachedAt should be preserved")
-		}
 		if metadata.From != nil && unmarshaledMetadata.From != nil {
 			assert.Equal(t, *metadata.From, *unmarshaledMetadata.From, "From should be preserved")
 		}
@@ -456,57 +449,5 @@ func TestBackwardCompatibility(t *testing.T) {
 		var actionInterface types.IAction = primitiveActions
 		_, err = actionInterface.GetRecord(ctx, oldStyleInput)
 		require.NoError(t, err, "Interface should be compatible")
-	})
-}
-
-// TestCacheMetadataDataAge tests the GetDataAge functionality
-func TestCacheMetadataDataAge(t *testing.T) {
-	t.Run("GetDataAge with valid timestamp", func(t *testing.T) {
-		now := time.Now()
-		cachedAt := now.Unix() - 300 // 5 minutes ago
-
-		metadata := types.CacheMetadata{
-			CachedAt: &cachedAt,
-		}
-
-		dataAge := metadata.GetDataAge()
-		require.NotNil(t, dataAge, "DataAge should not be nil")
-
-		// Should be approximately 5 minutes (allowing for test execution time)
-		assert.Greater(t, dataAge.Minutes(), 4.9, "Data age should be at least 4.9 minutes")
-		assert.Less(t, dataAge.Minutes(), 5.1, "Data age should be less than 5.1 minutes")
-	})
-
-	t.Run("GetDataAge with nil timestamp", func(t *testing.T) {
-		metadata := types.CacheMetadata{
-			CachedAt: nil,
-		}
-
-		dataAge := metadata.GetDataAge()
-		assert.Nil(t, dataAge, "DataAge should be nil when CachedAt is nil")
-	})
-
-	t.Run("IsExpired functionality", func(t *testing.T) {
-		now := time.Now()
-
-		// Test with old data (expired)
-		oldCachedAt := now.Unix() - 3600 // 1 hour ago
-		oldMetadata := types.CacheMetadata{
-			CachedAt: &oldCachedAt,
-		}
-		assert.True(t, oldMetadata.IsExpired(30*time.Minute), "1-hour-old data should be expired after 30 minutes")
-
-		// Test with fresh data (not expired)
-		freshCachedAt := now.Unix() - 60 // 1 minute ago
-		freshMetadata := types.CacheMetadata{
-			CachedAt: &freshCachedAt,
-		}
-		assert.False(t, freshMetadata.IsExpired(30*time.Minute), "1-minute-old data should not be expired after 30 minutes")
-
-		// Test with nil timestamp (not expired)
-		nilMetadata := types.CacheMetadata{
-			CachedAt: nil,
-		}
-		assert.False(t, nilMetadata.IsExpired(30*time.Minute), "Data with nil timestamp should not be considered expired")
 	})
 }

@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.draft }}
+
+    steps:
+      - name: Checkout sdk-go
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          check-latest: true
+
+      - name: Install Taskfile
+        uses: arduino/setup-task@v2
+
+      - name: Checkout trufnetwork/node
+        uses: actions/checkout@v4
+        with:
+          repository: trufnetwork/node
+          ref: main
+          path: tmp-node
+
+      - name: Get node commit hash
+        id: node-commit
+        working-directory: tmp-node
+        run: echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Build tn-db Docker image
+        run: |
+          cd tmp-node
+          task docker:build:local
+
+      - name: Cache kwil-cli build
+        id: cache-kwil-build
+        uses: actions/cache@v4
+        with:
+          path: tmp-node/.build
+          key: ${{ runner.os }}-kwil-build-${{ steps.node-commit.outputs.sha }}
+
+      - name: Build kwil-cli binary (if cache miss)
+        if: steps.cache-kwil-build.outputs.cache-hit != 'true'
+        run: |
+          cd tmp-node
+          task build
+
+      - name: Copy kwil-cli binary to PATH
+        run: |
+          sudo cp tmp-node/.build/kwil-cli /usr/local/bin/kwil-cli
+          kwil-cli version
+
+      - name: Pull Postgres image
+        run: docker pull kwildb/postgres:16.8-1
+
+      - name: Run all Go tests (unit + integration)
+        env:
+          NODE_REPO_DIR: ${{ github.workspace }}/tmp-node
+        run: |
+          go test ./... -v
+
+      - name: Cleanup Docker resources
+        if: always() && !env.ACT
+        run: docker system prune -af

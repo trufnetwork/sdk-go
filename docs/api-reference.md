@@ -34,6 +34,10 @@ The SDK is structured around several key interfaces:
 - Flexible querying and indexing
 - Granular access control
 
+### Cache Support
+
+The SDK supports transparent caching through an optional `useCache` parameter on data retrieval methods (`GetRecord`, `GetIndex`, `GetFirstRecord`, `GetIndexChange`). When enabled, queries can leverage node-side caching for improved performance, with detailed cache metadata returned in all responses.
+
 ## Example Usage
 
 ```go
@@ -273,8 +277,8 @@ type CacheMetadata struct {
     CacheHit      bool  `json:"cache_hit"`        // Whether the query hit the cache
     CacheDisabled bool  `json:"cache_disabled"`   // Whether caching is disabled
     
-    // Cache timing information
-    CachedAt      *int64 `json:"cached_at"`       // Unix timestamp when data was cached
+    // Cache height information
+    CacheHeight   *int64 `json:"cache_height"`    // Block height when data was cached
     
     // Query context (populated by SDK)
     StreamId      string `json:"stream_id"`       // Stream identifier
@@ -285,13 +289,6 @@ type CacheMetadata struct {
     RowsServed    int    `json:"rows_served"`    // Number of rows returned
 }
 ```
-
-#### Cache Metadata Methods
-
-The `CacheMetadata` type provides helper methods for analyzing cache performance:
-
-- `GetDataAge() *time.Duration`: Returns the age of cached data. Returns `nil` if no cache timestamp is available.
-- `IsExpired(maxAge time.Duration) bool`: Checks if cached data is older than the specified duration.
 
 #### Performance Analysis
 
@@ -312,16 +309,11 @@ if err != nil {
 // Analyze cache performance
 if result.Metadata.CacheHit {
     fmt.Printf("Cache hit! Served %d rows from cache\n", result.Metadata.RowsServed)
-    if dataAge := result.Metadata.GetDataAge(); dataAge != nil {
-        fmt.Printf("Cache age: %v\n", *dataAge)
+    if result.Metadata.CacheHeight != nil {
+        fmt.Printf("Cache height: %d\n", *result.Metadata.CacheHeight)
     }
 } else {
     fmt.Printf("Cache miss - data retrieved from database\n")
-}
-
-// Check if cache data is too old
-if result.Metadata.IsExpired(5 * time.Minute) {
-    fmt.Println("Warning: Cache data is older than 5 minutes")
 }
 ```
 
@@ -398,17 +390,14 @@ if err != nil {
 // Performance analysis
 if result.Metadata.CacheHit {
     fmt.Printf("✓ Cache hit! Query served in optimized time\n")
-    if dataAge := result.Metadata.GetDataAge(); dataAge != nil {
-        fmt.Printf("Cache age: %v\n", *dataAge)
+    if result.Metadata.CacheHeight != nil {
+        fmt.Printf("Cache height: %d\n", *result.Metadata.CacheHeight)
     }
 } else {
     fmt.Printf("○ Cache miss - data retrieved from source\n")
 }
 
-// Validate cache freshness
-if result.Metadata.IsExpired(10 * time.Minute) {
-    fmt.Println("⚠ Warning: Cache data is older than 10 minutes")
-}
+
 ```
 
 **Behaviour**
@@ -724,12 +713,9 @@ if aggregated.CacheHitRate < 0.5 {
     log.Printf("Low cache hit rate: %.2f%%", aggregated.CacheHitRate*100)
 }
 
-// 3. Check cache date to determine data freshness
-// The cache doesn't expire but shows when data was cached
-if result.Metadata.CachedAt != nil &&
-   time.Since(time.Unix(*result.Metadata.CachedAt, 0)) > 5*time.Minute {
-    // Data is older than 5 minutes - decide if this is acceptable
-    // Contact node operator if more frequent updates are needed
+// 3. Analyze cache height for data consistency
+if result.Metadata.CacheHeight != nil {
+    fmt.Printf("Data cached at block height: %d\n", *result.Metadata.CacheHeight)
 }
 ```
 
