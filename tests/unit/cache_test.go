@@ -13,7 +13,7 @@ import (
 func TestParseLogMetadata(t *testing.T) {
 	t.Run("Parse cache hit log", func(t *testing.T) {
 		logs := []string{
-			`{"cache_hit": true}`,
+			`{"cache_hit": true, "cache_height": 12345}`,
 		}
 
 		metadata, err := types.ParseCacheMetadata(logs)
@@ -21,6 +21,8 @@ func TestParseLogMetadata(t *testing.T) {
 
 		assert.True(t, metadata.CacheHit, "Should parse cache hit as true")
 		assert.False(t, metadata.CacheDisabled, "Should not be disabled")
+		require.NotNil(t, metadata.CacheHeight, "CacheHeight should not be nil for cache hit")
+		assert.Equal(t, int64(12345), *metadata.CacheHeight, "Should parse cache height")
 	})
 
 	t.Run("Parse cache miss log", func(t *testing.T) {
@@ -49,7 +51,7 @@ func TestParseLogMetadata(t *testing.T) {
 	t.Run("Parse multiple logs", func(t *testing.T) {
 		logs := []string{
 			`some non-json log line`,
-			`{"cache_hit": true}`,
+			`{"cache_hit": true, "cache_height": 9876}`,
 			`another non-json line`,
 		}
 
@@ -57,6 +59,8 @@ func TestParseLogMetadata(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.True(t, metadata.CacheHit, "Should parse cache hit from valid JSON")
+		require.NotNil(t, metadata.CacheHeight, "CacheHeight should not be nil for cache hit")
+		assert.Equal(t, int64(9876), *metadata.CacheHeight, "Should parse cache height")
 	})
 
 	t.Run("Parse empty logs", func(t *testing.T) {
