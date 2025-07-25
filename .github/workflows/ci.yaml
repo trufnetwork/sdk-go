@@ -35,7 +35,7 @@ jobs:
         working-directory: tmp-node
         run: echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Build tn-db Docker image & kwil-cli binary
+      - name: Build tn-db Docker image
         run: |
           cd tmp-node
           task docker:build:local
@@ -53,9 +53,9 @@ jobs:
           cd tmp-node
           task build
 
-      - name: Move kwil-cli binary to PATH
+      - name: Copy kwil-cli binary to PATH
         run: |
-          sudo mv tmp-node/.build/kwil-cli /usr/local/bin/kwil-cli
+          sudo cp tmp-node/.build/kwil-cli /usr/local/bin/kwil-cli
           kwil-cli version
 
       - name: Pull Postgres image
