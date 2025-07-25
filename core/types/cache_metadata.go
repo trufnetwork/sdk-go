@@ -2,7 +2,6 @@ package types
 
 import (
 	"encoding/json"
-	"time"
 )
 
 // CacheMetadata represents cache performance and hit/miss statistics
@@ -13,7 +12,7 @@ type CacheMetadata struct {
 	CacheDisabled bool `json:"cache_disabled,omitempty"`
 
 	// Cache timing information (from tn_cache functions)
-	CachedAt *int64 `json:"cached_at,omitempty"` // Timestamp when data was cached
+	CacheHeight *int64 `json:"cache_height,omitempty"` // Block height when data was cached
 
 	// SDK-provided context (not from logs, but added by SDK)
 	StreamId     string `json:"stream_id,omitempty"`
@@ -66,10 +65,10 @@ func ParseCacheMetadata(logs []string) (CacheMetadata, error) {
 				metadata.CacheDisabled = cacheDisabled
 			}
 
-			// Extract cache timestamp
-			if cachedAtFloat, ok := logData["cached_at"].(float64); ok {
-				cachedAt := int64(cachedAtFloat)
-				metadata.CachedAt = &cachedAt
+			// Extract cache height (matching SQL field name)
+			if heightFloat, ok := logData["cache_height"].(float64); ok {
+				height := int64(heightFloat)
+				metadata.CacheHeight = &height
 			}
 		}
 	}
@@ -107,24 +106,4 @@ func AggregateCacheMetadata(metadataList []CacheMetadata) CacheMetadataCollectio
 	}
 
 	return collection
-}
-
-// GetDataAge calculates the age of cached data in human-readable format
-func (cm *CacheMetadata) GetDataAge() *time.Duration {
-	if cm.CachedAt == nil {
-		return nil
-	}
-
-	age := time.Since(time.Unix(*cm.CachedAt, 0))
-	return &age
-}
-
-// IsExpired checks if cached data is older than the specified duration
-func (cm *CacheMetadata) IsExpired(maxAge time.Duration) bool {
-	dataAge := cm.GetDataAge()
-	if dataAge == nil {
-		return false // No cache timestamp, cannot determine expiration
-	}
-
-	return *dataAge >= maxAge
 }
