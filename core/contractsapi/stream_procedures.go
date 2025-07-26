@@ -189,15 +189,9 @@ func (s *Action) GetRecord(ctx context.Context, input types.GetRecordInput) (typ
 	}
 
 	// Parse logs string into individual log lines for cache metadata extraction
-	var logs []string
-	if callResult.Logs != "" {
-		lines := strings.Split(callResult.Logs, "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line != "" {
-				logs = append(logs, line)
-			}
-		}
+	logs, err := parseLogsForMetadata(callResult.Logs)
+	if err != nil {
+		return types.ActionResult{}, errors.WithStack(err)
 	}
 
 	// Parse cache metadata from logs
@@ -282,15 +276,9 @@ func (s *Action) GetIndex(ctx context.Context, input types.GetIndexInput) (types
 	}
 
 	// Parse logs string into individual log lines for cache metadata extraction
-	var logs []string
-	if callResult.Logs != "" {
-		lines := strings.Split(callResult.Logs, "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line != "" {
-				logs = append(logs, line)
-			}
-		}
+	logs, err := parseLogsForMetadata(callResult.Logs)
+	if err != nil {
+		return types.ActionResult{}, errors.WithStack(err)
 	}
 
 	// Parse cache metadata from logs
@@ -377,15 +365,9 @@ func (s *Action) GetIndexChange(ctx context.Context, input types.GetIndexChangeI
 	}
 
 	// Parse logs string into individual log lines for cache metadata extraction
-	var logs []string
-	if callResult.Logs != "" {
-		lines := strings.Split(callResult.Logs, "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line != "" {
-				logs = append(logs, line)
-			}
-		}
+	logs, err := parseLogsForMetadata(callResult.Logs)
+	if err != nil {
+		return types.ActionResult{}, errors.WithStack(err)
 	}
 
 	// Parse cache metadata from logs
@@ -579,15 +561,9 @@ func (s *Action) GetFirstRecord(ctx context.Context, input types.GetFirstRecordI
 	}
 
 	// Parse logs string into individual log lines for cache metadata extraction
-	var logs []string
-	if callResult.Logs != "" {
-		lines := strings.Split(callResult.Logs, "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line != "" {
-				logs = append(logs, line)
-			}
-		}
+	logs, err := parseLogsForMetadata(callResult.Logs)
+	if err != nil {
+		return types.ActionResult{}, errors.WithStack(err)
 	}
 
 	// Parse cache metadata from logs
@@ -616,4 +592,32 @@ func (s *Action) GetFirstRecord(ctx context.Context, input types.GetFirstRecordI
 		}},
 		Metadata: metadata,
 	}, nil
+}
+
+func parseLogsForMetadata(logsString string) ([]string, error) {
+	var logs []string
+	if logsString == "" {
+		return logs, nil
+	}
+	lines := strings.Split(logsString, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		dotSpace := strings.Index(line, ". ")
+		if dotSpace == -1 {
+			return nil, errors.New("invalid log format: missing '. ' in log line")
+		}
+		prefix := line[:dotSpace]
+		if _, err := strconv.Atoi(prefix); err != nil {
+			return nil, errors.New("invalid log format: prefix is not a number")
+		}
+		line = strings.TrimSpace(line[dotSpace+2:])
+		if line == "" {
+			continue
+		}
+		logs = append(logs, line)
+	}
+	return logs, nil
 }
