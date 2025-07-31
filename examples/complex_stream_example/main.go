@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
 	"log"
 	"time"
 
@@ -57,9 +58,11 @@ func main() {
 			}
 
 			// Wait for the destroy transaction to be mined
-			_, err = tnClient.WaitForTx(ctx, destroyTx, time.Second*5)
+			destroyTxRes, err := tnClient.WaitForTx(ctx, destroyTx, time.Second*5)
 			if err != nil {
 				log.Printf("Error waiting for destroy transaction for stream %s: %v", streamId, err)
+			} else if destroyTxRes.Result.Code != uint32(kwiltypes.CodeOk) {
+				log.Printf("Error destroying stream %s: %s", streamId, destroyTxRes.Result.Log)
 			} else {
 				fmt.Printf("Successfully destroyed stream: %s\n", streamId)
 			}
@@ -72,8 +75,13 @@ func main() {
 		if err != nil {
 			return fmt.Errorf("failed to deploy primitive stream %s: %v", streamId, err)
 		}
-		_, err = tnClient.WaitForTx(ctx, deployTx, time.Second*5)
-		return err
+		txRes, err := tnClient.WaitForTx(ctx, deployTx, time.Second*5)
+		if err != nil {
+			return err
+		} else if txRes.Result.Code != uint32(kwiltypes.CodeOk) {
+			return fmt.Errorf("error deploying primitive stream %s: %s", streamId, txRes.Result.Log)
+		}
+		return nil
 	}
 
 	if err := deployPrimitiveStream(primitiveStreamId1); err != nil {
@@ -88,9 +96,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to deploy composed stream: %v", err)
 	}
-	_, err = tnClient.WaitForTx(ctx, deployTx, time.Second*5)
+	txRes, err := tnClient.WaitForTx(ctx, deployTx, time.Second*5)
 	if err != nil {
 		log.Fatalf("Failed to wait for composed stream deployment: %v", err)
+	} else if txRes.Result.Code != uint32(kwiltypes.CodeOk) {
+		log.Fatalf("Error deploying composed stream: %s", txRes.Result.Log)
 	}
 
 	// 5. Load Primitive Actions to Insert Records
@@ -106,8 +116,13 @@ func main() {
 		if err != nil {
 			return fmt.Errorf("failed to insert records into stream %s: %v", streamId, err)
 		}
-		_, err = tnClient.WaitForTx(ctx, insertTx, time.Second*5)
-		return err
+		txRes, err := tnClient.WaitForTx(ctx, insertTx, time.Second*5)
+		if err != nil {
+			return err
+		} else if txRes.Result.Code != uint32(kwiltypes.CodeOk) {
+			return fmt.Errorf("error inserting records into stream %s: %s", streamId, txRes.Result.Log)
+		}
+		return nil
 	}
 
 	// Market Sentiment Stream Records
@@ -176,9 +191,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to set taxonomy: %v", err)
 	}
-	_, err = tnClient.WaitForTx(ctx, taxonomyTx, time.Second*5)
+	txRes, err = tnClient.WaitForTx(ctx, taxonomyTx, time.Second*5)
 	if err != nil {
 		log.Fatalf("Failed to wait for taxonomy transaction: %v", err)
+	} else if txRes.Result.Code != uint32(kwiltypes.CodeOk) {
+		log.Fatalf("Error setting taxonomy: %s", txRes.Result.Log)
 	}
 
 	// 8. Retrieve Records from Composed Stream

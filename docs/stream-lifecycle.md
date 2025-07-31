@@ -27,6 +27,8 @@ if err != nil {
 txRes, err := tnClient.WaitForTx(ctx, deployTxHash, time.Second)
 if err != nil {
     // Handle error
+} else if txRes.Result.Code != uint32(kwiltypes.CodeOk) {
+    // Handle transaction failure: txRes.Result.Log contains error message
 }
 switch transactions.TxCode(txRes.TxResult.Code) {
 case transactions.CodeOk:
