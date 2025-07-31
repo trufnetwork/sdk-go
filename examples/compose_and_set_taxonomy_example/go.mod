@@ -1,4 +1,4 @@
-module github.com/trufnetwork/sdk-go/examples/compose_and_set_taxonomy_example/main.go
+module github.com/trufnetwork/sdk-go/examples/compose_and_set_taxonomy_example
 
 go 1.24.4
 
