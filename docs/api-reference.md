@@ -121,7 +121,7 @@ tnClient, err := tnclient.NewClient(
 
 ##### `WaitForTx`
 
-Waits for a transaction to be mined and confirmed.
+Waits for a transaction to be mined and confirmed. **Important**: Always check the `Result.Code` to detect transaction failures.
 
 ```go
 txResponse, err := tnClient.WaitForTx(
@@ -129,6 +129,11 @@ txResponse, err := tnClient.WaitForTx(
 	txHash,
 	time.Second * 5  // Polling interval
 )
+if err != nil {
+	return err
+} else if txResponse.Result.Code != uint32(kwiltypes.CodeOk) {
+	return fmt.Errorf("transaction failed: %s", txResponse.Result.Log)
+}
 ```
 
 #### Stream Lifecycle
@@ -213,9 +218,11 @@ func createAndManageStream(ctx context.Context, tnClient *tnclient.Client) error
 	}
 
 	// Wait for deployment confirmation
-	_, err = tnClient.WaitForTx(ctx, deployTx, time.Second * 5)
+	txRes, err := tnClient.WaitForTx(ctx, deployTx, time.Second * 5)
 	if err != nil {
 		return fmt.Errorf("deployment confirmation failed: %v", err)
+	} else if txRes.Result.Code != uint32(kwiltypes.CodeOk) {
+		return fmt.Errorf("deployment failed: %s", txRes.Result.Log)
 	}
 
 	// Load the stream

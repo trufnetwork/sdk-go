@@ -395,9 +395,11 @@ if err != nil {
 }
 
 // Wait for the destroy transaction to be mined
-_, err = tnClient.WaitForTx(ctx, destroyTx, time.Second*5)
+txRes, err := tnClient.WaitForTx(ctx, destroyTx, time.Second*5)
 if err != nil {
     log.Printf("Error waiting for stream destruction: %v", err)
+} else if txRes.Result.Code != uint32(kwiltypes.CodeOk) {
+    log.Printf("Stream destruction failed: %s", txRes.Result.Log)
 }
 ```
 
@@ -437,9 +439,11 @@ func main() {
             }
 
             // Wait for the destroy transaction
-            _, err = tnClient.WaitForTx(ctx, destroyTx, time.Second*5)
+            txRes, err := tnClient.WaitForTx(ctx, destroyTx, time.Second*5)
             if err != nil {
                 log.Printf("Error waiting for destroy transaction: %v", err)
+            } else if txRes.Result.Code != uint32(kwiltypes.CodeOk) {
+                log.Printf("Destroy transaction failed for stream %s: %s", streamId, txRes.Result.Log)
             }
         }
     }()
