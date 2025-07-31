@@ -1,6 +1,6 @@
 module github.com/trufnetwork/sdk-go/examples/compose_and_set_taxonomy_example
 
-go 1.24.4
+go 1.24
 
 require (
 	github.com/trufnetwork/kwil-db/core v0.4.3-0.20250714184403-500f214cd4b5
