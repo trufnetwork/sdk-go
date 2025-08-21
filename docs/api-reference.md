@@ -19,7 +19,7 @@ The SDK is structured around several key interfaces:
 - [Client](#client-interface): Primary entry point for network interactions
 - [Stream](#stream-interface): Core stream operations and access control
 - [Primitive Stream](#primitive-stream-interface): Raw data stream management
-- [Composed Stream](#composed-stream-interface): Aggregated data stream handling
+- [Composed Stream](#composed-stream-interface): Aggregated data stream handling and taxonomy management
 
 ## Core Concepts
 
@@ -885,25 +885,47 @@ taxonomy := types.Taxonomy{
 
 ### Methods
 
-#### `DescribeTaxonomies`
+#### `DescribeTaxonomies` 🔍
 
 ```go
 DescribeTaxonomies(ctx context.Context, params types.DescribeTaxonomiesParams) ([]types.TaxonomyItem, error)
 ```
 
-Retrieves the current taxonomy configuration for a composed stream.
+Retrieves the current taxonomy configuration for a composed stream. This is the key method for discovering how composed streams aggregate their child streams.
 
 **Parameters:**
 
 - `ctx`: Operation context
 - `params`: Taxonomy description parameters
-  - `Stream`: Stream locator
-  - `LatestVersion`: Flag to return only the most recent taxonomy
+  - `Stream`: Stream locator (identifies the composed stream)
+  - `LatestVersion`: Flag to return only the most recent taxonomy version
 
 **Returns:**
 
-- List of taxonomy items
+- List of `TaxonomyItem` objects containing:
+  - `ChildStream`: Locator of each child stream
+  - `Weight`: Weight/contribution of each child stream (0.0 to 1.0)
 - Error if retrieval fails
+
+**Example Usage:**
+```go
+// Get the latest taxonomy for a composed stream
+params := types.DescribeTaxonomiesParams{
+    Stream:        tnClient.OwnStreamLocator(composedStreamId),
+    LatestVersion: true,
+}
+taxonomyItems, err := composedActions.DescribeTaxonomies(ctx, params)
+if err != nil {
+    log.Printf("Failed to describe taxonomies: %v", err)
+    return
+}
+
+fmt.Printf("Taxonomy for stream %s:\n", composedStreamId.String())
+for _, item := range taxonomyItems {
+    fmt.Printf("  Child: %s (Weight: %.2f)\n", 
+        item.ChildStream.StreamId.String(), item.Weight)
+}
+```
 
 #### `SetTaxonomy`
 
