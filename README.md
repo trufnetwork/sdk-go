@@ -274,6 +274,21 @@ taxonomyTx, err := composedActions.InsertTaxonomy(ctx, types.Taxonomy{
         },
     },
 })
+
+// Get taxonomy information for a composed stream
+taxonomyParams := types.DescribeTaxonomiesParams{
+    Stream:        tnClient.OwnStreamLocator(composedStreamId),
+    LatestVersion: true,
+}
+taxonomyItems, err := composedActions.DescribeTaxonomies(ctx, taxonomyParams)
+if err != nil {
+    log.Printf("Failed to describe taxonomies: %v", err)
+} else {
+    for _, item := range taxonomyItems {
+        fmt.Printf("Child stream: %s, Weight: %.2f\n", 
+            item.ChildStream.StreamId.String(), item.Weight)
+    }
+}
 ```
 
 ### Complex Stream Creation Example
@@ -468,9 +483,31 @@ func main() {
 
 By following these guidelines, you can effectively manage stream resources in the TRUF.NETWORK ecosystem.
 
+## Quick Reference
+
+### Common Operations
+
+| Operation | Method |
+|-----------|--------|
+| Deploy primitive stream | `tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitive)` |
+| Deploy composed stream | `tnClient.DeployStream(ctx, streamId, types.StreamTypeComposed)` |
+| Insert records | `primitiveActions.InsertRecords(ctx, records)` |
+| Get stream data | `composedActions.GetRecord(ctx, input)` |
+| Set stream taxonomy | `composedActions.InsertTaxonomy(ctx, taxonomy)` |
+| Get stream taxonomy | `composedActions.DescribeTaxonomies(ctx, params)` |
+| Destroy stream | `tnClient.DestroyStream(ctx, streamId)` |
+
+### Key Types
+
+- `types.StreamTypePrimitive` - Raw data streams
+- `types.StreamTypeComposed` - Aggregated streams with taxonomy
+- `types.DescribeTaxonomiesParams` - Parameters for querying taxonomies
+- `types.TaxonomyItem` - Individual child stream with weight
+
 ## Further Reading
 
 - [TN-SDK Documentation](./docs/readme.md)
+- [API Reference](./docs/api-reference.md) - Complete method documentation including taxonomy operations
 - [Truflation Whitepaper](https://whitepaper.truflation.com/)
 
 For additional support or questions, please [open an issue](https://github.com/trufnetwork/sdk-go/issues) or contact our support team.
