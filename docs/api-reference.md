@@ -119,22 +119,69 @@ tnClient, err := tnclient.NewClient(
 
 #### Transaction Management
 
-##### `WaitForTx`
+##### Understanding Async Operations and Race Conditions
 
-Waits for a transaction to be mined and confirmed. **Important**: Always check the `Result.Code` to detect transaction failures.
+**Critical**: All TN operations are asynchronous by default. They return success when transactions enter the mempool, NOT when they're executed on-chain.
+
+> 📚 **Complete Example**: See [`examples/transaction-lifecycle-example/main.go`](../examples/transaction-lifecycle-example/main.go) for a comprehensive demonstration of safe transaction patterns with detailed explanations.
+
+**Common Race Condition:**
+```go
+// ❌ DANGEROUS - Race condition
+deployTx, _ := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitive)
+insertTx, _ := primitiveActions.InsertRecord(ctx, input) // Might fail!
+```
+
+**Two Solutions for Safe Operations:**
+
+##### `WaitForTx` (Recommended for Critical Operations)
+
+Waits for a transaction to be mined and confirmed. **Always check the `Result.Code`** to detect failures:
 
 ```go
-txResponse, err := tnClient.WaitForTx(
-	ctx,
-	txHash,
-	time.Second * 5  // Polling interval
+import (
+    kwiltypes "github.com/trufnetwork/kwil-db/core/types"
+    // ... other imports
 )
+
+// Deploy stream
+deployTx, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitive)
 if err != nil {
-	return err
-} else if txResponse.Result.Code != uint32(kwiltypes.CodeOk) {
-	return fmt.Errorf("transaction failed: %s", txResponse.Result.Log)
+    return err
 }
+
+// Wait for deployment to complete
+txResponse, err := tnClient.WaitForTx(ctx, deployTx, time.Second*5)
+if err != nil {
+    return err
+} else if txResponse.Result.Code != uint32(kwiltypes.CodeOk) {
+    return fmt.E("deployment failed: %d", txResponse.Result.Code)
+}
+
+// Now safe to proceed
+insertTx, err := primitiveActions.InsertRecord(ctx, input)
 ```
+
+##### `WithSyncBroadcast` Option (For TxOpt-Enabled Operations)
+
+For operations that support TxOpt parameters, use `WithSyncBroadcast(true)`:
+
+```go
+import (
+    client "github.com/trufnetwork/kwil-db/core/client/types"
+    // ... other imports
+)
+
+// Synchronous record insertion (waits for mining)
+insertTx, err := primitiveActions.InsertRecord(ctx, input,
+    client.WithSyncBroadcast(true))
+
+// Synchronous taxonomy update (waits for mining)  
+taxonomyTx, err := composedActions.InsertTaxonomy(ctx, taxonomy,
+    client.WithSyncBroadcast(true))
+```
+
+**Note**: `DeployStream` and `DestroyStream` don't support TxOpt, so use `WaitForTx` with them.
 
 #### Stream Lifecycle
 
