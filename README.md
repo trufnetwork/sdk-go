@@ -209,17 +209,84 @@ Stream IDs are unique identifiers generated for each stream. They ensure consist
 - **Index**: Calculated values derived from stream data, representing a value's growth compared to the stream's first record.
 - **Primitives**: Raw data points provided by data sources.
 
-### Transaction Lifecycle
+### Transaction Lifecycle and Best Practices ⚠️
 
-TN operations rely on blockchain transactions. Some actions require waiting for previous transactions to be mined before proceeding. For detailed information on transaction dependencies and best practices, see [Stream Lifecycle](./docs/stream-lifecycle.md).
+**Critical Understanding**: TN operations return success when transactions enter the mempool, NOT when they're executed on-chain. For operations where order matters, you must wait for transactions to be mined before proceeding.
+
+> 💡 **See Complete Example**: For a comprehensive demonstration of all transaction lifecycle patterns, see [`examples/transaction-lifecycle-example/main.go`](./examples/transaction-lifecycle-example/main.go)
+
+#### The Race Condition Problem
+
+```go
+// ❌ DANGEROUS - Race condition possible
+deployTx, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitive)
+// Stream might not be ready yet!
+insertTx, err := primitiveActions.InsertRecord(ctx, input) // Could fail
+
+destroyTx, err := tnClient.DestroyStream(ctx, streamId)  
+// Stream might not be destroyed yet!
+insertTx, err := primitiveActions.InsertRecord(ctx, input) // Could succeed unexpectedly
+```
+
+#### Solution 1: Use WaitForTx (Recommended for Critical Operations)
+
+```go
+import (
+    kwiltypes "github.com/trufnetwork/kwil-db/core/types"
+    // ... other imports
+)
+
+// ✅ SAFE - Explicit transaction confirmation
+deployTx, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitive)
+if err != nil {
+    return err
+}
+
+// Wait for deployment to complete
+txRes, err := tnClient.WaitForTx(ctx, deployTx, time.Second*5)
+if err != nil {
+    return err
+}
+if txRes.Result.Code != uint32(kwiltypes.CodeOk) {
+    return fmt.Errorf("deployment failed: %d", txRes.Result.Code)
+}
+
+// Now safe to proceed
+insertTx, err := primitiveActions.InsertRecord(ctx, input)
+```
+
+#### Solution 2: Use WithSyncBroadcast (Alternative)
+
+```go
+import (
+    client "github.com/trufnetwork/kwil-db/core/client/types"
+    // ... other imports  
+)
+
+// For operations that support TxOpt:
+insertTx, err := primitiveActions.InsertRecord(ctx, input,
+    client.WithSyncBroadcast(true)) // Waits for mining
+
+// Note: DeployStream and DestroyStream don't support TxOpt, 
+// so you must use WaitForTx with them
+```
+
+#### When to Use Synchronous Patterns:
+- ✅ **Stream deployment before data insertion**
+- ✅ **Stream deletion before cleanup verification**
+- ✅ **Sequential operations with dependencies**  
+- ✅ **Testing and development scenarios**
+- ✅ **When immediate error detection is critical**
+
+#### When Async is Acceptable:
+- ⚡ **High-throughput data insertion** (independent records)
+- ⚡ **Fire-and-forget operations** (with proper error handling)
+- ⚡ **Batch operations** where order within batch doesn't matter
 
 ## Permissions and Privacy
 
 TN supports granular control over stream access and visibility. Streams can be public or private, with read and write permissions configurable at the wallet level. Additionally, you can control whether other streams can compose data from your stream. For more details, refer to [Stream Permissions](./docs/stream-permissions.md).
 
-## Caveats
-
-- **Transaction Confirmation**: Always wait for transaction confirmation before performing dependent actions. For more information, see the [Stream Lifecycle](./docs/stream-lifecycle.md) section.
 
 ## Stream Creation and Management
 
@@ -485,6 +552,8 @@ By following these guidelines, you can effectively manage stream resources in th
 
 ## Quick Reference
 
+> 🎯 **Full Working Example**: See [`examples/transaction-lifecycle-example/main.go`](./examples/transaction-lifecycle-example/main.go) for complete, runnable code demonstrating all these patterns with proper error handling.
+
 ### Common Operations
 
 | Operation | Method |
@@ -496,6 +565,46 @@ By following these guidelines, you can effectively manage stream resources in th
 | Set stream taxonomy | `composedActions.InsertTaxonomy(ctx, taxonomy)` |
 | Get stream taxonomy | `composedActions.DescribeTaxonomies(ctx, params)` |
 | Destroy stream | `tnClient.DestroyStream(ctx, streamId)` |
+
+### Safe Operation Patterns
+
+**Deploy → Insert Pattern:**
+```go
+// Deploy and wait
+deployTx, err := tnClient.DeployStream(ctx, streamId, types.StreamTypePrimitive)
+if err != nil {
+    return err
+}
+txRes, err := tnClient.WaitForTx(ctx, deployTx, time.Second*5)
+if err != nil || txRes.Result.Code != uint32(kwiltypes.CodeOk) {
+    return fmt.Errorf("deployment failed")
+}
+
+// Now safe to insert
+_, err = primitiveActions.InsertRecord(ctx, input)
+```
+
+**Insert → Destroy → Verify Pattern:**
+```go
+// Insert with sync
+_, err := primitiveActions.InsertRecord(ctx, input, client.WithSyncBroadcast(true))
+if err != nil {
+    return err
+}
+
+// Destroy and wait  
+destroyTx, err := tnClient.DestroyStream(ctx, streamId)
+if err != nil {
+    return err
+}
+txRes, err := tnClient.WaitForTx(ctx, destroyTx, time.Second*5)
+if err != nil || txRes.Result.Code != uint32(kwiltypes.CodeOk) {
+    return fmt.Errorf("destruction failed")
+}
+
+// Verify destruction (should fail)
+_, err = primitiveActions.InsertRecord(ctx, input2) // Should error
+```
 
 ### Key Types
 
