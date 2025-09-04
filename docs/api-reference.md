@@ -155,7 +155,7 @@ txResponse, err := tnClient.WaitForTx(ctx, deployTx, time.Second*5)
 if err != nil {
     return err
 } else if txResponse.Result.Code != uint32(kwiltypes.CodeOk) {
-    return fmt.E("deployment failed: %d", txResponse.Result.Code)
+    return fmt.Errorf("deployment failed: %d", txResponse.Result.Code)
 }
 
 // Now safe to proceed
