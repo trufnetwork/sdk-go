@@ -138,6 +138,26 @@ func main() {
 - Verify private key and authentication
 - Review node logs for any synchronization issues
 
+### Running Integration Tests
+
+The SDK includes integration tests that spin up a local TN node using Docker. By default, tests use the latest public image from GitHub Container Registry (`ghcr.io/trufnetwork/node:latest`).
+
+To run tests with a custom Docker image (e.g., locally built):
+
+```bash
+# Set the Docker image to use
+export TN_DB_IMAGE=ghcr.io/trufnetwork/node:local
+
+# Or use a locally built image
+export TN_DB_IMAGE=tn-db:local
+
+# Set the node repository path for migrations
+export NODE_REPO_DIR=/path/to/trufnetwork/node
+
+# Run integration tests
+go test ./tests/integration/... -v
+```
+
 ## Mainnet Network
 
 We have a mainnet network accessible at https://gateway.mainnet.truf.network. You can interact with it to test and experiment with the TN SDK. Please use it responsibly. Any contributions and feedback are welcome.

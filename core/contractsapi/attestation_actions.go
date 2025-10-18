@@ -2,7 +2,7 @@ package contractsapi
 
 import (
 	"context"
-	"encoding/hex"
+	"encoding/base64"
 	"fmt"
 	"strconv"
 
@@ -213,13 +213,12 @@ func (a *AttestationAction) ListAttestations(
 		metadata := types.AttestationMetadata{}
 
 		// Column 0: request_tx_id (TEXT)
-		if requestTxID, ok := row[0].(string); ok {
-			metadata.RequestTxID = requestTxID
-		} else if requestTxIDPtr, ok := row[0].(*string); ok && requestTxIDPtr != nil {
-			metadata.RequestTxID = *requestTxIDPtr
-		} else {
-			return nil, fmt.Errorf("row %d: unexpected request_tx_id type: %T", i, row[0])
+		// Gateway always returns TEXT as string
+		requestTxID, ok := row[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("row %d: expected request_tx_id to be string, got %T", i, row[0])
 		}
+		metadata.RequestTxID = requestTxID
 
 		// Column 1: attestation_hash (BYTEA)
 		if err := extractBytesColumn(row[1], &metadata.AttestationHash, i, "attestation_hash"); err != nil {
@@ -246,13 +245,12 @@ func (a *AttestationAction) ListAttestations(
 		}
 
 		// Column 5: encrypt_sig (BOOLEAN)
-		if encryptSig, ok := row[5].(bool); ok {
-			metadata.EncryptSig = encryptSig
-		} else if encryptSigPtr, ok := row[5].(*bool); ok && encryptSigPtr != nil {
-			metadata.EncryptSig = *encryptSigPtr
-		} else {
-			return nil, fmt.Errorf("row %d: unexpected encrypt_sig type: %T", i, row[5])
+		// Gateway always returns BOOLEAN as bool
+		encryptSig, ok := row[5].(bool)
+		if !ok {
+			return nil, fmt.Errorf("row %d: expected encrypt_sig to be bool, got %T", i, row[5])
 		}
+		metadata.EncryptSig = encryptSig
 
 		results = append(results, metadata)
 	}
@@ -261,113 +259,49 @@ func (a *AttestationAction) ListAttestations(
 }
 
 // Helper function to extract bytes from a column
+// The Kwil gateway returns BYTEA columns as base64-encoded strings in JSON responses.
 func extractBytesColumn(value any, dest *[]byte, rowIdx int, colName string) error {
 	if value == nil {
 		*dest = nil
 		return nil
 	}
 
-	switch v := value.(type) {
-	case []byte:
-		// Copy to avoid aliasing driver-backed buffers
-		*dest = append([]byte(nil), v...)
-	case *[]byte:
-		if v != nil {
-			// Copy to avoid aliasing driver-backed buffers
-			*dest = append([]byte(nil), *v...)
-		} else {
-			*dest = nil
-		}
-	case string:
-		// Handle PostgreSQL BYTEA hex format (\xHHHH...)
-		if len(v) >= 2 && v[0:2] == "\\x" {
-			// Remove \x prefix and decode hex
-			decoded, err := hex.DecodeString(v[2:])
-			if err != nil {
-				return fmt.Errorf("row %d: failed to decode %s as hex (\\x format): %w", rowIdx, colName, err)
-			}
-			*dest = decoded
-		} else if decoded, err := hex.DecodeString(v); err == nil {
-			// Plain hex decode succeeded
-			*dest = decoded
-		} else {
-			// Not valid hex - fail fast
-			return fmt.Errorf("row %d: %s not valid hex", rowIdx, colName)
-		}
-	case *string:
-		if v != nil {
-			// Handle PostgreSQL BYTEA hex format (\xHHHH...)
-			if len(*v) >= 2 && (*v)[0:2] == "\\x" {
-				// Remove \x prefix and decode hex
-				decoded, err := hex.DecodeString((*v)[2:])
-				if err != nil {
-					return fmt.Errorf("row %d: failed to decode %s as hex (\\x format): %w", rowIdx, colName, err)
-				}
-				*dest = decoded
-			} else if decoded, err := hex.DecodeString(*v); err == nil {
-				// Plain hex decode succeeded
-				*dest = decoded
-			} else {
-				// Not valid hex - fail fast
-				return fmt.Errorf("row %d: %s not valid hex", rowIdx, colName)
-			}
-		} else {
-			*dest = nil
-		}
-	default:
-		return fmt.Errorf("row %d: unexpected %s type: %T", rowIdx, colName, value)
+	// Gateway always returns BYTEA as string (base64-encoded)
+	str, ok := value.(string)
+	if !ok {
+		return fmt.Errorf("row %d: expected %s to be string, got %T", rowIdx, colName, value)
 	}
 
+	if len(str) == 0 {
+		*dest = nil
+		return nil
+	}
+
+	// Decode base64 string
+	decoded, err := base64.StdEncoding.DecodeString(str)
+	if err != nil {
+		return fmt.Errorf("row %d: failed to decode %s as base64 (len=%d, data=%q): %w", rowIdx, colName, len(str), str, err)
+	}
+
+	*dest = decoded
 	return nil
 }
 
 // Helper function to extract int64 from a column
+// The Kwil gateway returns INT8 columns as strings in JSON responses.
 func extractInt64Column(value any, dest *int64, rowIdx int, colName string) error {
-	switch v := value.(type) {
-	case int64:
-		*dest = v
-	case *int64:
-		if v != nil {
-			*dest = *v
-		} else {
-			return fmt.Errorf("row %d: %s is null", rowIdx, colName)
-		}
-	case int:
-		*dest = int64(v)
-	case *int:
-		if v != nil {
-			*dest = int64(*v)
-		} else {
-			return fmt.Errorf("row %d: %s is null", rowIdx, colName)
-		}
-	case int32:
-		*dest = int64(v)
-	case *int32:
-		if v != nil {
-			*dest = int64(*v)
-		} else {
-			return fmt.Errorf("row %d: %s is null", rowIdx, colName)
-		}
-	case string:
-		// Parse string as int64
-		n, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			return fmt.Errorf("row %d: failed to parse %s as int64: %w", rowIdx, colName, err)
-		}
-		*dest = n
-	case *string:
-		if v != nil {
-			n, err := strconv.ParseInt(*v, 10, 64)
-			if err != nil {
-				return fmt.Errorf("row %d: failed to parse %s as int64: %w", rowIdx, colName, err)
-			}
-			*dest = n
-		} else {
-			return fmt.Errorf("row %d: %s is null", rowIdx, colName)
-		}
-	default:
-		return fmt.Errorf("row %d: unexpected %s type: %T", rowIdx, colName, value)
+	// Gateway always returns INT8 as string
+	str, ok := value.(string)
+	if !ok {
+		return fmt.Errorf("row %d: expected %s to be string, got %T", rowIdx, colName, value)
 	}
 
+	// Parse string as int64
+	n, err := strconv.ParseInt(str, 10, 64)
+	if err != nil {
+		return fmt.Errorf("row %d: failed to parse %s as int64 (value=%q): %w", rowIdx, colName, str, err)
+	}
+
+	*dest = n
 	return nil
 }

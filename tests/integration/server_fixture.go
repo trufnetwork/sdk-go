@@ -69,6 +69,13 @@ func NewServerFixture(t *testing.T) *ServerFixture {
 		t.Fatalf("failed to parse db owner private key: %v", err)
 	}
 
+	// Get TN-DB Docker image from environment, default to GHCR latest
+	tndbImage := os.Getenv("TN_DB_IMAGE")
+	if tndbImage == "" {
+		tndbImage = "ghcr.io/trufnetwork/node:latest"
+	}
+	t.Logf("Using TN-DB Docker image: %s", tndbImage)
+
 	return &ServerFixture{
 		t:                 t,
 		docker:            d,
@@ -93,7 +100,7 @@ func NewServerFixture(t *testing.T) *ServerFixture {
 			},
 			tndb: containerSpec{
 				name:      "test-tn-db",
-				image:     "tn-db:local",
+				image:     tndbImage,
 				tmpfsPath: "/root/.kwild",
 				portsMap: map[string]string{
 					"8484":  "8484",
