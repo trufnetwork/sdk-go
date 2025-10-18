@@ -123,6 +123,12 @@ func (c *Client) LoadRoleManagementActions() (clientType.IRoleManagement, error)
 	})
 }
 
+func (c *Client) LoadAttestationActions() (clientType.IAttestationAction, error) {
+	return tn_api.LoadAttestationActions(tn_api.AttestationActionOptions{
+		Client: c.kwilClient,
+	})
+}
+
 func (c *Client) OwnStreamLocator(streamId util.StreamId) clientType.StreamLocator {
 	return clientType.StreamLocator{
 		StreamId:     streamId,

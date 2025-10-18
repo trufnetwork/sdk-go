@@ -26,6 +26,8 @@ type Client interface {
 	LoadComposedActions() (IComposedAction, error)
 	// LoadRoleManagementActions loads the role management contract API, permitting its API usage
 	LoadRoleManagementActions() (IRoleManagement, error)
+	// LoadAttestationActions loads the attestation contract API, permitting its API usage
+	LoadAttestationActions() (IAttestationAction, error)
 	/*
 	 * utils for the client
 	 */
