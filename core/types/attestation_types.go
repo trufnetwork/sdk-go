@@ -14,7 +14,7 @@ type RequestAttestationInput struct {
 	ActionName   string // Action to attest (e.g., "get_record")
 	Args         []any  // Action arguments (will be encoded)
 	EncryptSig   bool   // Must be false in MVP
-	MaxFee       int64  // Maximum fee willing to pay
+	MaxFee       string // Maximum fee willing to pay (NUMERIC(78,0) as string)
 }
 
 // RequestAttestationResult contains the response from request_attestation action
@@ -83,8 +83,15 @@ func (r *RequestAttestationInput) Validate() error {
 	if r.EncryptSig {
 		return fmt.Errorf("encryption not implemented in MVP")
 	}
-	if r.MaxFee < 0 {
-		return fmt.Errorf("max_fee must be non-negative, got %d", r.MaxFee)
+	// MaxFee is optional (can be empty string for no limit)
+	// If provided, it should be a valid non-negative integer string
+	if r.MaxFee != "" {
+		// Basic validation - just check it's a valid number format
+		for _, ch := range r.MaxFee {
+			if ch < '0' || ch > '9' {
+				return fmt.Errorf("max_fee must be a numeric string, got: %s", r.MaxFee)
+			}
+		}
 	}
 	return nil
 }

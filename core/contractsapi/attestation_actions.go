@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/trufnetwork/kwil-db/core/gatewayclient"
+	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
 	"github.com/trufnetwork/sdk-go/core/types"
 )
 
@@ -49,9 +50,20 @@ func (a *AttestationAction) RequestAttestation(
 		return nil, errors.Wrap(err, "failed to encode action args")
 	}
 
+	// Parse MaxFee as NUMERIC(78,0)
+	// Use empty string as default (NULL) if not provided
+	var maxFeeValue any = nil
+	if input.MaxFee != "" {
+		maxFeeNumeric, err := kwiltypes.ParseDecimalExplicit(input.MaxFee, 78, 0)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to parse max_fee as NUMERIC(78,0)")
+		}
+		maxFeeValue = maxFeeNumeric
+	}
+
 	// Prepare execute arguments
 	// The request_attestation action expects:
-	// ($data_provider TEXT, $stream_id TEXT, $action_name TEXT, $args_bytes BYTEA, $encrypt_sig BOOLEAN, $max_fee INT8)
+	// ($data_provider TEXT, $stream_id TEXT, $action_name TEXT, $args_bytes BYTEA, $encrypt_sig BOOLEAN, $max_fee NUMERIC(78,0))
 	args := [][]any{
 		{
 			input.DataProvider,
@@ -59,7 +71,7 @@ func (a *AttestationAction) RequestAttestation(
 			input.ActionName,
 			argsBytes,
 			input.EncryptSig,
-			input.MaxFee,
+			maxFeeValue,
 		},
 	}
 
