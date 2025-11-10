@@ -57,8 +57,8 @@ type TransactionFeeEntry struct {
 	FeeRecipient          *string // Primary fee recipient (nullable)
 	Metadata              *string // Optional metadata JSON (nullable)
 	DistributionSequence  int     // Sequence number of this distribution
-	DistributionRecipient string  // Recipient of this specific distribution
-	DistributionAmount    string  // Amount for this specific distribution
+	DistributionRecipient *string // Recipient of this specific distribution (nullable - NULL when no distributions)
+	DistributionAmount    *string // Amount for this specific distribution (nullable - NULL when no distributions)
 }
 
 // ITransactionAction defines transaction ledger query methods

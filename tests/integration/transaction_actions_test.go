@@ -170,8 +170,16 @@ func TestTransactionActions(t *testing.T) {
 				assert.Equal(t, "deployStream", entry.Method, "method should be deployStream")
 				assert.Equal(t, strings.ToLower(walletAddr), strings.ToLower(entry.Caller), "caller should match wallet")
 				assert.NotEmpty(t, entry.TotalFee, "total fee should not be empty")
+				recipient := "<nil>"
+				if entry.DistributionRecipient != nil {
+					recipient = *entry.DistributionRecipient
+				}
+				amount := "<nil>"
+				if entry.DistributionAmount != nil {
+					amount = *entry.DistributionAmount
+				}
 				t.Logf("Found deploy transaction: Fee=%s, Recipient=%s, Amount=%s",
-					entry.TotalFee, entry.DistributionRecipient, entry.DistributionAmount)
+					entry.TotalFee, recipient, amount)
 				break
 			}
 		}
