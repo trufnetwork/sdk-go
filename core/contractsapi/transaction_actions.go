@@ -294,9 +294,11 @@ func (t *TransactionAction) ListTransactionFees(
 
 		// Column 8: distribution_recipient (TEXT, nullable)
 		if row[8] != nil {
-			if distRecipient, ok := row[8].(string); ok {
-				entry.DistributionRecipient = distRecipient
+			distRecipient, ok := row[8].(string)
+			if !ok {
+				return nil, fmt.Errorf("row %d: invalid distribution_recipient type: %T", i, row[8])
 			}
+			entry.DistributionRecipient = distRecipient
 		}
 
 		// Column 9: distribution_amount (NUMERIC(78,0) as string)
