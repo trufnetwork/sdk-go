@@ -91,7 +91,7 @@ func main() {
 		ActionName:   "get_record",
 		Args:         args,
 		EncryptSig:   false,
-		MaxFee:       1000000, // Maximum fee willing to pay
+		MaxFee:       "100000000000000000000", // Maximum fee: 100 TRUF (100 * 10^18)
 	})
 	if err != nil {
 		log.Fatalf("Failed to request attestation: %v", err)
