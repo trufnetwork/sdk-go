@@ -129,6 +129,21 @@ func (c *Client) LoadAttestationActions() (clientType.IAttestationAction, error)
 	})
 }
 
+// LoadTransactionActions loads the transaction ledger query interface
+//
+// Example:
+//
+//	txActions, err := client.LoadTransactionActions()
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	txEvent, err := txActions.GetTransactionEvent(ctx, ...)
+func (c *Client) LoadTransactionActions() (clientType.ITransactionAction, error) {
+	return tn_api.LoadTransactionActions(tn_api.TransactionActionOptions{
+		Client: c.kwilClient,
+	})
+}
+
 func (c *Client) OwnStreamLocator(streamId util.StreamId) clientType.StreamLocator {
 	return clientType.StreamLocator{
 		StreamId:     streamId,
