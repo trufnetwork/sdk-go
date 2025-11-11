@@ -19,8 +19,8 @@ type TransactionEvent struct {
 
 // FeeDistribution represents a single fee payment to a recipient
 type FeeDistribution struct {
-	Recipient string // Ethereum address (lowercase, 0x-prefixed)
-	Amount    string // Amount as string (NUMERIC(78,0))
+	Recipient string `json:"recipient"` // Ethereum address (lowercase, 0x-prefixed)
+	Amount    string `json:"amount"`    // Amount as string (NUMERIC(78,0))
 }
 
 // GetTransactionEventInput is input for GetTransactionEvent

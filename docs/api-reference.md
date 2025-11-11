@@ -20,6 +20,7 @@ The SDK is structured around several key interfaces:
 - [Stream](#stream-interface): Core stream operations and access control
 - [Primitive Stream](#primitive-stream-interface): Raw data stream management
 - [Composed Stream](#composed-stream-interface): Aggregated data stream handling and taxonomy management
+- [Transaction Actions](#transaction-actions-interface): Query transaction history, fees, and distributions
 
 ## Core Concepts
 
@@ -1025,4 +1026,363 @@ taxonomyTx, err := composedActions.InsertTaxonomy(ctx, types.Taxonomy{
 		},
 	},
 })
+```
+
+## Transaction Actions Interface
+
+### Overview
+
+The Transaction Actions Interface provides methods for querying transaction history, fees, and distributions from the TRUF.NETWORK ledger. This interface is essential for auditing, analytics, and tracking fee distributions across the network.
+
+### Key Features
+
+- Query detailed transaction information by hash
+- List transactions by wallet with flexible filtering
+- Track fee distributions to validators and proposers
+- Pagination support for large result sets
+- Filter by transaction type (paid, received, or both)
+
+### Initialization
+
+#### `LoadTransactionActions`
+
+```go
+func (c *Client) LoadTransactionActions() (*contractsapi.TransactionActions, error)
+```
+
+Initializes the transaction actions interface for querying transaction data.
+
+**Returns:**
+- `*TransactionActions`: Interface for transaction queries
+- `error`: Error if initialization fails
+
+**Example:**
+```go
+txActions, err := client.LoadTransactionActions()
+if err != nil {
+    log.Fatalf("Failed to load transaction actions: %v", err)
+}
+```
+
+### Core Methods
+
+#### `GetTransactionEvent`
+
+```go
+func (a *TransactionActions) GetTransactionEvent(
+    ctx context.Context,
+    input types.GetTransactionEventInput,
+) (*types.TransactionEvent, error)
+```
+
+Retrieves detailed information about a specific transaction by its hash.
+
+**Parameters:**
+- `ctx`: Context for the operation
+- `input`: Input containing:
+  - `TxID`: Transaction hash (with or without `0x` prefix)
+
+**Returns:**
+- `*TransactionEvent`: Complete transaction details including:
+  - `TxID`: Transaction hash (0x-prefixed)
+  - `BlockHeight`: Block number where transaction was included
+  - `Method`: Method name (e.g., "deployStream", "insertRecords")
+  - `Caller`: Ethereum address of the caller (lowercase, 0x-prefixed)
+  - `FeeAmount`: Total fee amount as string (handles large numbers)
+  - `FeeRecipient`: Primary fee recipient address (nullable)
+  - `Metadata`: Optional metadata JSON (nullable)
+  - `FeeDistributions`: Array of fee distributions showing who received what amount
+- `error`: Error if query fails or transaction not found
+
+**Example:**
+```go
+txEvent, err := txActions.GetTransactionEvent(ctx, types.GetTransactionEventInput{
+    TxID: "0xabcdef123456...",
+})
+if err != nil {
+    log.Fatalf("Failed to get transaction: %v", err)
+}
+
+fmt.Printf("Method: %s\n", txEvent.Method)
+fmt.Printf("Caller: %s\n", txEvent.Caller)
+fmt.Printf("Fee: %s wei\n", txEvent.FeeAmount)
+fmt.Printf("Block: %d\n", txEvent.BlockHeight)
+
+// Check fee distributions
+for _, dist := range txEvent.FeeDistributions {
+    fmt.Printf("  → %s: %s wei\n", dist.Recipient, dist.Amount)
+}
+```
+
+#### `ListTransactionFees`
+
+```go
+func (a *TransactionActions) ListTransactionFees(
+    ctx context.Context,
+    input types.ListTransactionFeesInput,
+) ([]types.TransactionFeeEntry, error)
+```
+
+Lists transactions filtered by wallet address and mode, with pagination support.
+
+**Parameters:**
+- `ctx`: Context for the operation
+- `input`: Input containing:
+  - `Wallet`: Ethereum address to query (required)
+  - `Mode`: Filter mode - one of:
+    - `types.TransactionFeeModePaid`: Transactions where wallet paid fees
+    - `types.TransactionFeeModeReceived`: Transactions where wallet received fee distributions
+    - `types.TransactionFeeModeBoth`: All transactions involving the wallet
+  - `Limit`: Maximum results to return (optional, default: 20, max: 1000)
+  - `Offset`: Pagination offset (optional, default: 0)
+
+**Returns:**
+- `[]TransactionFeeEntry`: Array of transaction entries, each containing:
+  - `TxID`: Transaction hash
+  - `BlockHeight`: Block number
+  - `Method`: Method name
+  - `Caller`: Caller address
+  - `TotalFee`: Total fee amount
+  - `FeeRecipient`: Primary recipient (nullable)
+  - `Metadata`: Optional metadata (nullable)
+  - `DistributionSequence`: Distribution index (for multiple distributions)
+  - `DistributionRecipient`: Recipient address for this distribution (nullable)
+  - `DistributionAmount`: Amount for this distribution (nullable)
+- `error`: Error if query fails
+
+**Note:** This method returns one row per fee distribution. If a transaction has multiple distributions, it will appear multiple times with different `DistributionSequence` values.
+
+**Example - List Fees Paid:**
+```go
+wallet := client.Address().Address()
+limit := 10
+
+entries, err := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
+    Wallet: wallet,
+    Mode:   types.TransactionFeeModePaid,
+    Limit:  &limit,
+})
+if err != nil {
+    log.Fatalf("Failed to list fees: %v", err)
+}
+
+for _, entry := range entries {
+    fmt.Printf("%s: %s wei (block %d)\n",
+        entry.Method, entry.TotalFee, entry.BlockHeight)
+}
+```
+
+**Example - Pagination:**
+```go
+limit := 20
+offset := 0
+
+// Get first page
+page1, err := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
+    Wallet: wallet,
+    Mode:   types.TransactionFeeModeBoth,
+    Limit:  &limit,
+    Offset: &offset,
+})
+
+// Get second page
+offset = 20
+page2, err := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
+    Wallet: wallet,
+    Mode:   types.TransactionFeeModeBoth,
+    Limit:  &limit,
+    Offset: &offset,
+})
+```
+
+**Example - Fees Received:**
+```go
+// Track fee distributions received by a validator
+entries, err := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
+    Wallet: validatorAddress,
+    Mode:   types.TransactionFeeModeReceived,
+    Limit:  &limit,
+})
+
+totalReceived := big.NewInt(0)
+for _, entry := range entries {
+    if entry.DistributionAmount != nil {
+        amount, _ := new(big.Int).SetString(*entry.DistributionAmount, 10)
+        totalReceived.Add(totalReceived, amount)
+    }
+}
+fmt.Printf("Total fees received: %s wei\n", totalReceived.String())
+```
+
+### Types
+
+#### `TransactionEvent`
+
+```go
+type TransactionEvent struct {
+    TxID             string
+    BlockHeight      int64
+    Method           string
+    Caller           string
+    FeeAmount        string
+    FeeRecipient     *string
+    Metadata         *string
+    FeeDistributions []FeeDistribution
+}
+```
+
+#### `FeeDistribution`
+
+```go
+type FeeDistribution struct {
+    Recipient string `json:"recipient"`
+    Amount    string `json:"amount"`
+}
+```
+
+#### `TransactionFeeEntry`
+
+```go
+type TransactionFeeEntry struct {
+    TxID                   string
+    BlockHeight            int64
+    Method                 string
+    Caller                 string
+    TotalFee               string
+    FeeRecipient           *string
+    Metadata               *string
+    DistributionSequence   int
+    DistributionRecipient  *string
+    DistributionAmount     *string
+}
+```
+
+#### `TransactionFeeMode`
+
+```go
+type TransactionFeeMode string
+
+const (
+    TransactionFeeModePaid     TransactionFeeMode = "paid"
+    TransactionFeeModeReceived TransactionFeeMode = "received"
+    TransactionFeeModeBoth     TransactionFeeMode = "both"
+)
+```
+
+### Use Cases
+
+#### Auditing: Track Monthly Spending
+
+```go
+// Calculate total fees paid by wallet in last 30 days
+entries, err := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
+    Wallet: myWallet,
+    Mode:   types.TransactionFeeModePaid,
+})
+
+totalSpent := big.NewInt(0)
+for _, entry := range entries {
+    amount, _ := new(big.Int).SetString(entry.TotalFee, 10)
+    totalSpent.Add(totalSpent, amount)
+}
+
+fmt.Printf("Total spent: %s wei\n", totalSpent.String())
+```
+
+#### Analytics: Transaction Patterns
+
+```go
+// Analyze transaction types and their costs
+methodCounts := make(map[string]int)
+methodCosts := make(map[string]*big.Int)
+
+entries, err := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
+    Wallet: myWallet,
+    Mode:   types.TransactionFeeModePaid,
+})
+
+for _, entry := range entries {
+    methodCounts[entry.Method]++
+
+    if _, ok := methodCosts[entry.Method]; !ok {
+        methodCosts[entry.Method] = big.NewInt(0)
+    }
+
+    amount, _ := new(big.Int).SetString(entry.TotalFee, 10)
+    methodCosts[entry.Method].Add(methodCosts[entry.Method], amount)
+}
+
+for method, count := range methodCounts {
+    avgCost := new(big.Int).Div(methodCosts[method], big.NewInt(int64(count)))
+    fmt.Printf("%s: %d calls, avg cost %s wei\n", method, count, avgCost.String())
+}
+```
+
+#### Fee Distribution Tracking
+
+```go
+// Monitor where your fees are going
+txEvent, err := txActions.GetTransactionEvent(ctx, types.GetTransactionEventInput{
+    TxID: deployTxHash,
+})
+
+fmt.Printf("Transaction: %s\n", txEvent.TxID)
+fmt.Printf("Total Fee: %s wei\n", txEvent.FeeAmount)
+fmt.Println("\nFee Distributions:")
+
+for i, dist := range txEvent.FeeDistributions {
+    fmt.Printf("  %d. %s: %s wei\n", i+1, dist.Recipient, dist.Amount)
+}
+```
+
+### Best Practices
+
+1. **Error Handling**: Always check for errors, especially for transaction not found
+   ```go
+   txEvent, err := txActions.GetTransactionEvent(ctx, input)
+   if err != nil {
+       if strings.Contains(err.Error(), "not found") {
+           // Handle missing transaction
+       }
+       return err
+   }
+   ```
+
+2. **Pagination**: Use reasonable page sizes to avoid overwhelming the API
+   ```go
+   limit := 100 // Good balance between API calls and memory
+   ```
+
+3. **Large Numbers**: Use `big.Int` for fee calculations to avoid overflow
+   ```go
+   amount, ok := new(big.Int).SetString(entry.TotalFee, 10)
+   if !ok {
+       return fmt.Errorf("invalid fee amount: %s", entry.TotalFee)
+   }
+   ```
+
+4. **Context Timeout**: Set reasonable timeouts for large queries
+   ```go
+   ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+   defer cancel()
+   ```
+
+### Error Handling
+
+Common errors and how to handle them:
+
+```go
+entries, err := txActions.ListTransactionFees(ctx, input)
+if err != nil {
+    switch {
+    case strings.Contains(err.Error(), "invalid wallet"):
+        // Handle invalid wallet address
+    case strings.Contains(err.Error(), "invalid mode"):
+        // Handle invalid mode value
+    case strings.Contains(err.Error(), "limit"):
+        // Handle limit out of range
+    default:
+        // Handle other errors
+    }
+}
 ```

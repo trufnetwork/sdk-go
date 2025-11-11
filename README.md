@@ -570,6 +570,30 @@ func main() {
 
 By following these guidelines, you can effectively manage stream resources in the TRUF.NETWORK ecosystem.
 
+## Transaction Ledger Queries
+
+Query transaction history, fees, and distributions for auditing and analytics.
+
+```go
+// Get transaction details
+txActions, _ := client.LoadTransactionActions()
+txEvent, _ := txActions.GetTransactionEvent(ctx, types.GetTransactionEventInput{
+    TxID: "0xabcdef...",
+})
+fmt.Printf("Method: %s, Fee: %s wei\n", txEvent.Method, txEvent.FeeAmount)
+
+// List fees paid by wallet
+wallet := client.Address().Address()
+limit := 10
+entries, _ := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
+    Wallet: wallet,
+    Mode:   types.TransactionFeeModePaid,
+    Limit:  &limit,
+})
+```
+
+**📖 For complete documentation including parameters, return types, pagination, filtering modes, and real-world examples, see the [Transaction Actions Interface](./docs/api-reference.md#transaction-actions-interface) in the API Reference.**
+
 ## Quick Reference
 
 > 🎯 **Full Working Example**: See [`examples/transaction-lifecycle-example/main.go`](./examples/transaction-lifecycle-example/main.go) for complete, runnable code demonstrating all these patterns with proper error handling.
@@ -585,6 +609,8 @@ By following these guidelines, you can effectively manage stream resources in th
 | Set stream taxonomy | `composedActions.InsertTaxonomy(ctx, taxonomy)` |
 | Get stream taxonomy | `composedActions.DescribeTaxonomies(ctx, params)` |
 | Destroy stream | `tnClient.DestroyStream(ctx, streamId)` |
+| Get transaction event | `txActions.GetTransactionEvent(ctx, input)` |
+| List transaction fees | `txActions.ListTransactionFees(ctx, input)` |
 
 ### Safe Operation Patterns
 
