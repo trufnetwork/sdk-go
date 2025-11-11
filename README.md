@@ -583,11 +583,11 @@ txEvent, _ := txActions.GetTransactionEvent(ctx, types.GetTransactionEventInput{
 fmt.Printf("Method: %s, Fee: %s wei\n", txEvent.Method, txEvent.FeeAmount)
 
 // List fees paid by wallet
-wallet := client.CurrentAccount()
+wallet := client.Address().Address()
 limit := 10
 entries, _ := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
     Wallet: wallet,
-    Mode:   types.ModePaid,
+    Mode:   types.TransactionFeeModePaid,
     Limit:  &limit,
 })
 ```

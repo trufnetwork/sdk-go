@@ -1130,9 +1130,9 @@ Lists transactions filtered by wallet address and mode, with pagination support.
 - `input`: Input containing:
   - `Wallet`: Ethereum address to query (required)
   - `Mode`: Filter mode - one of:
-    - `types.ModePaid`: Transactions where wallet paid fees
-    - `types.ModeReceived`: Transactions where wallet received fee distributions
-    - `types.ModeBoth`: All transactions involving the wallet
+    - `types.TransactionFeeModePaid`: Transactions where wallet paid fees
+    - `types.TransactionFeeModeReceived`: Transactions where wallet received fee distributions
+    - `types.TransactionFeeModeBoth`: All transactions involving the wallet
   - `Limit`: Maximum results to return (optional, default: 20, max: 1000)
   - `Offset`: Pagination offset (optional, default: 0)
 
@@ -1154,12 +1154,12 @@ Lists transactions filtered by wallet address and mode, with pagination support.
 
 **Example - List Fees Paid:**
 ```go
-wallet := client.CurrentAccount()
+wallet := client.Address().Address()
 limit := 10
 
 entries, err := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
     Wallet: wallet,
-    Mode:   types.ModePaid,
+    Mode:   types.TransactionFeeModePaid,
     Limit:  &limit,
 })
 if err != nil {
@@ -1180,7 +1180,7 @@ offset := 0
 // Get first page
 page1, err := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
     Wallet: wallet,
-    Mode:   types.ModeBoth,
+    Mode:   types.TransactionFeeModeBoth,
     Limit:  &limit,
     Offset: &offset,
 })
@@ -1189,7 +1189,7 @@ page1, err := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
 offset = 20
 page2, err := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
     Wallet: wallet,
-    Mode:   types.ModeBoth,
+    Mode:   types.TransactionFeeModeBoth,
     Limit:  &limit,
     Offset: &offset,
 })
@@ -1200,7 +1200,7 @@ page2, err := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
 // Track fee distributions received by a validator
 entries, err := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
     Wallet: validatorAddress,
-    Mode:   types.ModeReceived,
+    Mode:   types.TransactionFeeModeReceived,
     Limit:  &limit,
 })
 
@@ -1263,9 +1263,9 @@ type TransactionFeeEntry struct {
 type TransactionFeeMode string
 
 const (
-    ModePaid     TransactionFeeMode = "paid"
-    ModeReceived TransactionFeeMode = "received"
-    ModeBoth     TransactionFeeMode = "both"
+    TransactionFeeModePaid     TransactionFeeMode = "paid"
+    TransactionFeeModeReceived TransactionFeeMode = "received"
+    TransactionFeeModeBoth     TransactionFeeMode = "both"
 )
 ```
 
@@ -1277,7 +1277,7 @@ const (
 // Calculate total fees paid by wallet in last 30 days
 entries, err := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
     Wallet: myWallet,
-    Mode:   types.ModePaid,
+    Mode:   types.TransactionFeeModePaid,
 })
 
 totalSpent := big.NewInt(0)
@@ -1298,7 +1298,7 @@ methodCosts := make(map[string]*big.Int)
 
 entries, err := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
     Wallet: myWallet,
-    Mode:   types.ModePaid,
+    Mode:   types.TransactionFeeModePaid,
 })
 
 for _, entry := range entries {
