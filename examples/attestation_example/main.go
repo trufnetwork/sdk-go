@@ -120,7 +120,7 @@ func main() {
 			log.Println("The attestation may still be processing. Try checking again later.")
 			goto afterPoll
 		case <-ticker.C:
-			signed, err := attestationActions.GetSignedAttestation(ctx, types.GetSignedAttestationInput{
+			signed, err := attestationActions.GetSignedAttestation(ctxPoll, types.GetSignedAttestationInput{
 				RequestTxID: result.RequestTxID,
 			})
 			if err == nil && signed != nil && len(signed.Payload) > 0 {

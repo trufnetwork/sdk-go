@@ -1782,7 +1782,7 @@ type DecodedRow struct {
 
 Attestation results use **ABI encoding** (Ethereum format):
 
-```
+```solidity
 abi.encode(uint256[] timestamps, int256[] values)
 ```
 
@@ -1873,17 +1873,24 @@ contract AttestationVerifier {
         bytes memory canonicalPayload,
         bytes memory signature
     ) public view returns (bool) {
+        require(signature.length == 65, "Invalid signature length");
+
         // Hash the canonical payload
         bytes32 digest = sha256(canonicalPayload);
-        
-        // Extract r, s, v from signature
-        bytes32 r = bytes32(signature[0:32]);
-        bytes32 s = bytes32(signature[32:64]);
-        uint8 v = uint8(signature[64]);
-        
+
+        // Extract r, s, v from signature using assembly
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        assembly {
+            r := mload(add(signature, 32))
+            s := mload(add(signature, 64))
+            v := byte(0, mload(add(signature, 96)))
+        }
+
         // Recover signer address
         address signer = ecrecover(digest, v, r, s);
-        
+
         // Verify it matches the known validator
         return signer == validatorAddress;
     }

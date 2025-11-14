@@ -606,7 +606,7 @@ import (
 )
 
 // Request a signed attestation
-attestationActions, _ := client.LoadAttestationActions()
+attestationActions, _ := tnClient.LoadAttestationActions()
 result, _ := attestationActions.RequestAttestation(ctx, types.RequestAttestationInput{
     DataProvider: "0x4710a8d8f0d845da110086812a32de6d90d7ff5c",
     StreamID:     "stai0000000000000000000000000000",
