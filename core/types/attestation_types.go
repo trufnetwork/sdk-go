@@ -62,6 +62,23 @@ type IAttestationAction interface {
 	ListAttestations(ctx context.Context, input ListAttestationsInput) ([]AttestationMetadata, error)
 }
 
+// DecodedRow represents a decoded row from attestation query results
+type DecodedRow struct {
+	Values []any `json:"values"`
+}
+
+// ParsedAttestationPayload contains the decoded attestation payload
+type ParsedAttestationPayload struct {
+	Version      uint8        `json:"version"`
+	Algorithm    uint8        `json:"algorithm"`     // 0 = secp256k1
+	BlockHeight  uint64       `json:"blockHeight"`
+	DataProvider string       `json:"dataProvider"`  // 0x-prefixed hex address
+	StreamID     string       `json:"streamId"`
+	ActionID     uint16       `json:"actionId"`
+	Arguments    []any        `json:"arguments"`
+	Result       []DecodedRow `json:"result"`
+}
+
 // Validate validates the request attestation input
 func (r *RequestAttestationInput) Validate() error {
 	if len(r.DataProvider) != 42 {
