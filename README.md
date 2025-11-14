@@ -620,9 +620,15 @@ signed, _ := attestationActions.GetSignedAttestation(ctx, types.GetSignedAttesta
     RequestTxID: result.RequestTxID,
 })
 
-// Extract canonical payload and signature
-canonicalPayload := signed.Payload[:len(signed.Payload)-65]
-signature := signed.Payload[len(signed.Payload)-65:]
+// Validate payload length before slicing
+if len(signed.Payload) < 66 {
+    log.Fatalf("Payload too short: %d bytes, expected at least 66", len(signed.Payload))
+}
+
+// Extract canonical payload and signature (last 65 bytes)
+signatureOffset := len(signed.Payload) - 65
+canonicalPayload := signed.Payload[:signatureOffset]
+signature := signed.Payload[signatureOffset:]
 
 // Verify signature and recover validator address
 hash := sha256.Sum256(canonicalPayload)
