@@ -21,6 +21,7 @@ The SDK is structured around several key interfaces:
 - [Primitive Stream](#primitive-stream-interface): Raw data stream management
 - [Composed Stream](#composed-stream-interface): Aggregated data stream handling and taxonomy management
 - [Transaction Actions](#transaction-actions-interface): Query transaction history, fees, and distributions
+- [Attestation Actions](#attestation-actions-interface): Request and parse cryptographically signed attestations for on-chain verification
 
 ## Core Concepts
 
@@ -1386,3 +1387,625 @@ if err != nil {
     }
 }
 ```
+
+## Attestation Actions Interface
+
+### Overview
+
+The Attestation Actions Interface enables users to request cryptographically signed attestations of query results from TRUF.NETWORK validators. These signed attestations can be verified on-chain (e.g., in EVM smart contracts) to trustlessly prove that specific data existed at a particular block height.
+
+### Key Features
+
+- **Cryptographic Verification**: Signed by network validators using secp256k1
+- **Tamper-Proof**: Immutable attestations linked to specific block heights  
+- **EVM-Compatible**: Can be verified in Solidity smart contracts
+- **Payload Parsing**: Decode attestation data including timestamps and values
+- **Signature Recovery**: Extract validator addresses from signatures
+
+### Use Cases
+
+- **DeFi Protocols**: Verify off-chain data on-chain (oracle alternative)
+- **Prediction Markets**: Settle bets with cryptographically verified results
+- **Insurance**: Trigger payouts based on attested data
+- **Auditing**: Prove data provenance and integrity
+- **Cross-Chain Bridges**: Verify state across networks
+
+### Initialization
+
+#### `LoadAttestationActions`
+
+Creates an attestation action handler for requesting and retrieving signed attestations.
+
+**Signature:**
+```go
+func (c *TNClient) LoadAttestationActions() (types.IAttestationAction, error)
+```
+
+**Returns:**
+- `types.IAttestationAction`: Attestation action handler
+- `error`: Error if initialization fails
+
+**Example:**
+```go
+attestationActions, err := tnClient.LoadAttestationActions()
+if err != nil {
+    log.Fatalf("Failed to load attestation actions: %v", err)
+}
+```
+
+---
+
+### Core Methods
+
+The following methods are part of the `types.IAttestationAction` interface returned by `LoadAttestationActions()`. Call these methods on the attestation action handler.
+
+#### `RequestAttestation`
+
+Requests a signed attestation for a specific query. The validator will execute the query at the current block height and sign the results.
+
+**Signature:**
+```go
+func RequestAttestation(ctx context.Context, input types.RequestAttestationInput) (*types.RequestAttestationResult, error)
+```
+
+**Parameters:**
+
+`types.RequestAttestationInput`:
+- `DataProvider` (string): Data provider address (0x-prefixed, 42 chars)
+- `StreamID` (string): Stream identifier (32 characters)  
+- `ActionName` (string): Action to attest (e.g., "get_record")
+- `Args` ([]any): Action arguments (will be canonically encoded)
+- `EncryptSig` (bool): Must be `false` (encryption not supported in MVP)
+- `MaxFee` (string): Maximum fee willing to pay in wei (NUMERIC(78,0) as string)
+
+**Returns:**
+
+`types.RequestAttestationResult`:
+- `RequestTxID` (string): Transaction ID for this attestation request
+
+**Example:**
+```go
+// Request attestation for AI Index data from last 7 days
+now := time.Now()
+weekAgo := now.AddDate(0, 0, -7)
+
+result, err := attestationActions.RequestAttestation(ctx, types.RequestAttestationInput{
+    DataProvider: "0x4710a8d8f0d845da110086812a32de6d90d7ff5c",
+    StreamID:     "stai0000000000000000000000000000",
+    ActionName:   "get_record",
+    Args: []any{
+        "0x4710a8d8f0d845da110086812a32de6d90d7ff5c",
+        "stai0000000000000000000000000000",
+        int64(weekAgo.Unix()),
+        int64(now.Unix()),
+        nil,   // frozen_at (optional)
+        false, // use_cache (forced to false for attestations)
+    },
+    EncryptSig: false,
+    MaxFee:     "100000000000000000000", // 100 TRUF
+})
+
+if err != nil {
+    log.Fatalf("Failed to request attestation: %v", err)
+}
+
+fmt.Printf("Request TX ID: %s\n", result.RequestTxID)
+```
+
+**Notes:**
+- Attestation requests require sufficient TRUF balance for fees
+- The validator signs asynchronously (typically 1-2 blocks)
+- Use `GetSignedAttestation()` to retrieve the signed payload
+
+---
+
+#### `GetSignedAttestation`
+
+Retrieves a complete signed attestation payload for a previous attestation request.
+
+**Signature:**
+```go
+func GetSignedAttestation(ctx context.Context, input types.GetSignedAttestationInput) (*types.SignedAttestationResult, error)
+```
+
+**Parameters:**
+
+`types.GetSignedAttestationInput`:
+- `RequestTxID` (string): Transaction ID from `RequestAttestation()`
+
+**Returns:**
+
+`types.SignedAttestationResult`:
+- `Payload` ([]byte): Canonical payload + 65-byte secp256k1 signature
+
+**Payload Format:**
+
+The payload consists of:
+1. **Canonical Fields** (variable length):
+   - Version (1 byte)
+   - Algorithm (1 byte, 0 = secp256k1)
+   - Block Height (8 bytes, big-endian uint64)
+   - Data Provider (length-prefixed, big-endian uint32 + bytes)
+   - Stream ID (length-prefixed, big-endian uint32 + UTF-8)
+   - Action ID (2 bytes, big-endian uint16)
+   - Arguments (length-prefixed, big-endian uint32 + canonical encoding)
+   - Result (length-prefixed, big-endian uint32 + ABI-encoded data)
+
+2. **Signature** (last 65 bytes):
+   - R component (32 bytes)
+   - S component (32 bytes)
+   - V recovery ID (1 byte, typically 27 or 28)
+
+**Example:**
+```go
+// Poll for signed attestation (max 30 seconds)
+ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+defer cancel()
+
+ticker := time.NewTicker(2 * time.Second)
+defer ticker.Stop()
+
+var signedResult *types.SignedAttestationResult
+for {
+    select {
+    case <-ctx.Done():
+        log.Println("Timeout waiting for signature")
+        goto afterPoll
+    case <-ticker.C:
+        signed, err := attestationActions.GetSignedAttestation(ctx, types.GetSignedAttestationInput{
+            RequestTxID: result.RequestTxID,
+        })
+        if err == nil && signed != nil && len(signed.Payload) > 0 {
+            signedResult = signed
+            goto afterPoll
+        }
+    }
+}
+
+afterPoll:
+if signedResult != nil {
+    fmt.Printf("Payload size: %d bytes\n", len(signedResult.Payload))
+}
+```
+
+---
+
+#### `ListAttestations`
+
+Returns metadata for attestations, optionally filtered by requester address.
+
+**Signature:**
+```go
+func ListAttestations(ctx context.Context, input types.ListAttestationsInput) ([]types.AttestationMetadata, error)
+```
+
+**Parameters:**
+
+`types.ListAttestationsInput`:
+- `Requester` ([]byte, optional): Filter by requester address (20 bytes)
+- `Limit` (*int, optional): Max results (default/max 5000)
+- `Offset` (*int, optional): Pagination offset (default 0)
+- `OrderBy` (*string, optional): Sort order (see below)
+
+**Valid `OrderBy` values:**
+- `"created_height ASC"` / `"created_height DESC"`
+- `"signed_height ASC"` / `"signed_height DESC"`
+
+**Returns:**
+
+Array of `types.AttestationMetadata`:
+- `RequestTxID` (string): Transaction ID of the attestation request
+- `AttestationHash` ([]byte): Hash of the attestation
+- `Requester` ([]byte): Address that requested the attestation (20 bytes)
+- `CreatedHeight` (int64): Block height when requested
+- `SignedHeight` (*int64): Block height when signed (nil if not yet signed)
+- `EncryptSig` (bool): Whether signature is encrypted
+
+**Example:**
+```go
+// List recent attestations for current wallet
+myAddress := tnClient.Address()
+addressBytes, _ := hex.DecodeString(myAddress.Address()[2:])
+
+limit := 10
+attestations, err := attestationActions.ListAttestations(ctx, types.ListAttestationsInput{
+    Requester: addressBytes,
+    Limit:     &limit,
+    OrderBy:   strPtr("created_height desc"),
+})
+
+if err != nil {
+    log.Fatalf("Failed to list attestations: %v", err)
+}
+
+fmt.Printf("Found %d attestations\n", len(attestations))
+for i, att := range attestations {
+    status := "unsigned"
+    if att.SignedHeight != nil {
+        status = fmt.Sprintf("signed at height %d", *att.SignedHeight)
+    }
+    fmt.Printf("%d. TX: %s, Status: %s\n", i+1, att.RequestTxID, status)
+}
+```
+
+---
+
+### Payload Parsing
+
+#### `ParseAttestationPayload`
+
+Parses a canonical attestation payload (without signature) into structured data.
+
+**Package:** `github.com/trufnetwork/sdk-go/core/contractsapi`
+
+**Signature:**
+```go
+func ParseAttestationPayload(payload []byte) (*types.ParsedAttestationPayload, error)
+```
+
+**Parameters:**
+- `payload` ([]byte): Canonical payload **without** the 65-byte signature
+
+**Returns:**
+
+`types.ParsedAttestationPayload`:
+- `Version` (uint8): Payload format version
+- `Algorithm` (uint8): Signature algorithm (0 = secp256k1)
+- `BlockHeight` (uint64): Block height when attested
+- `DataProvider` (string): Data provider address (0x-prefixed hex)
+- `StreamID` (string): Stream identifier
+- `ActionID` (uint16): Action identifier
+- `Arguments` ([]any): Decoded action arguments
+- `Result` ([]types.DecodedRow): Decoded query results
+
+`types.DecodedRow`:
+- `Values` ([]any): Array of decoded column values
+  - For attestation results: `Values[0]` is timestamp (string), `Values[1]` is value (string)
+
+**Example:**
+```go
+import (
+    "crypto/sha256"
+    "github.com/trufnetwork/kwil-db/core/crypto"
+    "github.com/trufnetwork/sdk-go/core/contractsapi"
+)
+
+// Split payload into canonical part and signature
+signedPayload := signedResult.Payload
+canonicalPayload := signedPayload[:len(signedPayload)-65]
+signature := signedPayload[len(signedPayload)-65:]
+
+// Parse the canonical payload
+parsed, err := contractsapi.ParseAttestationPayload(canonicalPayload)
+if err != nil {
+    log.Fatalf("Failed to parse payload: %v", err)
+}
+
+// Access parsed fields
+fmt.Printf("Version: %d\n", parsed.Version)
+fmt.Printf("Block Height: %d\n", parsed.BlockHeight)
+fmt.Printf("Data Provider: %s\n", parsed.DataProvider)
+fmt.Printf("Stream ID: %s\n", parsed.StreamID)
+
+// Access query results
+fmt.Printf("Found %d rows:\n", len(parsed.Result))
+for i, row := range parsed.Result {
+    timestamp := row.Values[0]  // Unix timestamp as string
+    value := row.Values[1]      // 18-decimal value as string
+    fmt.Printf("Row %d: Timestamp=%v, Value=%v\n", i+1, timestamp, value)
+}
+```
+
+---
+
+### Signature Verification
+
+To verify the attestation signature and recover the validator's address:
+
+```go
+import (
+    "crypto/sha256"
+    "github.com/trufnetwork/kwil-db/core/crypto"
+)
+
+// Extract canonical payload and signature
+canonicalPayload := signedPayload[:len(signedPayload)-65]
+signature := signedPayload[len(signedPayload)-65:]
+
+// Hash the canonical payload with SHA256
+hash := sha256.Sum256(canonicalPayload)
+
+// Adjust signature format for recovery
+// Attestation signatures use Ethereum format (V=27/28)
+// kwil-db expects raw format (V=0-3)
+adjustedSig := make([]byte, 65)
+copy(adjustedSig, signature)
+if signature[64] >= 27 {
+    adjustedSig[64] = signature[64] - 27
+}
+
+// Recover validator public key
+pubKey, err := crypto.RecoverSecp256k1KeyFromSigHash(hash[:], adjustedSig)
+if err != nil {
+    log.Fatalf("Failed to recover public key: %v", err)
+}
+
+// Derive Ethereum address
+validatorAddr := crypto.EthereumAddressFromPubKey(pubKey)
+fmt.Printf("Validator Address: 0x%x\n", validatorAddr)
+```
+
+**Important Notes:**
+- Attestation signatures use **Ethereum format** with V=27/28
+- kwil-db's `RecoverSecp256k1KeyFromSigHash` expects V=0-3 (raw format)
+- You must subtract 27 from V before calling the recovery function
+- The recovered address identifies which validator signed the attestation
+
+---
+
+### Types
+
+#### `ParsedAttestationPayload`
+
+Decoded attestation payload structure.
+
+```go
+type ParsedAttestationPayload struct {
+    Version      uint8        `json:"version"`
+    Algorithm    uint8        `json:"algorithm"`     // 0 = secp256k1
+    BlockHeight  uint64       `json:"blockHeight"`
+    DataProvider string       `json:"dataProvider"`  // 0x-prefixed hex
+    StreamID     string       `json:"streamId"`
+    ActionID     uint16       `json:"actionId"`
+    Arguments    []any        `json:"arguments"`
+    Result       []DecodedRow `json:"result"`
+}
+```
+
+#### `DecodedRow`
+
+Represents a decoded row from attestation query results.
+
+```go
+type DecodedRow struct {
+    Values []any `json:"values"`
+}
+```
+
+**For attestation results:**
+- `Values[0]`: Unix timestamp as string (e.g., "1704067200")
+- `Values[1]`: 18-decimal fixed-point value as string (e.g., "77.051806494788211665")
+
+---
+
+### Result Encoding Format
+
+Attestation results use **ABI encoding** (Ethereum format):
+
+```solidity
+abi.encode(uint256[] timestamps, int256[] values)
+```
+
+**Details:**
+- `timestamps`: Array of Unix timestamps as uint256
+- `values`: Array of 18-decimal fixed-point integers as int256
+- Negative values are properly handled (two's complement)
+
+**Example decoded result:**
+```go
+// Raw ABI bytes → Decoded rows
+[
+    {Values: ["1704067200", "77.051806494788211665"]},
+    {Values: ["1704153600", "80.0"]},
+    {Values: ["1704240000", "75.5"]},
+]
+```
+
+---
+
+### Complete Example
+
+See [`examples/attestation_example/main.go`](../examples/attestation_example/main.go) for a complete working example demonstrating:
+
+1. **Request Attestation**: Submit attestation request for AI Index data
+2. **Poll for Signature**: Wait for validator to sign (1-2 blocks)
+3. **Retrieve Payload**: Get the complete signed attestation
+4. **Verify Signature**: Recover validator address from signature
+5. **Parse Payload**: Decode attestation fields and query results
+6. **Display Results**: Show all attested datapoints with full precision
+
+**Key Code Snippets:**
+
+```go
+// 1. Request attestation
+result, err := attestationActions.RequestAttestation(ctx, types.RequestAttestationInput{
+    DataProvider: "0x4710a8d8f0d845da110086812a32de6d90d7ff5c",
+    StreamID:     "stai0000000000000000000000000000",
+    ActionName:   "get_record",
+    Args:         args,
+    EncryptSig:   false,
+    MaxFee:       "100000000000000000000",
+})
+
+// 2. Wait for signing (poll with timeout)
+signed, err := attestationActions.GetSignedAttestation(ctx, types.GetSignedAttestationInput{
+    RequestTxID: result.RequestTxID,
+})
+
+// 3. Split payload
+canonicalPayload := signed.Payload[:len(signed.Payload)-65]
+signature := signed.Payload[len(signed.Payload)-65:]
+
+// 4. Verify signature
+hash := sha256.Sum256(canonicalPayload)
+adjustedSig := make([]byte, 65)
+copy(adjustedSig, signature)
+if signature[64] >= 27 {
+    adjustedSig[64] = signature[64] - 27
+}
+pubKey, _ := crypto.RecoverSecp256k1KeyFromSigHash(hash[:], adjustedSig)
+validatorAddr := crypto.EthereumAddressFromPubKey(pubKey)
+
+// 5. Parse payload
+parsed, _ := contractsapi.ParseAttestationPayload(canonicalPayload)
+
+// 6. Display results
+for i, row := range parsed.Result {
+    fmt.Printf("Row %d: Timestamp=%v, Value=%v\n", 
+        i+1, row.Values[0], row.Values[1])
+}
+```
+
+---
+
+### EVM Integration
+
+To verify attestations in Solidity smart contracts:
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract AttestationVerifier {
+    address public validatorAddress;
+    
+    function verifyAttestation(
+        bytes memory canonicalPayload,
+        bytes memory signature
+    ) public view returns (bool) {
+        require(signature.length == 65, "Invalid signature length");
+
+        // Hash the canonical payload
+        bytes32 digest = sha256(canonicalPayload);
+
+        // Extract r, s, v from signature using assembly
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        assembly {
+            r := mload(add(signature, 32))
+            s := mload(add(signature, 64))
+            v := byte(0, mload(add(signature, 96)))
+        }
+
+        // Recover signer address
+        address signer = ecrecover(digest, v, r, s);
+
+        // Verify it matches the known validator
+        return signer == validatorAddress;
+    }
+    
+    function parseValue(bytes memory payload) public pure returns (uint256) {
+        // Parse and extract specific fields from canonical payload
+        // Implementation depends on your use case
+    }
+}
+```
+
+**Usage Pattern:**
+1. User requests attestation off-chain
+2. Validator signs the query results
+3. User submits signed payload to smart contract
+4. Contract verifies signature using `ecrecover`
+5. Contract parses payload to extract attested data
+6. Contract executes logic based on verified data
+
+---
+
+### Best Practices
+
+1. **Always Verify Signatures**
+   - Never trust attestation payloads without verifying the validator signature
+   - Check that the recovered address matches a known validator
+
+2. **Handle Async Signing**
+   - Poll with timeout (typically 30 seconds is sufficient)
+   - Check for errors during polling (attestation may fail)
+
+3. **Fee Management**
+   - Ensure sufficient TRUF balance before requesting attestations
+   - Set reasonable `MaxFee` values to avoid overpaying
+
+4. **Parse Results Carefully**
+   - Timestamps are Unix seconds as strings
+   - Values are 18-decimal fixed-point as strings
+   - Convert to appropriate types for your use case
+
+5. **Store Request IDs**
+   - Keep track of `RequestTxID` for later retrieval
+   - Use `ListAttestations()` to view attestation history
+
+6. **Test Locally First**
+   - Use local node for development
+   - Test with mainnet only when ready
+
+---
+
+### Error Handling
+
+Common errors and how to handle them:
+
+```go
+// Requesting attestation
+result, err := attestationActions.RequestAttestation(ctx, input)
+if err != nil {
+    switch {
+    case strings.Contains(err.Error(), "Insufficient balance"):
+        // User needs more TRUF tokens
+        log.Println("Please fund your wallet with TRUF tokens")
+    case strings.Contains(err.Error(), "invalid"):
+        // Input validation failed
+        log.Println("Check input parameters")
+    default:
+        log.Printf("Attestation request failed: %v", err)
+    }
+}
+
+// Retrieving signed attestation
+signed, err := attestationActions.GetSignedAttestation(ctx, input)
+if err != nil || len(signed.Payload) < 66 {
+    // Attestation not ready or invalid
+    log.Println("Attestation not yet signed, try again later")
+}
+
+// Parsing payload
+parsed, err := contractsapi.ParseAttestationPayload(canonicalPayload)
+if err != nil {
+    switch {
+    case strings.Contains(err.Error(), "too short"):
+        // Payload truncated or invalid
+        log.Println("Invalid payload format")
+    case strings.Contains(err.Error(), "version"):
+        // Unsupported payload version
+        log.Println("Unsupported attestation version")
+    default:
+        log.Printf("Parse error: %v", err)
+    }
+}
+
+// Signature verification
+pubKey, err := crypto.RecoverSecp256k1KeyFromSigHash(hash[:], adjustedSig)
+if err != nil {
+    // Invalid signature or tampering detected
+    log.Println("Signature verification failed - payload may be tampered")
+}
+```
+
+---
+
+### Performance Considerations
+
+- **Attestation Latency**: Typically 1-2 blocks (2-4 seconds) for signing
+- **Payload Size**: Varies with result data (typically 1KB-100KB)
+- **Fee Costs**: Depends on query complexity and data size
+- **Polling Frequency**: Recommended 2-second intervals to balance latency and API load
+
+---
+
+### Security Considerations
+
+1. **Signature Verification**: Always verify signatures before trusting attestation data
+2. **Replay Protection**: Check block height to prevent replay attacks
+3. **Validator Trust**: Only accept attestations from known validator addresses
+4. **Payload Integrity**: Hash payload before verification; detect tampering
+5. **Fee Limits**: Set appropriate `MaxFee` to prevent unexpected charges

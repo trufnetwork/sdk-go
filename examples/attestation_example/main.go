@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -11,6 +12,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/trufnetwork/kwil-db/core/crypto"
 	"github.com/trufnetwork/kwil-db/core/crypto/auth"
+	"github.com/trufnetwork/sdk-go/core/contractsapi"
 	"github.com/trufnetwork/sdk-go/core/tnclient"
 	"github.com/trufnetwork/sdk-go/core/types"
 )
@@ -38,7 +40,7 @@ func main() {
 	// Get provider URL from environment or use default
 	providerURL := os.Getenv("PROVIDER_URL")
 	if providerURL == "" {
-		providerURL = "http://localhost:8484" // Default to local node
+		providerURL = "https://gateway.mainnet.truf.network"
 	}
 
 	// Create TN client
@@ -63,7 +65,7 @@ func main() {
 
 	// Example attestation parameters
 	dataProvider := "0x4710a8d8f0d845da110086812a32de6d90d7ff5c" // AI Index data provider
-	streamID := "stai0000000000000000000000000000"              // AI Index stream
+	streamID := "stai0000000000000000000000000000"               // AI Index stream
 
 	// Prepare query parameters (last 7 days)
 	now := time.Now()
@@ -118,7 +120,7 @@ func main() {
 			log.Println("The attestation may still be processing. Try checking again later.")
 			goto afterPoll
 		case <-ticker.C:
-			signed, err := attestationActions.GetSignedAttestation(ctx, types.GetSignedAttestationInput{
+			signed, err := attestationActions.GetSignedAttestation(ctxPoll, types.GetSignedAttestationInput{
 				RequestTxID: result.RequestTxID,
 			})
 			if err == nil && signed != nil && len(signed.Payload) > 0 {
@@ -135,11 +137,75 @@ afterPoll:
 		fmt.Printf("Payload size: %d bytes\n", len(signedResult.Payload))
 		fmt.Printf("Payload (hex): %x...\n", signedResult.Payload[:min(64, len(signedResult.Payload))])
 
-		// In a real application, you would:
-		// 1. Parse the canonical payload
-		// 2. Verify the signature
-		// 3. Extract and use the attested data
-		// 4. Potentially pass this to an EVM contract
+		// ===== Extract Validator Public Key from Payload =====
+		fmt.Println("\n===== Verifying Signature =====")
+
+		// Validate payload has minimum length (at least 1 byte data + 65 bytes signature)
+		if len(signedResult.Payload) < 66 {
+			log.Printf("⚠️  Payload too short (%d bytes), expected at least 66 bytes\n", len(signedResult.Payload))
+		} else {
+			signatureOffset := len(signedResult.Payload) - 65
+			canonicalPayload := signedResult.Payload[:signatureOffset]
+			signature := signedResult.Payload[signatureOffset:]
+
+			// Hash the canonical payload with SHA256 (as per attestation spec)
+			hash := sha256.Sum256(canonicalPayload)
+
+			// Adjust signature format for recovery
+			// The attestation signature uses Ethereum format with V=27/28
+			// But kwil-db's RecoverSecp256k1KeyFromSigHash expects V=0-3 (it adds 27 internally)
+			adjustedSig := make([]byte, 65)
+			copy(adjustedSig, signature)
+			if signature[64] >= 27 {
+				adjustedSig[64] = signature[64] - 27
+			}
+
+			// Recover validator public key from signature
+			pubKey, err := crypto.RecoverSecp256k1KeyFromSigHash(hash[:], adjustedSig)
+			if err != nil {
+				log.Printf("⚠️  Failed to recover public key: %v\n", err)
+			} else {
+				// Derive Ethereum address from public key
+				validatorAddr := crypto.EthereumAddressFromPubKey(pubKey)
+				fmt.Printf("✅ Validator Address: 0x%x\n", validatorAddr)
+				fmt.Println("   This is the address you should use in your EVM smart contract's verify() function")
+			}
+
+			// ===== Parse Attestation Payload =====
+			fmt.Println("\n===== Parsing Attestation Payload =====")
+			parsed, err := contractsapi.ParseAttestationPayload(canonicalPayload)
+			if err != nil {
+				log.Printf("⚠️  Failed to parse payload: %v\n", err)
+			} else {
+				fmt.Printf("\n📋 Attestation Details:\n")
+				fmt.Printf("   Version: %d\n", parsed.Version)
+				fmt.Printf("   Algorithm: %d (0 = secp256k1)\n", parsed.Algorithm)
+				fmt.Printf("   Block Height: %d\n", parsed.BlockHeight)
+				fmt.Printf("   Data Provider: %s\n", parsed.DataProvider)
+				fmt.Printf("   Stream ID: %s\n", parsed.StreamID)
+				fmt.Printf("   Action ID: %d\n\n", parsed.ActionID)
+
+				fmt.Printf("📊 Attested Query Result (from get_record):\n")
+				if len(parsed.Result) == 0 {
+					fmt.Println("   No records found")
+				} else {
+					fmt.Printf("   Found %d row(s):\n\n", len(parsed.Result))
+					for i, row := range parsed.Result {
+						if len(row.Values) >= 2 {
+							fmt.Printf("   Row %d: Timestamp=%v, Value=%v\n", i+1, row.Values[0], row.Values[1])
+						} else {
+							fmt.Printf("   Row %d: %v\n", i+1, row.Values)
+						}
+					}
+				}
+
+				fmt.Println("\n   💡 How to use this payload:")
+				fmt.Println("   1. Send this hex payload to your EVM smart contract")
+				fmt.Println("   2. The contract can verify the signature using ecrecover")
+				fmt.Println("   3. Parse the payload to extract the attested query results")
+				fmt.Println("   4. Use the verified data in your on-chain logic (e.g., settle bets, trigger payments)")
+			}
+		}
 	}
 
 	// List recent attestations
@@ -155,26 +221,26 @@ afterPoll:
 		if err != nil {
 			log.Printf("Warning: Failed to decode address: %v", err)
 		} else {
-		limit := 10
-		attestations, err := attestationActions.ListAttestations(ctx, types.ListAttestationsInput{
-			Requester: addressBytes,
-			Limit:     &limit,
-			OrderBy:   strPtr("created_height desc"),
-		})
-		if err != nil {
-			log.Printf("Warning: Failed to list attestations: %v", err)
-		} else {
-			fmt.Printf("Found %d recent attestations:\n", len(attestations))
-			for i, att := range attestations {
-				status := "unsigned"
-				if att.SignedHeight != nil {
-					status = fmt.Sprintf("signed at height %d", *att.SignedHeight)
+			limit := 10
+			attestations, err := attestationActions.ListAttestations(ctx, types.ListAttestationsInput{
+				Requester: addressBytes,
+				Limit:     &limit,
+				OrderBy:   strPtr("created_height desc"),
+			})
+			if err != nil {
+				log.Printf("Warning: Failed to list attestations: %v", err)
+			} else {
+				fmt.Printf("Found %d recent attestations:\n", len(attestations))
+				for i, att := range attestations {
+					status := "unsigned"
+					if att.SignedHeight != nil {
+						status = fmt.Sprintf("signed at height %d", *att.SignedHeight)
+					}
+					fmt.Printf("%d. TX: %s, Created: height %d, Status: %s\n",
+						i+1, att.RequestTxID, att.CreatedHeight, status)
 				}
-				fmt.Printf("%d. TX: %s, Created: height %d, Status: %s\n",
-					i+1, att.RequestTxID, att.CreatedHeight, status)
 			}
 		}
-	}
 	}
 
 	fmt.Println("\n=== Example Complete ===")

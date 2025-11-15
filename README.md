@@ -594,6 +594,63 @@ entries, _ := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
 
 **📖 For complete documentation including parameters, return types, pagination, filtering modes, and real-world examples, see the [Transaction Actions Interface](./docs/api-reference.md#transaction-actions-interface) in the API Reference.**
 
+## Attestation Payload Parsing
+
+Request cryptographically signed attestations of query results from network validators. These signed attestations can be verified on-chain for trustless data verification.
+
+```go
+import (
+    "crypto/sha256"
+    "github.com/trufnetwork/kwil-db/core/crypto"
+    "github.com/trufnetwork/sdk-go/core/contractsapi"
+)
+
+// Request a signed attestation
+attestationActions, _ := tnClient.LoadAttestationActions()
+result, _ := attestationActions.RequestAttestation(ctx, types.RequestAttestationInput{
+    DataProvider: "0x4710a8d8f0d845da110086812a32de6d90d7ff5c",
+    StreamID:     "stai0000000000000000000000000000",
+    ActionName:   "get_record",
+    Args:         args,
+    MaxFee:       "100000000000000000000", // 100 TRUF
+})
+
+// Wait and retrieve signed attestation
+signed, _ := attestationActions.GetSignedAttestation(ctx, types.GetSignedAttestationInput{
+    RequestTxID: result.RequestTxID,
+})
+
+// Validate payload length before slicing
+if len(signed.Payload) < 66 {
+    log.Fatalf("Payload too short: %d bytes, expected at least 66", len(signed.Payload))
+}
+
+// Extract canonical payload and signature (last 65 bytes)
+signatureOffset := len(signed.Payload) - 65
+canonicalPayload := signed.Payload[:signatureOffset]
+signature := signed.Payload[signatureOffset:]
+
+// Verify signature and recover validator address
+hash := sha256.Sum256(canonicalPayload)
+adjustedSig := make([]byte, 65)
+copy(adjustedSig, signature)
+if signature[64] >= 27 {
+    adjustedSig[64] = signature[64] - 27
+}
+pubKey, _ := crypto.RecoverSecp256k1KeyFromSigHash(hash[:], adjustedSig)
+validatorAddr := crypto.EthereumAddressFromPubKey(pubKey)
+
+// Parse attestation payload
+parsed, _ := contractsapi.ParseAttestationPayload(canonicalPayload)
+fmt.Printf("Validator: 0x%x\n", validatorAddr)
+fmt.Printf("Block Height: %d\n", parsed.BlockHeight)
+for i, row := range parsed.Result {
+    fmt.Printf("Row %d: Timestamp=%v, Value=%v\n", i+1, row.Values[0], row.Values[1])
+}
+```
+
+**📖 For complete documentation including signature verification, payload structure, result decoding, EVM integration examples, and security best practices, see the [Attestation Actions Interface](./docs/api-reference.md#attestation-actions-interface) in the API Reference.**
+
 ## Quick Reference
 
 > 🎯 **Full Working Example**: See [`examples/transaction-lifecycle-example/main.go`](./examples/transaction-lifecycle-example/main.go) for complete, runnable code demonstrating all these patterns with proper error handling.
@@ -611,6 +668,9 @@ entries, _ := txActions.ListTransactionFees(ctx, types.ListTransactionFeesInput{
 | Destroy stream | `tnClient.DestroyStream(ctx, streamId)` |
 | Get transaction event | `txActions.GetTransactionEvent(ctx, input)` |
 | List transaction fees | `txActions.ListTransactionFees(ctx, input)` |
+| Request attestation | `attestationActions.RequestAttestation(ctx, input)` |
+| Get signed attestation | `attestationActions.GetSignedAttestation(ctx, input)` |
+| Parse attestation payload | `contractsapi.ParseAttestationPayload(payload)` |
 
 ### Safe Operation Patterns
 
