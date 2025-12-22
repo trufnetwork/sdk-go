@@ -117,6 +117,67 @@ tnClient, err := tnclient.NewClient(
 )
 ```
 
+### Configuration Options
+
+The SDK provides flexible configuration through functional options:
+
+#### Standard Configuration
+
+```go
+client, err := tnclient.NewClient(
+	ctx,
+	"https://gateway.mainnet.truf.network",
+	tnclient.WithSigner(signer),        // Required: Authentication signer
+	tnclient.WithLogger(logger),        // Optional: Custom logger
+)
+```
+
+#### Advanced Configuration
+
+**WithTransport** - Use custom transport implementation:
+
+```go
+// For specialized environments (e.g., Chainlink Runtime Environment)
+customTransport, err := NewCustomTransport(...)
+if err != nil {
+	return err
+}
+
+client, err := tnclient.NewClient(ctx, endpoint,
+	tnclient.WithTransport(customTransport),
+	tnclient.WithSigner(signer),
+)
+```
+
+**Use cases for custom transports:**
+- Chainlink Runtime Environment (CRE) workflows
+- Testing with mock transports
+- Custom HTTP client requirements
+- Alternative communication protocols
+
+**GetKwilClient()** - Access underlying GatewayClient (HTTP transport only):
+
+```go
+// For advanced use cases requiring low-level control
+if gwClient := client.GetKwilClient(); gwClient != nil {
+	// Direct GatewayClient access for advanced scenarios
+	result, err := gwClient.Call(ctx, "", "custom_action", args)
+}
+// Returns nil for non-HTTP transports
+```
+
+> **Important**: `GetKwilClient()` is provided for advanced use cases that require direct low-level access. For most scenarios, prefer using the high-level Client methods which are transport-agnostic.
+
+### Transport Abstraction
+
+The SDK uses a pluggable transport layer that allows different communication implementations:
+
+- **HTTPTransport** (default): Standard `net/http` communication with the TRUF Network
+- **Custom transports**: For specialized runtime environments (e.g., Chainlink CRE)
+- **Mock transports**: For testing without network dependencies
+
+This abstraction enables the SDK to work in various runtime environments while maintaining a consistent, high-level API. All Client methods work transparently with any transport implementation.
+
 ### Core Methods
 
 #### Transaction Management
