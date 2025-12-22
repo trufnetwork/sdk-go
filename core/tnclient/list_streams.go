@@ -18,7 +18,7 @@ func (c *Client) ListStreams(ctx context.Context, input types.ListStreamsInput) 
 	args = append(args, input.OrderBy)
 	args = append(args, input.BlockHeight)
 
-	result, err := c.kwilClient.Call(ctx, "", "list_streams", args)
+	result, err := c.transport.Call(ctx, "", "list_streams", args)
 	if err != nil || result.Error != nil {
 		if err != nil {
 			return nil, errors.WithStack(err)

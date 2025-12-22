@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/pkg/errors"
-	kwilClientType "github.com/trufnetwork/kwil-db/core/client/types"
 	"github.com/trufnetwork/kwil-db/core/crypto/auth"
 	"github.com/trufnetwork/kwil-db/core/gatewayclient"
 	"github.com/trufnetwork/kwil-db/core/log"
@@ -20,10 +19,9 @@ import (
 )
 
 type Client struct {
-	Signer      auth.Signer `validate:"required"`
-	logger      *log.Logger
-	kwilClient  *gatewayclient.GatewayClient `validate:"required"`
-	kwilOptions *gatewayclient.GatewayOptions
+	signer    auth.Signer `validate:"required"`
+	logger    *log.Logger
+	transport Transport   `validate:"required"`
 }
 
 var _ clientType.Client = (*Client)(nil)
@@ -32,21 +30,28 @@ type Option func(*Client)
 
 func NewClient(ctx context.Context, provider string, options ...Option) (*Client, error) {
 	c := &Client{}
-	c.kwilOptions = &gatewayclient.GatewayOptions{
-		Options: *kwilClientType.DefaultOptions(),
-	}
+
+	// Apply user-provided options
 	for _, option := range options {
 		option(c)
 	}
 
-	kwilClient, err := gatewayclient.NewClient(ctx, provider, c.kwilOptions)
-	if err != nil {
-		return nil, errors.WithStack(err)
+	// Create default HTTPTransport if no transport was provided via options
+	if c.transport == nil {
+		var logger log.Logger
+		if c.logger != nil {
+			logger = *c.logger
+		}
+
+		transport, err := NewHTTPTransport(ctx, provider, c.signer, logger)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create default HTTP transport")
+		}
+		c.transport = transport
 	}
-	c.kwilClient = kwilClient
 
 	// Validate the client
-	if err = c.Validate(); err != nil {
+	if err := c.Validate(); err != nil {
 		return nil, errors.WithStack(err)
 	}
 
@@ -60,28 +65,64 @@ func (c *Client) Validate() error {
 
 func WithSigner(signer auth.Signer) Option {
 	return func(c *Client) {
-		c.kwilOptions.Signer = signer
-		c.Signer = signer
+		c.signer = signer
 	}
 }
 
 func WithLogger(logger log.Logger) Option {
 	return func(c *Client) {
 		c.logger = &logger
-		c.kwilOptions.Logger = logger
+	}
+}
+
+// WithTransport configures the client to use a custom transport implementation.
+//
+// By default, the SDK uses HTTPTransport which communicates via standard net/http.
+// This option allows you to substitute a different transport (e.g., for Chainlink CRE,
+// mock testing, or custom protocols).
+//
+// Example:
+//
+//	transport, _ := NewHTTPTransport(ctx, endpoint, signer, logger)
+//	client, err := NewClient(ctx, endpoint,
+//	    tnclient.WithTransport(transport),
+//	)
+//
+// Note: When using WithTransport, the provider URL passed to NewClient is ignored
+// since the transport is already configured.
+func WithTransport(transport Transport) Option {
+	return func(c *Client) {
+		c.transport = transport
 	}
 }
 
 func (c *Client) GetSigner() auth.Signer {
-	return c.kwilClient.Signer()
+	return c.transport.Signer()
 }
 
 func (c *Client) WaitForTx(ctx context.Context, txHash kwilType.Hash, interval time.Duration) (*kwilType.TxQueryResponse, error) {
-	return c.kwilClient.WaitTx(ctx, txHash, interval)
+	return c.transport.WaitTx(ctx, txHash, interval)
 }
 
+// GetKwilClient returns the underlying GatewayClient if using HTTPTransport.
+//
+// This method provides direct access to the GatewayClient for advanced use cases
+// that require low-level control. For most scenarios, prefer using the Client's
+// high-level methods (ListStreams, DeployStream, etc.) which are transport-agnostic.
+//
+// Returns nil if using a non-HTTP transport (e.g., CRE transport).
+//
+// Example:
+//
+//	if gwClient := client.GetKwilClient(); gwClient != nil {
+//	    // Direct GatewayClient access for advanced use cases
+//	    result, err := gwClient.Call(ctx, "", "custom_action", args)
+//	}
 func (c *Client) GetKwilClient() *gatewayclient.GatewayClient {
-	return c.kwilClient
+	if httpTransport, ok := c.transport.(*HTTPTransport); ok {
+		return httpTransport.gatewayClient
+	}
+	return nil
 }
 
 func (c *Client) DeployStream(ctx context.Context, streamId util.StreamId, streamType clientType.StreamType) (types.Hash, error) {
@@ -101,31 +142,31 @@ func (c *Client) DestroyStream(ctx context.Context, streamId util.StreamId) (typ
 
 func (c *Client) LoadActions() (clientType.IAction, error) {
 	return tn_api.LoadAction(tn_api.NewActionOptions{
-		Client: c.kwilClient,
+		Client: c.GetKwilClient(),
 	})
 }
 
 func (c *Client) LoadPrimitiveActions() (clientType.IPrimitiveAction, error) {
 	return tn_api.LoadPrimitiveActions(tn_api.NewActionOptions{
-		Client: c.kwilClient,
+		Client: c.GetKwilClient(),
 	})
 }
 
 func (c *Client) LoadComposedActions() (clientType.IComposedAction, error) {
 	return tn_api.LoadComposedActions(tn_api.NewActionOptions{
-		Client: c.kwilClient,
+		Client: c.GetKwilClient(),
 	})
 }
 
 func (c *Client) LoadRoleManagementActions() (clientType.IRoleManagement, error) {
 	return tn_api.LoadRoleManagementActions(tn_api.NewRoleManagementOptions{
-		Client: c.kwilClient,
+		Client: c.GetKwilClient(),
 	})
 }
 
 func (c *Client) LoadAttestationActions() (clientType.IAttestationAction, error) {
 	return tn_api.LoadAttestationActions(tn_api.AttestationActionOptions{
-		Client: c.kwilClient,
+		Client: c.GetKwilClient(),
 	})
 }
 
@@ -140,7 +181,7 @@ func (c *Client) LoadAttestationActions() (clientType.IAttestationAction, error)
 //	txEvent, err := txActions.GetTransactionEvent(ctx, ...)
 func (c *Client) LoadTransactionActions() (clientType.ITransactionAction, error) {
 	return tn_api.LoadTransactionActions(tn_api.TransactionActionOptions{
-		Client: c.kwilClient,
+		Client: c.GetKwilClient(),
 	})
 }
 
@@ -152,7 +193,7 @@ func (c *Client) OwnStreamLocator(streamId util.StreamId) clientType.StreamLocat
 }
 
 func (c *Client) Address() util.EthereumAddress {
-	addr, err := auth.EthSecp256k1Authenticator{}.Identifier(c.kwilClient.Signer().CompactID())
+	addr, err := auth.EthSecp256k1Authenticator{}.Identifier(c.transport.Signer().CompactID())
 	if err != nil {
 		// should never happen
 		logging.Logger.Panic("failed to get address from signer", zap.Error(err))

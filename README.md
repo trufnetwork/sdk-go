@@ -20,6 +20,46 @@ If you need help, don't hesitate to [open an issue](https://github.com/trufnetwo
 go get github.com/trufnetwork/sdk-go
 ```
 
+### Advanced Configuration
+
+#### Custom Transport (Optional)
+
+The SDK supports custom transport implementations for specialized environments. By default, the SDK uses `HTTPTransport` with standard `net/http`, but you can provide alternative transports:
+
+```go
+// Default usage (HTTPTransport automatically created)
+client, err := tnclient.NewClient(ctx, endpoint,
+    tnclient.WithSigner(signer),
+)
+
+// Advanced: Custom transport for specialized environments
+// (e.g., Chainlink Runtime Environment)
+customTransport := &MyCustomTransport{...}
+client, err := tnclient.NewClient(ctx, endpoint,
+    tnclient.WithSigner(signer),
+    tnclient.WithTransport(customTransport),
+)
+```
+
+**When to use custom transports:**
+- Chainlink Runtime Environment (CRE) workflows
+- Testing with mock transports
+- Custom HTTP client requirements
+- Alternative RPC protocols
+
+**Advanced API Access:**
+
+For advanced use cases requiring direct `GatewayClient` access (HTTP transport only):
+
+```go
+if gwClient := client.GetKwilClient(); gwClient != nil {
+    // Direct low-level access for advanced scenarios
+    result, err := gwClient.Call(ctx, "", "custom_action", args)
+}
+```
+
+> **Note**: For most use cases, prefer the high-level Client methods (`ListStreams`, `DeployStream`, etc.) which are transport-agnostic and work with any transport implementation.
+
 ## Local Node Testing
 
 ### Setting Up a Local Node
