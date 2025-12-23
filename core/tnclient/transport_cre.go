@@ -242,14 +242,11 @@ func (t *CRETransport) Execute(ctx context.Context, namespace string, action str
 				t.chainIDMu.Unlock()
 				return types.Hash{}, fmt.Errorf("failed to fetch chain ID: %w", err)
 			}
+			// Only mark as initialized if fetchChainID succeeded (returned non-empty chainID)
 			t.chainIDInitialized = true
 		}
 		chainID = t.chainID
 		t.chainIDMu.Unlock()
-	}
-
-	if chainID == "" {
-		return types.Hash{}, fmt.Errorf("chain ID is empty")
 	}
 
 	// Build unsigned transaction
@@ -395,6 +392,11 @@ func (t *CRETransport) fetchChainID(ctx context.Context) error {
 
 	if err := t.callJSONRPC(ctx, "user.chain_info", map[string]any{}, &result); err != nil {
 		return fmt.Errorf("failed to fetch chain ID: %w", err)
+	}
+
+	// Validate that chain ID is not empty
+	if result.ChainID == "" {
+		return fmt.Errorf("gateway returned empty chain ID")
 	}
 
 	// Cache the chain ID
