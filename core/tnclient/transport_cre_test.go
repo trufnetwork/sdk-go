@@ -85,6 +85,12 @@ func TestIsTransientTxError(t *testing.T) {
 			reasoning: "ErrorTxNotFound (-202) is transient - tx not indexed yet",
 		},
 		{
+			name:      "Multi-word message with code",
+			err:       fmt.Errorf("JSON-RPC error: transaction not found in mempool or ledger (code: -202)"),
+			want:      true,
+			reasoning: "Regex should handle multi-word messages (fixed from %*s limitation)",
+		},
+		{
 			name:      "ErrorTimeout code",
 			err:       fmt.Errorf("JSON-RPC error: request timeout (code: -32001)"),
 			want:      true,

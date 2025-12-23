@@ -6,7 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -340,18 +342,26 @@ func isTransientTxError(err error) bool {
 	// The error from callJSONRPC is formatted as "JSON-RPC error: <message> (code: <code>)"
 	errMsg := err.Error()
 
-	// Parse error code from message format
-	var code int32
-	if n, _ := fmt.Sscanf(errMsg, "JSON-RPC error: %*s (code: %d)", &code); n == 1 {
-		// Check known transient error codes
-		switch jsonrpc.ErrorCode(code) {
-		case jsonrpc.ErrorTxNotFound: // -202: Transaction not indexed yet
-			return true
-		case jsonrpc.ErrorTimeout: // -32001: Temporary timeout
-			return true
+	// Use regex to extract error code from "(code: <number>)" pattern
+	// This handles multi-word error messages unlike fmt.Sscanf with %*s
+	codePattern := regexp.MustCompile(`\(code:\s*(-?\d+)\)`)
+	matches := codePattern.FindStringSubmatch(errMsg)
+
+	if len(matches) >= 2 {
+		// Parse the captured code number
+		if codeInt, err := strconv.ParseInt(matches[1], 10, 32); err == nil {
+			code := jsonrpc.ErrorCode(int32(codeInt))
+
+			// Check known transient error codes
+			switch code {
+			case jsonrpc.ErrorTxNotFound: // -202: Transaction not indexed yet
+				return true
+			case jsonrpc.ErrorTimeout: // -32001: Temporary timeout
+				return true
+			}
+			// Other structured errors are likely permanent
+			return false
 		}
-		// Other structured errors are likely permanent
-		return false
 	}
 
 	// Fallback: Check for transient error patterns in message
@@ -364,50 +374,14 @@ func isTransientTxError(err error) bool {
 		"timeout",
 	}
 
-	lowerMsg := toLower(errMsg)
+	lowerMsg := strings.ToLower(errMsg)
 	for _, pattern := range transientPatterns {
-		if contains(lowerMsg, pattern) {
+		if strings.Contains(lowerMsg, pattern) {
 			return true
 		}
 	}
 
 	return false
-}
-
-// toLower converts a string to lowercase (simple ASCII implementation)
-func toLower(s string) string {
-	b := []byte(s)
-	for i := 0; i < len(b); i++ {
-		if b[i] >= 'A' && b[i] <= 'Z' {
-			b[i] += 'a' - 'A'
-		}
-	}
-	return string(b)
-}
-
-// contains checks if a string contains a substring (case-sensitive)
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && indexOfSubstring(s, substr) >= 0
-}
-
-// indexOfSubstring returns the index of substr in s, or -1 if not found
-func indexOfSubstring(s, substr string) int {
-	if len(substr) == 0 {
-		return 0
-	}
-	for i := 0; i <= len(s)-len(substr); i++ {
-		match := true
-		for j := 0; j < len(substr); j++ {
-			if s[i+j] != substr[j] {
-				match = false
-				break
-			}
-		}
-		if match {
-			return i
-		}
-	}
-	return -1
 }
 
 // fetchChainID fetches and caches the chain ID from the gateway.
