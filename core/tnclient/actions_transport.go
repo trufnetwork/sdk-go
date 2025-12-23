@@ -49,13 +49,8 @@ func (a *TransportAction) GetRecord(ctx context.Context, input clientType.GetRec
 		return clientType.ActionResult{}, errors.WithStack(err)
 	}
 
-	// Decode raw SQL output
-	type getRecordRawOutput struct {
-		EventTime string `json:"event_time"`
-		Value     string `json:"value"`
-	}
-
-	rawOutputs, err := tn_api.DecodeCallResult[getRecordRawOutput](result.QueryResult)
+	// Decode raw SQL output using shared type
+	rawOutputs, err := tn_api.DecodeCallResult[clientType.GetRecordRawOutput](result.QueryResult)
 	if err != nil {
 		return clientType.ActionResult{}, errors.WithStack(err)
 	}

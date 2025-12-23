@@ -121,11 +121,6 @@ func (s *Action) ExecuteProcedure(ctx context.Context, procedure string, args []
 	return s.execute(ctx, procedure, args)
 }
 
-type GetRecordRawOutput struct {
-	EventTime string `json:"event_time"`
-	Value     string `json:"value"`
-}
-
 // transformOrNil returns nil if the value is nil, otherwise it applies the transform function to the value.
 func transformOrNil[T any](value *T, transform func(T) any) any {
 	if value == nil {
@@ -160,7 +155,7 @@ func (s *Action) GetRecord(ctx context.Context, input types.GetRecordInput) (typ
 		return types.ActionResult{}, errors.WithStack(err)
 	}
 
-	rawOutputs, err := DecodeCallResult[GetRecordRawOutput](callResult.QueryResult)
+	rawOutputs, err := DecodeCallResult[types.GetRecordRawOutput](callResult.QueryResult)
 	if err != nil {
 		return types.ActionResult{}, errors.WithStack(err)
 	}
@@ -223,7 +218,7 @@ func (s *Action) GetRecord(ctx context.Context, input types.GetRecordInput) (typ
 	}, nil
 }
 
-type GetIndexRawOutput = GetRecordRawOutput
+type GetIndexRawOutput = types.GetRecordRawOutput
 
 func (s *Action) GetIndex(ctx context.Context, input types.GetIndexInput) (types.ActionResult, error) {
 	var args []any
@@ -311,7 +306,7 @@ func (s *Action) GetIndex(ctx context.Context, input types.GetIndexInput) (types
 	}, nil
 }
 
-type GetIndexChangeRawOutput = GetRecordRawOutput
+type GetIndexChangeRawOutput = types.GetRecordRawOutput
 
 func (s *Action) GetIndexChange(ctx context.Context, input types.GetIndexChangeInput) (types.ActionResult, error) {
 	var args []any
@@ -531,7 +526,7 @@ func (s *Action) GetFirstRecord(ctx context.Context, input types.GetFirstRecordI
 		return types.ActionResult{}, errors.WithStack(err)
 	}
 
-	rawOutputs, err := DecodeCallResult[GetRecordRawOutput](callResult.QueryResult)
+	rawOutputs, err := DecodeCallResult[types.GetRecordRawOutput](callResult.QueryResult)
 	if err != nil {
 		return types.ActionResult{}, errors.WithStack(err)
 	}
