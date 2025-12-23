@@ -9,7 +9,7 @@ import (
 	"github.com/trufnetwork/kwil-db/core/types"
 )
 
-// Transport abstracts the communication layer for TRUF Network operations.
+// Transport abstracts the communication layer for TRUF.NETWORK operations.
 // This interface allows using different transport implementations without changing SDK code.
 //
 // The default implementation (HTTPTransport) uses standard net/http via kwil-db's

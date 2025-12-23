@@ -1,6 +1,6 @@
 module github.com/trufnetwork/sdk-go
 
-go 1.24.1
+go 1.25.3
 
 require (
 	github.com/cockroachdb/apd/v3 v3.2.1
@@ -9,6 +9,8 @@ require (
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9
 	github.com/joho/godotenv v1.5.1
 	github.com/pkg/errors v0.9.1
+	github.com/smartcontractkit/cre-sdk-go v1.1.2
+	github.com/smartcontractkit/cre-sdk-go/capabilities/networking/http v0.10.0
 	github.com/stretchr/testify v1.11.1
 	github.com/trufnetwork/kwil-db v0.10.3-0.20250714184403-500f214cd4b5
 	github.com/trufnetwork/kwil-db/core v0.4.3-0.20250714184403-500f214cd4b5
@@ -23,15 +25,19 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.11 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
+	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/holiman/uint256 v1.3.2 // indirect
 	github.com/jrick/logrotate v1.1.2 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
+	github.com/smartcontractkit/chainlink-protos/cre/go v0.0.0-20251021010742-3f8d3dba17d8 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.44.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
+	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

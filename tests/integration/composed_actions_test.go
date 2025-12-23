@@ -13,7 +13,7 @@ import (
 	"github.com/trufnetwork/sdk-go/core/util"
 )
 
-// This file contains integration tests for composed streams in the Truf Network (TN).
+// This file contains integration tests for composed streams in the TRUF.NETWORK (TN).
 // It demonstrates the process of deploying, initializing, and querying a composed stream
 // that aggregates data from multiple primitive streams.
 

@@ -172,7 +172,7 @@ if gwClient := client.GetKwilClient(); gwClient != nil {
 
 The SDK uses a pluggable transport layer that allows different communication implementations:
 
-- **HTTPTransport** (default): Standard `net/http` communication with the TRUF Network
+- **HTTPTransport** (default): Standard `net/http` communication with the TRUF.NETWORK
 - **Custom transports**: For specialized runtime environments (e.g., Chainlink CRE)
 - **Mock transports**: For testing without network dependencies
 

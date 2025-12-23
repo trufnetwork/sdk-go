@@ -139,7 +139,7 @@ stream.AllowComposeStream(ctx, allowedStreamLocator)
 
 ## Network Writer Role for Stream Creation
 
-To ensure the integrity and quality of data streams on the Truf Network, the creation of new streams (both primitive and composed) is a permissioned operation. This process is governed by a **`system:network_writer`** role within the network's role-based access control (RBAC) system.
+To ensure the integrity and quality of data streams on the TRUF.NETWORK, the creation of new streams (both primitive and composed) is a permissioned operation. This process is governed by a **`system:network_writer`** role within the network's role-based access control (RBAC) system.
 
 Only wallets that are members of the `system:network_writer` role are authorized to deploy new streams using the SDK's `DeployStream` or `BatchDeployStreams` functions.
 

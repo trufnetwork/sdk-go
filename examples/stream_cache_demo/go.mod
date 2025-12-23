@@ -1,8 +1,6 @@
 module stream_cache_demo
 
-go 1.24.1
-
-toolchain go1.24.4
+go 1.25.3
 
 require (
 	github.com/trufnetwork/kwil-db/core v0.4.3-0.20250714184403-500f214cd4b5
