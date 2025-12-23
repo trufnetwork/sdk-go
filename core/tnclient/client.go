@@ -126,11 +126,20 @@ func (c *Client) GetKwilClient() *gatewayclient.GatewayClient {
 }
 
 func (c *Client) DeployStream(ctx context.Context, streamId util.StreamId, streamType clientType.StreamType) (types.Hash, error) {
-	return tn_api.DeployStream(ctx, tn_api.DeployStreamInput{
-		StreamId:   streamId,
-		StreamType: streamType,
-		KwilClient: c.GetKwilClient(),
-	})
+	// For HTTP transport, use the existing implementation (backwards compatible)
+	// For custom transports (CRE, etc.), use transport.Execute directly
+	if httpTransport, ok := c.transport.(*HTTPTransport); ok {
+		return tn_api.DeployStream(ctx, tn_api.DeployStreamInput{
+			StreamId:   streamId,
+			StreamType: streamType,
+			KwilClient: httpTransport.gatewayClient,
+		})
+	}
+	// Use transport.Execute directly for custom transports
+	return c.transport.Execute(ctx, "", "create_stream", [][]any{{
+		streamId.String(),
+		streamType.String(),
+	}})
 }
 
 func (c *Client) DestroyStream(ctx context.Context, streamId util.StreamId) (types.Hash, error) {
@@ -141,15 +150,29 @@ func (c *Client) DestroyStream(ctx context.Context, streamId util.StreamId) (typ
 }
 
 func (c *Client) LoadActions() (clientType.IAction, error) {
-	return tn_api.LoadAction(tn_api.NewActionOptions{
-		Client: c.GetKwilClient(),
-	})
+	// For HTTP transport, use the full-featured GatewayClient implementation
+	// For custom transports (CRE, etc.), use the minimal transport-aware implementation
+	if httpTransport, ok := c.transport.(*HTTPTransport); ok {
+		return tn_api.LoadAction(tn_api.NewActionOptions{
+			Client: httpTransport.gatewayClient,
+		})
+	}
+	// Return transport-aware implementation for custom transports
+	return &TransportAction{transport: c.transport}, nil
 }
 
 func (c *Client) LoadPrimitiveActions() (clientType.IPrimitiveAction, error) {
-	return tn_api.LoadPrimitiveActions(tn_api.NewActionOptions{
-		Client: c.GetKwilClient(),
-	})
+	// For HTTP transport, use the full-featured GatewayClient implementation
+	// For custom transports (CRE, etc.), use the minimal transport-aware implementation
+	if httpTransport, ok := c.transport.(*HTTPTransport); ok {
+		return tn_api.LoadPrimitiveActions(tn_api.NewActionOptions{
+			Client: httpTransport.gatewayClient,
+		})
+	}
+	// Return transport-aware implementation for custom transports
+	return &TransportPrimitiveAction{
+		TransportAction: TransportAction{transport: c.transport},
+	}, nil
 }
 
 func (c *Client) LoadComposedActions() (clientType.IComposedAction, error) {

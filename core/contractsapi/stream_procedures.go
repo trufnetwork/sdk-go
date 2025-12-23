@@ -121,19 +121,6 @@ func (s *Action) ExecuteProcedure(ctx context.Context, procedure string, args []
 	return s.execute(ctx, procedure, args)
 }
 
-type GetRecordRawOutput struct {
-	EventTime string `json:"event_time"`
-	Value     string `json:"value"`
-}
-
-// transformOrNil returns nil if the value is nil, otherwise it applies the transform function to the value.
-func transformOrNil[T any](value *T, transform func(T) any) any {
-	if value == nil {
-		return nil
-	}
-	return transform(*value)
-}
-
 // CallProcedure is a wrapper around the call function, just to be explicit that users can call arbitrary procedures
 func (s *Action) CallProcedure(ctx context.Context, procedure string, args []any) (*kwiltypes.QueryResult, error) {
 	return s.call(ctx, procedure, args)
@@ -143,9 +130,9 @@ func (s *Action) GetRecord(ctx context.Context, input types.GetRecordInput) (typ
 	var args []any
 	args = append(args, input.DataProvider)
 	args = append(args, input.StreamId)
-	args = append(args, transformOrNil(input.From, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.To, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.FrozenAt, func(date int) any { return date }))
+	args = append(args, util.TransformOrNil(input.From, func(date int) any { return date }))
+	args = append(args, util.TransformOrNil(input.To, func(date int) any { return date }))
+	args = append(args, util.TransformOrNil(input.FrozenAt, func(date int) any { return date }))
 	if input.UseCache != nil {
 		args = append(args, *input.UseCache)
 	}
@@ -160,7 +147,7 @@ func (s *Action) GetRecord(ctx context.Context, input types.GetRecordInput) (typ
 		return types.ActionResult{}, errors.WithStack(err)
 	}
 
-	rawOutputs, err := DecodeCallResult[GetRecordRawOutput](callResult.QueryResult)
+	rawOutputs, err := DecodeCallResult[types.GetRecordRawOutput](callResult.QueryResult)
 	if err != nil {
 		return types.ActionResult{}, errors.WithStack(err)
 	}
@@ -223,16 +210,16 @@ func (s *Action) GetRecord(ctx context.Context, input types.GetRecordInput) (typ
 	}, nil
 }
 
-type GetIndexRawOutput = GetRecordRawOutput
+type GetIndexRawOutput = types.GetRecordRawOutput
 
 func (s *Action) GetIndex(ctx context.Context, input types.GetIndexInput) (types.ActionResult, error) {
 	var args []any
 	args = append(args, input.DataProvider)
 	args = append(args, input.StreamId)
-	args = append(args, transformOrNil(input.From, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.To, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.FrozenAt, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.BaseDate, func(date int) any { return date }))
+	args = append(args, util.TransformOrNil(input.From, func(date int) any { return date }))
+	args = append(args, util.TransformOrNil(input.To, func(date int) any { return date }))
+	args = append(args, util.TransformOrNil(input.FrozenAt, func(date int) any { return date }))
+	args = append(args, util.TransformOrNil(input.BaseDate, func(date int) any { return date }))
 	if input.UseCache != nil {
 		args = append(args, *input.UseCache)
 	}
@@ -311,16 +298,16 @@ func (s *Action) GetIndex(ctx context.Context, input types.GetIndexInput) (types
 	}, nil
 }
 
-type GetIndexChangeRawOutput = GetRecordRawOutput
+type GetIndexChangeRawOutput = types.GetRecordRawOutput
 
 func (s *Action) GetIndexChange(ctx context.Context, input types.GetIndexChangeInput) (types.ActionResult, error) {
 	var args []any
 	args = append(args, input.DataProvider)
 	args = append(args, input.StreamId)
-	args = append(args, transformOrNil(input.From, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.To, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.FrozenAt, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.BaseDate, func(date int) any { return date }))
+	args = append(args, util.TransformOrNil(input.From, func(date int) any { return date }))
+	args = append(args, util.TransformOrNil(input.To, func(date int) any { return date }))
+	args = append(args, util.TransformOrNil(input.FrozenAt, func(date int) any { return date }))
+	args = append(args, util.TransformOrNil(input.BaseDate, func(date int) any { return date }))
 	args = append(args, input.TimeInterval)
 	if input.UseCache != nil {
 		args = append(args, *input.UseCache)
@@ -531,7 +518,7 @@ func (s *Action) GetFirstRecord(ctx context.Context, input types.GetFirstRecordI
 		return types.ActionResult{}, errors.WithStack(err)
 	}
 
-	rawOutputs, err := DecodeCallResult[GetRecordRawOutput](callResult.QueryResult)
+	rawOutputs, err := DecodeCallResult[types.GetRecordRawOutput](callResult.QueryResult)
 	if err != nil {
 		return types.ActionResult{}, errors.WithStack(err)
 	}
