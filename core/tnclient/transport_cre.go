@@ -302,17 +302,12 @@ func (t *CRETransport) WaitTx(ctx context.Context, txHash types.Hash, interval t
 
 			var result types.TxQueryResponse
 			if err := t.callJSONRPC(ctx, "user.tx_query", params, &result); err != nil {
-				// Distinguish between transient errors (not indexed yet) and permanent errors
-				// JSON-RPC errors with specific codes or messages about "not found" are transient
-				errMsg := err.Error()
-				// Common transient error indicators: not found, not indexed, pending
-				isTransient := containsAny(errMsg, []string{"not found", "not indexed", "pending", "unknown transaction"})
-
-				if !isTransient {
+				// Distinguish between transient errors (retry-able) and permanent errors
+				if !isTransientTxError(err) {
 					// Permanent error - authentication failure, network issues, malformed request
 					return nil, fmt.Errorf("transaction query failed: %w", err)
 				}
-				// Transient error - continue polling
+				// Transient error (tx not indexed yet) - continue polling
 				continue
 			}
 
@@ -324,37 +319,95 @@ func (t *CRETransport) WaitTx(ctx context.Context, txHash types.Hash, interval t
 	}
 }
 
-// containsAny checks if a string contains any of the specified substrings (case-insensitive)
-func containsAny(s string, substrings []string) bool {
-	lowerS := s
-	for _, substr := range substrings {
-		if len(substr) == 0 {
-			continue
+// isTransientTxError determines if an error from tx_query is transient (retry-able).
+//
+// Strategy:
+// 1. First, try to parse as JSON-RPC error and check error code
+// 2. Fall back to substring matching if not a structured JSON-RPC error
+//
+// Known transient error codes:
+//   - -202 (ErrorTxNotFound): Transaction not yet indexed
+//   - -32001 (ErrorTimeout): Temporary timeout
+//
+// Fragility warning: The substring fallback is brittle and may misclassify errors.
+// Consider adding structured error codes to the gateway API for better reliability.
+func isTransientTxError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Try to extract JSON-RPC error code from the error message
+	// The error from callJSONRPC is formatted as "JSON-RPC error: <message> (code: <code>)"
+	errMsg := err.Error()
+
+	// Parse error code from message format
+	var code int32
+	if n, _ := fmt.Sscanf(errMsg, "JSON-RPC error: %*s (code: %d)", &code); n == 1 {
+		// Check known transient error codes
+		switch jsonrpc.ErrorCode(code) {
+		case jsonrpc.ErrorTxNotFound: // -202: Transaction not indexed yet
+			return true
+		case jsonrpc.ErrorTimeout: // -32001: Temporary timeout
+			return true
 		}
-		// Simple case-insensitive substring check
-		for i := 0; i <= len(lowerS)-len(substr); i++ {
-			match := true
-			for j := 0; j < len(substr); j++ {
-				c1 := lowerS[i+j]
-				c2 := substr[j]
-				// Convert to lowercase for comparison
-				if c1 >= 'A' && c1 <= 'Z' {
-					c1 += 'a' - 'A'
-				}
-				if c2 >= 'A' && c2 <= 'Z' {
-					c2 += 'a' - 'A'
-				}
-				if c1 != c2 {
-					match = false
-					break
-				}
-			}
-			if match {
-				return true
-			}
+		// Other structured errors are likely permanent
+		return false
+	}
+
+	// Fallback: Check for transient error patterns in message
+	// This is fragile and may need updates as error messages change
+	transientPatterns := []string{
+		"not found",
+		"not indexed",
+		"pending",
+		"unknown transaction",
+		"timeout",
+	}
+
+	lowerMsg := toLower(errMsg)
+	for _, pattern := range transientPatterns {
+		if contains(lowerMsg, pattern) {
+			return true
 		}
 	}
+
 	return false
+}
+
+// toLower converts a string to lowercase (simple ASCII implementation)
+func toLower(s string) string {
+	b := []byte(s)
+	for i := 0; i < len(b); i++ {
+		if b[i] >= 'A' && b[i] <= 'Z' {
+			b[i] += 'a' - 'A'
+		}
+	}
+	return string(b)
+}
+
+// contains checks if a string contains a substring (case-sensitive)
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && indexOfSubstring(s, substr) >= 0
+}
+
+// indexOfSubstring returns the index of substr in s, or -1 if not found
+func indexOfSubstring(s, substr string) int {
+	if len(substr) == 0 {
+		return 0
+	}
+	for i := 0; i <= len(s)-len(substr); i++ {
+		match := true
+		for j := 0; j < len(substr); j++ {
+			if s[i+j] != substr[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return i
+		}
+	}
+	return -1
 }
 
 // fetchChainID fetches and caches the chain ID from the gateway.
@@ -400,8 +453,12 @@ func (t *CRETransport) ChainID() string {
 		return t.chainID
 	}
 
-	// Fetch chain ID using background context
-	if err := t.fetchChainID(context.Background()); err != nil {
+	// Fetch chain ID with timeout to prevent indefinite hanging
+	// Use a reasonable timeout since this is a lightweight metadata query
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := t.fetchChainID(ctx); err != nil {
 		// Don't set initialized flag - allow retry on next call
 		return ""
 	}
