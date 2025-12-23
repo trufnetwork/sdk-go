@@ -32,9 +32,10 @@ func (a *TransportAction) GetRecord(ctx context.Context, input clientType.GetRec
 	var args []any
 	args = append(args, input.DataProvider)
 	args = append(args, input.StreamId)
-	args = append(args, transformOrNil(input.From, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.To, func(date int) any { return date }))
-	args = append(args, transformOrNil(input.FrozenAt, func(date int) any { return date }))
+	args = append(args, util.TransformOrNil(input.From, func(date int) any { return date }))
+	args = append(args, util.TransformOrNil(input.To, func(date int) any { return date }))
+	args = append(args, util.TransformOrNil(input.FrozenAt, func(date int) any { return date }))
+	args = append(args, util.TransformOrNil(input.BaseDate, func(date int) any { return date }))
 	if input.UseCache != nil {
 		args = append(args, *input.UseCache)
 	}
@@ -80,14 +81,6 @@ func (a *TransportAction) GetRecord(ctx context.Context, input clientType.GetRec
 	// Note: Cache metadata parsing is not implemented in this minimal version
 	// as noted in TRANSPORT_IMPLEMENTATION_NOTES.md
 	return clientType.ActionResult{Results: outputs}, nil
-}
-
-// transformOrNil returns nil if the value is nil, otherwise applies the transform function.
-func transformOrNil[T any](value *T, transform func(T) any) any {
-	if value == nil {
-		return nil
-	}
-	return transform(*value)
 }
 
 // Stub implementations for IAction methods not needed by QuantAMM.
