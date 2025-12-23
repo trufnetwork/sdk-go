@@ -48,14 +48,14 @@ import (
 //	    ).Await()
 //	}
 type CRETransport struct {
-	runtime     cre.NodeRuntime
-	client      *http.Client
-	endpoint    string
-	signer      auth.Signer
-	chainID     string
-	chainIDOnce sync.Once
-	chainIDErr  error
-	reqID       atomic.Uint64
+	runtime            cre.NodeRuntime
+	client             *http.Client
+	endpoint           string
+	signer             auth.Signer
+	chainID            string
+	chainIDMu          sync.RWMutex
+	chainIDInitialized bool
+	reqID              atomic.Uint64
 }
 
 // Verify CRETransport implements Transport interface at compile time
@@ -225,13 +225,28 @@ func (t *CRETransport) Execute(ctx context.Context, namespace string, action str
 
 	// Ensure chain ID is fetched before building transaction
 	// This prevents transactions with empty chain IDs
-	t.chainIDOnce.Do(func() {
-		t.chainIDErr = t.fetchChainID(ctx)
-	})
-	if t.chainIDErr != nil {
-		return types.Hash{}, fmt.Errorf("failed to get chain ID: %w", t.chainIDErr)
+	// Check if already initialized (read lock)
+	t.chainIDMu.RLock()
+	initialized := t.chainIDInitialized
+	chainID := t.chainID
+	t.chainIDMu.RUnlock()
+
+	if !initialized {
+		// Need to fetch chain ID (write lock)
+		t.chainIDMu.Lock()
+		// Double-check after acquiring write lock
+		if !t.chainIDInitialized {
+			if err := t.fetchChainID(ctx); err != nil {
+				t.chainIDMu.Unlock()
+				return types.Hash{}, fmt.Errorf("failed to fetch chain ID: %w", err)
+			}
+			t.chainIDInitialized = true
+		}
+		chainID = t.chainID
+		t.chainIDMu.Unlock()
 	}
-	if t.chainID == "" {
+
+	if chainID == "" {
 		return types.Hash{}, fmt.Errorf("chain ID is empty")
 	}
 
@@ -242,7 +257,7 @@ func (t *CRETransport) Execute(ctx context.Context, namespace string, action str
 			PayloadType: payload.Type(),
 			Fee:         txOpts.Fee,
 			Nonce:       uint64(txOpts.Nonce),
-			ChainID:     t.chainID,
+			ChainID:     chainID,
 		},
 	}
 
@@ -365,14 +380,34 @@ func (t *CRETransport) fetchChainID(ctx context.Context) error {
 // The chain ID is fetched from the gateway on first call and cached.
 // This is used to ensure transactions are sent to the correct network.
 // Returns empty string if the chain ID fetch fails.
+// Unlike sync.Once, this will retry on transient failures.
 func (t *CRETransport) ChainID() string {
-	// Use sync.Once to ensure thread-safe lazy initialization
-	t.chainIDOnce.Do(func() {
-		// Use a background context since this is a cached operation
-		t.chainIDErr = t.fetchChainID(context.Background())
-	})
+	// Fast path: check if already initialized (read lock)
+	t.chainIDMu.RLock()
+	if t.chainIDInitialized {
+		chainID := t.chainID
+		t.chainIDMu.RUnlock()
+		return chainID
+	}
+	t.chainIDMu.RUnlock()
 
-	// Return cached chain ID (will be empty if fetch failed)
+	// Slow path: fetch chain ID (write lock)
+	t.chainIDMu.Lock()
+	defer t.chainIDMu.Unlock()
+
+	// Double-check after acquiring write lock (another goroutine might have initialized it)
+	if t.chainIDInitialized {
+		return t.chainID
+	}
+
+	// Fetch chain ID using background context
+	if err := t.fetchChainID(context.Background()); err != nil {
+		// Don't set initialized flag - allow retry on next call
+		return ""
+	}
+
+	// Mark as successfully initialized only on success
+	t.chainIDInitialized = true
 	return t.chainID
 }
 
