@@ -155,6 +155,188 @@ client, err := tnclient.NewClient(ctx, endpoint,
 - Custom HTTP client requirements
 - Alternative communication protocols
 
+#### Chainlink Runtime Environment (CRE)
+
+The SDK provides specialized options for Chainlink Runtime Environment workflows.
+
+##### WithCRETransport
+
+Configures the client to use CRE's HTTP client instead of standard `net/http`.
+
+```go
+func WithCRETransport(runtime cre.NodeRuntime, endpoint string) Option
+```
+
+**Parameters:**
+- `runtime` (cre.NodeRuntime): The NodeRuntime from `cre.RunInNodeMode()`
+- `endpoint` (string): TRUF.NETWORK gateway URL
+
+**Build Requirement:** Must use `//go:build wasip1` tag
+
+**Example:**
+
+```go
+//go:build wasip1
+
+package main
+
+import (
+    "github.com/smartcontractkit/cre-sdk-go/cre"
+    "github.com/trufnetwork/sdk-go/core/tnclient"
+)
+
+func onTrigger(config *Config, runtime cre.Runtime) (*Result, error) {
+    return cre.RunInNodeMode(config, runtime,
+        func(config *Config, nodeRuntime cre.NodeRuntime) (*Result, error) {
+            client, err := tnclient.NewClient(ctx, config.Endpoint,
+                tnclient.WithCRETransport(nodeRuntime, config.Endpoint),
+            )
+            if err != nil {
+                return nil, err
+            }
+
+            // All read operations work
+            streams, err := client.ListStreams(ctx, types.ListStreamsInput{})
+            actions, err := client.LoadActions()
+            records, err := actions.GetRecord(ctx, getRecordInput)
+
+            return &Result{Records: records}, nil
+        },
+        cre.ConsensusAggregationFromTags[*Result](),
+    ).Await()
+}
+```
+
+**When to use:**
+- CRE workflows requiring read-only access
+- Listing streams
+- Reading records
+- Querying data
+
+---
+
+##### WithCRETransportAndSigner
+
+Convenience function combining signer and CRE transport configuration for write operations.
+
+```go
+func WithCRETransportAndSigner(runtime cre.NodeRuntime, endpoint string, signer auth.Signer) Option
+```
+
+**Parameters:**
+- `runtime` (cre.NodeRuntime): The NodeRuntime from `cre.RunInNodeMode()`
+- `endpoint` (string): TRUF.NETWORK gateway URL
+- `signer` (auth.Signer): Cryptographic signer for transactions
+
+**Build Requirement:** Must use `//go:build wasip1` tag
+
+**Example:**
+
+```go
+//go:build wasip1
+
+package main
+
+import (
+    "github.com/smartcontractkit/cre-sdk-go/cre"
+    "github.com/trufnetwork/kwil-db/core/crypto/auth"
+    "github.com/trufnetwork/sdk-go/core/tnclient"
+)
+
+func onTrigger(config *Config, runtime cre.Runtime) (*Result, error) {
+    return cre.RunInNodeMode(config, runtime,
+        func(config *Config, nodeRuntime cre.NodeRuntime) (*Result, error) {
+            // Create signer
+            signer := &auth.EthPersonalSigner{Key: privateKey}
+
+            // Create client with both transport and signer
+            client, err := tnclient.NewClient(ctx, config.Endpoint,
+                tnclient.WithCRETransportAndSigner(nodeRuntime, config.Endpoint, signer),
+            )
+            if err != nil {
+                return nil, err
+            }
+
+            // Now you can perform write operations
+            actions, err := client.LoadActions()
+
+            // Insert records
+            txHash, err := actions.InsertRecords(ctx, types.InsertRecordsInput{
+                DataProvider: config.DataProvider,
+                StreamId:     config.StreamId,
+                Records: [][]interface{}{
+                    {"value1", "value2"},
+                },
+            })
+
+            // Wait for transaction confirmation
+            result, err := client.WaitTx(ctx, txHash, 2*time.Second)
+
+            return &Result{TxHash: txHash}, nil
+        },
+        cre.ConsensusAggregationFromTags[*Result](),
+    ).Await()
+}
+```
+
+**When to use:**
+- CRE workflows requiring write access
+- Inserting records
+- Deploying streams
+- Any operation requiring transaction signing
+
+**Equivalent to:**
+
+```go
+client, err := tnclient.NewClient(ctx, endpoint,
+    tnclient.WithSigner(signer),
+    tnclient.WithCRETransport(nodeRuntime, endpoint),
+)
+```
+
+---
+
+##### CRE Build Requirements
+
+All CRE-specific code must include the build tag:
+
+```go
+//go:build wasip1
+
+package main
+```
+
+**Compilation:**
+
+```bash
+# Build for CRE (WASM)
+GOOS=wasip1 GOARCH=wasm go build -o workflow.wasm
+
+# Regular build (excludes CRE code)
+go build
+```
+
+---
+
+##### CRE Limitations
+
+- **Build tag required**: All files using CRE transport must have `//go:build wasip1`
+- **No net/http**: Standard HTTP client not available in WASM
+- **Context handling**: Use `context.WithTimeout` for all operations
+- **Error handling**: Implement robust error handling for network operations
+
+---
+
+##### CRE Resources
+
+📖 **Complete Guide:** [CRE Integration Guide](./CRE_INTEGRATION.md)
+
+🎯 **Working Example:** [examples/truf-cre-demo/](../examples/truf-cre-demo/)
+
+🔗 **CRE Documentation:** [docs.chain.link/cre](https://docs.chain.link/cre)
+
+---
+
 **GetKwilClient()** - Access underlying GatewayClient (HTTP transport only):
 
 ```go
