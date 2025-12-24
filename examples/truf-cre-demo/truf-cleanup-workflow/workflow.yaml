@@ -19,5 +19,5 @@ workflow-settings:
     workflow-name: "truf-cleanup-workflow"
   workflow-artifacts:
     workflow-path: "."
-    config-path: "./config.json"
+    config-path: "../config.json"
     secrets-path: ""

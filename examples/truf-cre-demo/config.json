@@ -1,5 +1,5 @@
 {
   "schedule": "0 */1 * * * *",
   "trufEndpoint": "https://gateway.mainnet.truf.network",
-  "privateKey": "0000000000000000000000000000000000000000000000000000000000000001"
+  "privateKey": "YOUR_PRIVATE_KEY_HERE"
 }

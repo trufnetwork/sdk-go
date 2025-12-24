@@ -12,6 +12,24 @@ The demo is split into **3 separate workflows** to stay within CRE simulation's 
 
 An orchestration script (`run-full-demo.sh`) runs all three workflows sequentially to demonstrate the complete CRUD lifecycle.
 
+## ⚙️ Setup
+
+Before running the demo, configure your private key:
+
+1. **Edit `config.json`** in the `truf-cre-demo/` directory
+2. **Replace `YOUR_PRIVATE_KEY_HERE`** with your Ethereum private key (without `0x` prefix)
+3. **Ensure your account has write permissions** on the TRUF node
+
+```json
+{
+  "schedule": "0 */1 * * * *",
+  "trufEndpoint": "https://gateway.mainnet.truf.network",
+  "privateKey": "your_actual_private_key_here"
+}
+```
+
+**Note**: All 3 workflows share the same `config.json` file via their `workflow.yaml` settings.
+
 ## 🚀 Quick Start
 
 ### Run the Complete Demo
