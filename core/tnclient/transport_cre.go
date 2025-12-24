@@ -87,8 +87,10 @@ var _ Transport = (*CRETransport)(nil)
 //	}
 func NewCRETransport(runtime cre.NodeRuntime, endpoint string, signer auth.Signer) (*CRETransport, error) {
 	// Append /rpc/v1 if not already present (kwil-db client adds this automatically)
+	// First trim trailing slashes to prevent duplication (e.g., "/rpc/v1/" → "/rpc/v1/rpc/v1")
+	endpoint = strings.TrimRight(endpoint, "/")
 	if !strings.HasSuffix(endpoint, "/rpc/v1") {
-		endpoint = strings.TrimSuffix(endpoint, "/") + "/rpc/v1"
+		endpoint = endpoint + "/rpc/v1"
 	}
 
 	return &CRETransport{
@@ -236,8 +238,10 @@ func (t *CRETransport) Call(ctx context.Context, namespace string, action string
 		Arguments: encodedInputs,
 	}
 
-	// Create CallMessage (unauthenticated)
-	// For unauthenticated calls, challenge is empty and signer is nil
+	// Create CallMessage
+	// Call operations are read-only and typically don't require authentication,
+	// but we pass the signer (if configured) to support authenticated gateway calls.
+	// The challenge is nil for standard calls (vs. Execute which requires it).
 	callMsg, err := types.CreateCallMessage(payload, nil, t.signer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create call message: %w", err)
@@ -651,7 +655,9 @@ func (t *CRETransport) doJSONRPCWithResponse(ctx context.Context, method string,
 }
 
 // composeGatewayAuthMessage composes a SIWE-like authentication message.
-// This is the same format used by the kwil-db gateway client.
+// This matches the format used by kwil-db gateway client.
+// Note: This is a custom format, not standard SIWE - it omits the account address line
+// and uses "Issue At" instead of "Issued At" to match kgw's expectations.
 func composeGatewayAuthMessage(param *gateway.AuthnParameterResponse, domain string, uri string, version string, chainID string) string {
 	var msg bytes.Buffer
 	msg.WriteString(domain + " wants you to sign in with your account:\n")
@@ -664,7 +670,7 @@ func composeGatewayAuthMessage(param *gateway.AuthnParameterResponse, domain str
 	msg.WriteString(fmt.Sprintf("Version: %s\n", version))
 	msg.WriteString(fmt.Sprintf("Chain ID: %s\n", chainID))
 	msg.WriteString(fmt.Sprintf("Nonce: %s\n", param.Nonce))
-	msg.WriteString(fmt.Sprintf("Issue At: %s\n", param.IssueAt))
+	msg.WriteString(fmt.Sprintf("Issue At: %s\n", param.IssueAt)) // Note: "Issue At" not "Issued At" (kgw custom format)
 	if param.ExpirationTime != "" {
 		msg.WriteString(fmt.Sprintf("Expiration Time: %s\n", param.ExpirationTime))
 	}
