@@ -143,10 +143,21 @@ func (c *Client) DeployStream(ctx context.Context, streamId util.StreamId, strea
 }
 
 func (c *Client) DestroyStream(ctx context.Context, streamId util.StreamId) (types.Hash, error) {
-	return tn_api.DestroyStream(ctx, tn_api.DestroyStreamInput{
-		StreamId:   streamId,
-		KwilClient: c.GetKwilClient(),
-	})
+	// For HTTP transport, use the existing implementation (backwards compatible)
+	// For custom transports (CRE, etc.), use transport.Execute directly
+	if httpTransport, ok := c.transport.(*HTTPTransport); ok {
+		return tn_api.DestroyStream(ctx, tn_api.DestroyStreamInput{
+			StreamId:   streamId,
+			KwilClient: httpTransport.gatewayClient,
+		})
+	}
+	// Use transport.Execute directly for custom transports
+	// Derive address from signer for delete_stream call
+	addr, _ := auth.EthSecp256k1Authenticator{}.Identifier(c.signer.CompactID())
+	return c.transport.Execute(ctx, "", "delete_stream", [][]any{{
+		addr,
+		streamId.String(),
+	}})
 }
 
 func (c *Client) LoadActions() (clientType.IAction, error) {
