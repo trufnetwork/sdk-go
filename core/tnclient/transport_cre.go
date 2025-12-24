@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -63,6 +64,9 @@ type CRETransport struct {
 	reqID              atomic.Uint64
 	authCookie         string // Cookie value for gateway authentication
 	authCookieMu       sync.RWMutex
+	currentNonce       int64 // Track nonce for sequential transactions
+	nonceMu            sync.Mutex
+	nonceFetched       bool
 }
 
 // Verify CRETransport implements Transport interface at compile time
@@ -192,6 +196,19 @@ func (t *CRETransport) doJSONRPC(ctx context.Context, method string, params any,
 
 	// Check for JSON-RPC errors
 	if rpcResp.Error != nil {
+		// For broadcast errors (-201), decode the BroadcastError details
+		if rpcResp.Error.Code == -201 && len(rpcResp.Error.Data) > 0 {
+			var broadcastErr struct {
+				Code    uint32 `json:"code"`
+				Hash    string `json:"hash"`
+				Message string `json:"message"`
+			}
+			if err := json.Unmarshal(rpcResp.Error.Data, &broadcastErr); err == nil {
+				return fmt.Errorf("JSON-RPC error: %s (code: %d) [Broadcast: code=%d, hash=%s, msg=%s]",
+					rpcResp.Error.Message, rpcResp.Error.Code,
+					broadcastErr.Code, broadcastErr.Hash, broadcastErr.Message)
+			}
+		}
 		return fmt.Errorf("JSON-RPC error: %s (code: %d)", rpcResp.Error.Message, rpcResp.Error.Code)
 	}
 
@@ -259,11 +276,39 @@ func (t *CRETransport) Call(ctx context.Context, namespace string, action string
 //
 // This method builds a signed transaction and broadcasts it to the TRUF.NETWORK.
 // The transaction is signed using the configured signer and executed within CRE's
-// consensus mechanism.
+// consensus mechanism. Automatically retries on nonce errors.
 func (t *CRETransport) Execute(ctx context.Context, namespace string, action string, inputs [][]any, opts ...clientType.TxOpt) (types.Hash, error) {
 	if t.signer == nil {
 		return types.Hash{}, fmt.Errorf("signer required for Execute operations")
 	}
+
+	// Retry loop for nonce errors
+	const maxRetries = 3
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		fmt.Printf("[DEBUG] Execute attempt %d/%d for action=%s\n", attempt+1, maxRetries, action)
+		txHash, err := t.executeOnce(ctx, namespace, action, inputs, opts...)
+		if err != nil {
+			fmt.Printf("[DEBUG] Execute error on attempt %d: %v\n", attempt+1, err)
+			// Check if it's a nonce error
+			if strings.Contains(err.Error(), "invalid nonce") && attempt < maxRetries-1 {
+				fmt.Printf("[DEBUG] Nonce error detected, resetting nonceFetched and retrying\n")
+				// Reset nonce tracking to refetch on next attempt
+				t.nonceMu.Lock()
+				t.nonceFetched = false
+				t.nonceMu.Unlock()
+				continue // Retry
+			}
+			return types.Hash{}, err
+		}
+		return txHash, nil
+	}
+
+	return types.Hash{}, fmt.Errorf("max retries exceeded")
+}
+
+// executeOnce performs a single execute attempt (internal helper)
+func (t *CRETransport) executeOnce(ctx context.Context, namespace string, action string, inputs [][]any, opts ...clientType.TxOpt) (types.Hash, error) {
+	fmt.Printf("[DEBUG] executeOnce called: action=%s\n", action)
 
 	// Convert inputs to EncodedValue arrays
 	var encodedInputs [][]*types.EncodedValue
@@ -298,6 +343,54 @@ func (t *CRETransport) Execute(ctx context.Context, namespace string, action str
 		opt(txOpts)
 	}
 
+	// Auto-manage nonce if not explicitly provided
+	if txOpts.Nonce == 0 {
+		t.nonceMu.Lock()
+
+		// Fetch nonce from gateway on first transaction only
+		if !t.nonceFetched {
+			// Create AccountID from signer
+			acctID := &types.AccountID{
+				Identifier: t.signer.CompactID(),
+				KeyType:    t.signer.PubKey().Type(),
+			}
+
+			// Fetch account info via user.account RPC call
+			params := map[string]any{
+				"id": acctID,
+			}
+
+			var accountResp struct {
+				ID      *types.AccountID `json:"id"`
+				Balance string           `json:"balance"`
+				Nonce   int64            `json:"nonce"`
+			}
+
+			err := t.callJSONRPC(ctx, "user.account", params, &accountResp)
+			if err != nil {
+				// If account doesn't exist yet, start with nonce 0
+				if !strings.Contains(err.Error(), "not found") && !strings.Contains(err.Error(), "does not exist") {
+					t.nonceMu.Unlock()
+					return types.Hash{}, fmt.Errorf("failed to fetch account nonce: %w", err)
+				}
+				t.currentNonce = 0
+				fmt.Printf("[DEBUG] Account not found, starting with nonce=0\n")
+			} else {
+				// Account nonce is the LAST used nonce, so NEXT nonce is nonce+1
+				t.currentNonce = accountResp.Nonce + 1
+				fmt.Printf("[DEBUG] Fetched account nonce=%d, using next nonce=%d\n", accountResp.Nonce, t.currentNonce)
+			}
+			t.nonceFetched = true
+		}
+
+		// Use current nonce and increment
+		txOpts.Nonce = t.currentNonce
+		fmt.Printf("[DEBUG] Using nonce=%d for transaction\n", t.currentNonce)
+		t.currentNonce++
+
+		t.nonceMu.Unlock()
+	}
+
 	// Ensure chain ID is fetched before building transaction
 	// This prevents transactions with empty chain IDs
 	// Check if already initialized (read lock)
@@ -322,15 +415,24 @@ func (t *CRETransport) Execute(ctx context.Context, namespace string, action str
 		t.chainIDMu.Unlock()
 	}
 
+	// Ensure Fee is not nil to prevent signature verification mismatch
+	// When Fee is nil, SerializeMsg produces "Fee: <nil>" but after JSON
+	// marshaling/unmarshaling it becomes "Fee: 0", causing signature mismatch
+	fee := txOpts.Fee
+	if fee == nil {
+		fee = big.NewInt(0)
+	}
+
 	// Build unsigned transaction
 	tx := &types.Transaction{
 		Body: &types.TransactionBody{
 			Payload:     payloadBytes,
 			PayloadType: payload.Type(),
-			Fee:         txOpts.Fee,
+			Fee:         fee,
 			Nonce:       uint64(txOpts.Nonce),
 			ChainID:     chainID,
 		},
+		Serialization: types.DefaultSignedMsgSerType, // Required for EthPersonalSigner
 	}
 
 	// Sign transaction
@@ -338,17 +440,83 @@ func (t *CRETransport) Execute(ctx context.Context, namespace string, action str
 		return types.Hash{}, fmt.Errorf("failed to sign transaction: %w", err)
 	}
 
-	// Broadcast transaction
-	params := map[string]any{
-		"tx": tx,
+	// Pre-serialize transaction to avoid WASM pointer corruption
+	// Go WASM uses 64-bit pointers but WASM runtime uses 32-bit pointers.
+	// Transaction struct contains pointer fields (Signature, Body) which get
+	// corrupted when crossing the WASM boundary (golang/go#59156, golang/go#66984).
+	// Solution: Manually construct JSON-RPC request to avoid struct traversal in WASM.
+	txJSON, err := json.Marshal(tx)
+	if err != nil {
+		return types.Hash{}, fmt.Errorf("failed to marshal transaction: %w", err)
 	}
 
+	// Manually construct JSON-RPC request to bypass params map
+	reqID := t.nextReqID()
+	rpcReqJSON := fmt.Sprintf(
+		`{"jsonrpc":"2.0","id":"%s","method":"user.broadcast","params":{"tx":%s}}`,
+		reqID, string(txJSON))
+
+	// Create headers
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	// Add auth cookie if we have one
+	t.authCookieMu.RLock()
+	if t.authCookie != "" {
+		headers["Cookie"] = t.authCookie
+	}
+	t.authCookieMu.RUnlock()
+
+	// Create CRE HTTP request
+	httpReq := &http.Request{
+		Url:     t.endpoint,
+		Method:  "POST",
+		Body:    []byte(rpcReqJSON),
+		Headers: headers,
+	}
+
+	// Execute via CRE client
+	httpResp, err := t.client.SendRequest(t.runtime, httpReq).Await()
+	if err != nil {
+		return types.Hash{}, fmt.Errorf("CRE HTTP request failed: %w", err)
+	}
+
+	// Check HTTP status
+	if httpResp.StatusCode != 200 {
+		return types.Hash{}, fmt.Errorf("unexpected HTTP status code: %d", httpResp.StatusCode)
+	}
+
+	// Parse JSON-RPC response
+	var rpcResp jsonrpc.Response
+	if err := json.Unmarshal(httpResp.Body, &rpcResp); err != nil {
+		return types.Hash{}, fmt.Errorf("failed to unmarshal JSON-RPC response: %w", err)
+	}
+
+	// Check for JSON-RPC errors
+	if rpcResp.Error != nil {
+		// For broadcast errors (-201), decode the BroadcastError details
+		if rpcResp.Error.Code == -201 && len(rpcResp.Error.Data) > 0 {
+			var broadcastErr struct {
+				Code    uint32 `json:"code"`
+				Hash    string `json:"hash"`
+				Message string `json:"message"`
+			}
+			if err := json.Unmarshal(rpcResp.Error.Data, &broadcastErr); err == nil {
+				return types.Hash{}, fmt.Errorf("JSON-RPC error: %s (code: %d) [Broadcast: code=%d, hash=%s, msg=%s]",
+					rpcResp.Error.Message, rpcResp.Error.Code,
+					broadcastErr.Code, broadcastErr.Hash, broadcastErr.Message)
+			}
+		}
+		return types.Hash{}, fmt.Errorf("JSON-RPC error: %s (code: %d)", rpcResp.Error.Message, rpcResp.Error.Code)
+	}
+
+	// Unmarshal result
 	var result struct {
 		TxHash types.Hash `json:"tx_hash"`
 	}
-
-	if err := t.callJSONRPC(ctx, "user.broadcast", params, &result); err != nil {
-		return types.Hash{}, err
+	if err := json.Unmarshal(rpcResp.Result, &result); err != nil {
+		return types.Hash{}, fmt.Errorf("failed to unmarshal result: %w", err)
 	}
 
 	return result.TxHash, nil

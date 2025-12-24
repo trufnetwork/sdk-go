@@ -30,3 +30,6 @@ go.work
 gitignore
 
 .env
+
+# CRE workflow build artifacts
+*.wasm

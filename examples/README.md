@@ -51,4 +51,16 @@ go run main.go
 You can adapt this example to:
 - Retrieve records from different streams
 - Modify time ranges for record retrieval
-- Add more complex data processing logic 
+- Add more complex data processing logic
+
+---
+
+## Chainlink Runtime Environment (CRE) Examples
+
+### TRUF + CRE Complete Demo
+
+**Directory:** `truf-cre-demo/`
+
+Demonstrates complete stream CRUD lifecycle (deploy → insert → get → delete) using 3 separate CRE workflows to stay within simulation's 5 HTTP request limit.
+
+See **[truf-cre-demo/README.md](truf-cre-demo/README.md)** for quick start, architecture details, and troubleshooting. For general CRE integration guidance, see **[CRE Integration Guide](../docs/CRE_INTEGRATION.md)** 

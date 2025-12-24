@@ -60,6 +60,19 @@ if gwClient := client.GetKwilClient(); gwClient != nil {
 
 > **Note**: For most use cases, prefer the high-level Client methods (`ListStreams`, `DeployStream`, etc.) which are transport-agnostic and work with any transport implementation.
 
+## Using with Chainlink Runtime Environment (CRE)
+
+The TRUF.NETWORK SDK supports [Chainlink Runtime Environment (CRE)](https://docs.chain.link/cre) for building decentralized workflows with consensus-backed data retrieval.
+
+**Key features:**
+- Decentralized data access with DON consensus
+- Full CRUD operations (read/write)
+- WASM-based secure execution
+
+**For complete documentation:**
+- 📖 [CRE Integration Guide](docs/CRE_INTEGRATION.md) - Setup, API reference, and examples
+- 🎯 [Working Demo](examples/truf-cre-demo/) - Complete CRUD lifecycle example
+
 ## Local Node Testing
 
 ### Setting Up a Local Node

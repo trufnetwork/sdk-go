@@ -30,7 +30,7 @@ if err != nil {
 } else if txRes.Result.Code != uint32(kwiltypes.CodeOk) {
     // Handle transaction failure: txRes.Result.Log contains error message
 }
-switch transactions.TxCode(txRes.TxResult.Code) {
+switch transactions.TxCode(txRes.Result.Code) {
 case transactions.CodeOk:
     // Deployment successful
 default:
