@@ -121,7 +121,7 @@ func (t *CRETransport) callJSONRPC(ctx context.Context, method string, params an
 	// If we get a 401, try authenticating and retry once
 	if err != nil && strings.Contains(err.Error(), "401") {
 		if t.signer == nil {
-			return fmt.Errorf("%w [DEBUG: signer is nil, cannot authenticate]", err)
+			return fmt.Errorf("%w: signer is nil, cannot authenticate", err)
 		}
 		// Authenticate with gateway
 		authErr := t.authenticate(ctx)
@@ -285,13 +285,10 @@ func (t *CRETransport) Execute(ctx context.Context, namespace string, action str
 	// Retry loop for nonce errors
 	const maxRetries = 3
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		fmt.Printf("[DEBUG] Execute attempt %d/%d for action=%s\n", attempt+1, maxRetries, action)
 		txHash, err := t.executeOnce(ctx, namespace, action, inputs, opts...)
 		if err != nil {
-			fmt.Printf("[DEBUG] Execute error on attempt %d: %v\n", attempt+1, err)
 			// Check if it's a nonce error
 			if strings.Contains(err.Error(), "invalid nonce") && attempt < maxRetries-1 {
-				fmt.Printf("[DEBUG] Nonce error detected, resetting nonceFetched and retrying\n")
 				// Reset nonce tracking to refetch on next attempt
 				t.nonceMu.Lock()
 				t.nonceFetched = false
@@ -308,8 +305,6 @@ func (t *CRETransport) Execute(ctx context.Context, namespace string, action str
 
 // executeOnce performs a single execute attempt (internal helper)
 func (t *CRETransport) executeOnce(ctx context.Context, namespace string, action string, inputs [][]any, opts ...clientType.TxOpt) (types.Hash, error) {
-	fmt.Printf("[DEBUG] executeOnce called: action=%s\n", action)
-
 	// Convert inputs to EncodedValue arrays
 	var encodedInputs [][]*types.EncodedValue
 	for _, inputRow := range inputs {
@@ -374,18 +369,15 @@ func (t *CRETransport) executeOnce(ctx context.Context, namespace string, action
 					return types.Hash{}, fmt.Errorf("failed to fetch account nonce: %w", err)
 				}
 				t.currentNonce = 0
-				fmt.Printf("[DEBUG] Account not found, starting with nonce=0\n")
 			} else {
 				// Account nonce is the LAST used nonce, so NEXT nonce is nonce+1
 				t.currentNonce = accountResp.Nonce + 1
-				fmt.Printf("[DEBUG] Fetched account nonce=%d, using next nonce=%d\n", accountResp.Nonce, t.currentNonce)
 			}
 			t.nonceFetched = true
 		}
 
 		// Use current nonce and increment
 		txOpts.Nonce = t.currentNonce
-		fmt.Printf("[DEBUG] Using nonce=%d for transaction\n", t.currentNonce)
 		t.currentNonce++
 
 		t.nonceMu.Unlock()
@@ -738,8 +730,7 @@ func (t *CRETransport) authenticate(ctx context.Context) error {
 	// Make the auth request and capture the response headers
 	authResp, err := t.doJSONRPCWithResponse(ctx, string(gateway.MethodAuthn), authReq)
 	if err != nil {
-		return fmt.Errorf("kgw.authn request failed: %w [DEBUG: sender=%x, nonce=%s]",
-			err, authReq.Sender, authReq.Nonce)
+		return fmt.Errorf("kgw.authn request failed: %w", err)
 	}
 
 	// Extract Set-Cookie header from response
@@ -761,7 +752,7 @@ func (t *CRETransport) authenticate(ctx context.Context) error {
 			t.authCookieMu.Unlock()
 		}
 	} else {
-		return fmt.Errorf("no Set-Cookie header in kgw.authn response [DEBUG: headers=%+v]", authResp)
+		return fmt.Errorf("no Set-Cookie header in kgw.authn response")
 	}
 
 	return nil
