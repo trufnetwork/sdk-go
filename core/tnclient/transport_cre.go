@@ -68,6 +68,8 @@ type CRETransport struct {
 	currentNonce       int64 // Track nonce for sequential transactions
 	nonceMu            sync.Mutex
 	nonceFetched       bool
+	httpCacheStore     bool
+	httpCacheMaxAge    time.Duration
 }
 
 // Verify CRETransport implements Transport interface at compile time
@@ -99,12 +101,47 @@ func NewCRETransport(runtime cre.NodeRuntime, endpoint string, signer auth.Signe
 	}
 
 	return &CRETransport{
-		runtime:  runtime,
-		client:   &http.Client{},
-		endpoint: endpoint,
-		signer:   signer,
-		chainID:  "", // Will be fetched on first call if needed
+		runtime:         runtime,
+		client:          &http.Client{},
+		endpoint:        endpoint,
+		signer:          signer,
+		chainID:         "", // Will be fetched on first call if needed
+		httpCacheStore:  defaultHTTPCacheStore,
+		httpCacheMaxAge: defaultHTTPCacheMaxAge,
 	}, nil
+}
+
+func NewCRETransportWithHTTPCache(runtime cre.NodeRuntime, endpoint string, signer auth.Signer, cacheCfg *CREHTTPCacheConfig) (*CRETransport, error) {
+	t, err := NewCRETransport(runtime, endpoint, signer)
+	if err != nil {
+		return nil, err
+	}
+	t.ApplyHTTPCacheConfig(cacheCfg)
+	return t, nil
+}
+
+func (t *CRETransport) ApplyHTTPCacheConfig(cfg *CREHTTPCacheConfig) {
+	if cfg == nil {
+		return
+	}
+
+	if cfg.Store != nil {
+		t.httpCacheStore = *cfg.Store
+	}
+
+	if cfg.MaxAgeSeconds != nil {
+		secs := *cfg.MaxAgeSeconds
+		if secs < 0 {
+			secs = 0
+		}
+		d := time.Duration(secs) * time.Second
+
+		// Clamp to CRE max.
+		if d > maxHTTPCacheMaxAge {
+			d = maxHTTPCacheMaxAge
+		}
+		t.httpCacheMaxAge = d
+	}
 }
 
 // nextReqID generates the next JSON-RPC request ID
@@ -113,23 +150,34 @@ func (t *CRETransport) nextReqID() string {
 	return strconv.FormatUint(id, 10)
 }
 
-const defaultBroadcastCacheMaxAge = 2 * time.Minute
+// Transport-wide defaults (applied when workflow config does not specify cache settings).
+const (
+	defaultHTTPCacheStore  = true
+	defaultHTTPCacheMaxAge = 60 * time.Second
+
+	// CRE documented max for cache MaxAge.
+	maxHTTPCacheMaxAge = 10 * time.Minute
+)
+
+// CREHTTPCacheConfig is intended to be populated from workflow config and then
+// passed into the SDK client wiring (Option A).
+type CREHTTPCacheConfig struct {
+	// If nil, defaults to true.
+	Store *bool `json:"store,omitempty"`
+
+	// If nil, defaults to 60 seconds. Values > 600 are clamped to 600 (10 minutes).
+	MaxAgeSeconds *int64 `json:"maxAgeSeconds,omitempty"`
+}
 
 // cacheSettingsForJSONRPC determines caching behavior per JSON-RPC method.
 // Uses paramsJSON so callers can evolve this policy without changing call sites.
 func (t *CRETransport) cacheSettingsForJSONRPC(method string, paramsJSON []byte) *http.CacheSettings {
-	_ = paramsJSON // reserved for future policy logic; intentionally not used today
-
-	switch method {
-	case "user.broadcast":
-		// Non-idempotent at the gateway boundary; enable shared cache so other nodes
-		// can reuse the first node's response if the request matches.
-		return &http.CacheSettings{
-			Store:  true,
-			MaxAge: durationpb.New(defaultBroadcastCacheMaxAge),
-		}
-	default:
-		return nil
+	// Always attach cache settings so every CRE HTTP request participates.
+	// Note: per CRE docs, if MaxAge is nil/zero it won't read from cache,
+	// but may still store if Store is true. :contentReference[oaicite:2]{index=2}
+	return &http.CacheSettings{
+		Store:  t.httpCacheStore,
+		MaxAge: durationpb.New(t.httpCacheMaxAge),
 	}
 }
 
