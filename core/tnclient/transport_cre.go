@@ -5,6 +5,8 @@ package tnclient
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -144,8 +146,34 @@ func (t *CRETransport) ApplyHTTPCacheConfig(cfg *CREHTTPCacheConfig) {
 	}
 }
 
-// nextReqID generates the next JSON-RPC request ID
-func (t *CRETransport) nextReqID() string {
+func shouldUseDeterministicID(cs *http.CacheSettings) bool {
+	if cs == nil {
+		return false
+	}
+	if cs.Store {
+		return true
+	}
+	if cs.MaxAge != nil && cs.MaxAge.AsDuration() > 0 {
+		return true
+	}
+	return false
+}
+
+func (t *CRETransport) nextReqID(method string, paramsJSON []byte) string {
+	// Cache is "active" if we store or we attempt cache reads (MaxAge > 0).
+	cacheActive := t.httpCacheStore || (t.httpCacheMaxAge > 0)
+
+	if cacheActive {
+		//required because multiple node triggers could mean reqID overrides intended caching
+		h := sha256.New()
+		h.Write([]byte(method))
+		h.Write([]byte{0})
+		h.Write(paramsJSON)
+		sum := h.Sum(nil)
+		return "tn:" + hex.EncodeToString(sum[:8])
+	}
+
+	// Default behavior (unchanged): monotonically increasing per process
 	id := t.reqID.Add(1)
 	return strconv.FormatUint(id, 10)
 }
@@ -219,7 +247,7 @@ func (t *CRETransport) doJSONRPC(ctx context.Context, method string, params any,
 	cacheSettings := t.cacheSettingsForJSONRPC(method, paramsJSON)
 
 	// Create JSON-RPC request
-	reqID := t.nextReqID()
+	reqID := t.nextReqID(method, paramsJSON)
 	rpcReq := jsonrpc.NewRequest(reqID, method, paramsJSON)
 
 	// Marshal the full request
@@ -515,7 +543,7 @@ func (t *CRETransport) executeOnce(ctx context.Context, namespace string, action
 	}
 
 	// Manually construct JSON-RPC request to bypass params map
-	reqID := t.nextReqID()
+	reqID := t.nextReqID("user.broadcast", txJSON)
 	rpcReqJSON := fmt.Sprintf(
 		`{"jsonrpc":"2.0","id":"%s","method":"user.broadcast","params":{"tx":%s}}`,
 		reqID, string(txJSON))
@@ -852,7 +880,7 @@ func (t *CRETransport) doJSONRPCWithResponse(ctx context.Context, method string,
 	cacheSettings := t.cacheSettingsForJSONRPC(method, paramsJSON)
 
 	// Create JSON-RPC request
-	reqID := t.nextReqID()
+	reqID := t.nextReqID(method, paramsJSON)
 	rpcReq := jsonrpc.NewRequest(reqID, method, paramsJSON)
 
 	// Marshal the full request
