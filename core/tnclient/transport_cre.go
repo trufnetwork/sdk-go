@@ -24,6 +24,7 @@ import (
 
 	"github.com/smartcontractkit/cre-sdk-go/capabilities/networking/http"
 	"github.com/smartcontractkit/cre-sdk-go/cre"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 // CRETransport implements Transport using Chainlink CRE's HTTP client.
@@ -112,6 +113,26 @@ func (t *CRETransport) nextReqID() string {
 	return strconv.FormatUint(id, 10)
 }
 
+const defaultBroadcastCacheMaxAge = 2 * time.Minute
+
+// cacheSettingsForJSONRPC determines caching behavior per JSON-RPC method.
+// Uses paramsJSON so callers can evolve this policy without changing call sites.
+func (t *CRETransport) cacheSettingsForJSONRPC(method string, paramsJSON []byte) *http.CacheSettings {
+	_ = paramsJSON // reserved for future policy logic; intentionally not used today
+
+	switch method {
+	case "user.broadcast":
+		// Non-idempotent at the gateway boundary; enable shared cache so other nodes
+		// can reuse the first node's response if the request matches.
+		return &http.CacheSettings{
+			Store:  true,
+			MaxAge: durationpb.New(defaultBroadcastCacheMaxAge),
+		}
+	default:
+		return nil
+	}
+}
+
 // callJSONRPC makes a JSON-RPC call via CRE HTTP client
 // It automatically handles authentication if the endpoint returns 401
 func (t *CRETransport) callJSONRPC(ctx context.Context, method string, params any, result any) error {
@@ -147,6 +168,8 @@ func (t *CRETransport) doJSONRPC(ctx context.Context, method string, params any,
 		return fmt.Errorf("failed to marshal params: %w", err)
 	}
 
+	cacheSettings := t.cacheSettingsForJSONRPC(method, paramsJSON)
+
 	// Create JSON-RPC request
 	reqID := t.nextReqID()
 	rpcReq := jsonrpc.NewRequest(reqID, method, paramsJSON)
@@ -171,10 +194,11 @@ func (t *CRETransport) doJSONRPC(ctx context.Context, method string, params any,
 
 	// Create CRE HTTP request
 	httpReq := &http.Request{
-		Url:     t.endpoint,
-		Method:  "POST",
-		Body:    requestBody,
-		Headers: headers,
+		Url:           t.endpoint,
+		Method:        "POST",
+		Body:          requestBody,
+		Headers:       headers,
+		CacheSettings: cacheSettings,
 	}
 
 	// Execute via CRE client (returns Promise)
@@ -448,6 +472,16 @@ func (t *CRETransport) executeOnce(ctx context.Context, namespace string, action
 		`{"jsonrpc":"2.0","id":"%s","method":"user.broadcast","params":{"tx":%s}}`,
 		reqID, string(txJSON))
 
+	// Build paramsJSON for cache policy evaluation (without changing request construction)
+	type broadcastParams struct {
+		Tx json.RawMessage `json:"tx"`
+	}
+	paramsJSON, err := json.Marshal(&broadcastParams{Tx: txJSON})
+	if err != nil {
+		return types.Hash{}, fmt.Errorf("failed to marshal broadcast params: %w", err)
+	}
+	cacheSettings := t.cacheSettingsForJSONRPC("user.broadcast", paramsJSON)
+
 	// Create headers
 	headers := map[string]string{
 		"Content-Type": "application/json",
@@ -462,10 +496,11 @@ func (t *CRETransport) executeOnce(ctx context.Context, namespace string, action
 
 	// Create CRE HTTP request
 	httpReq := &http.Request{
-		Url:     t.endpoint,
-		Method:  "POST",
-		Body:    []byte(rpcReqJSON),
-		Headers: headers,
+		Url:           t.endpoint,
+		Method:        "POST",
+		Body:          []byte(rpcReqJSON),
+		Headers:       headers,
+		CacheSettings: cacheSettings,
 	}
 
 	// Execute via CRE client
@@ -684,8 +719,7 @@ func (t *CRETransport) Signer() auth.Signer {
 	return t.signer
 }
 
-// authenticate performs gateway authentication and stores the cookie.
-// This is called automatically when a 401 error is received.
+// authenticate performs gateway authentication and stores the cookie.// This is called automatically when a 401 error is received.
 func (t *CRETransport) authenticate(ctx context.Context) error {
 	if t.signer == nil {
 		return fmt.Errorf("cannot authenticate without a signer")
@@ -767,6 +801,8 @@ func (t *CRETransport) doJSONRPCWithResponse(ctx context.Context, method string,
 		return nil, fmt.Errorf("failed to marshal params: %w", err)
 	}
 
+	cacheSettings := t.cacheSettingsForJSONRPC(method, paramsJSON)
+
 	// Create JSON-RPC request
 	reqID := t.nextReqID()
 	rpcReq := jsonrpc.NewRequest(reqID, method, paramsJSON)
@@ -785,6 +821,7 @@ func (t *CRETransport) doJSONRPCWithResponse(ctx context.Context, method string,
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
+		CacheSettings: cacheSettings,
 	}
 
 	// Execute via CRE client (returns Promise)
@@ -814,9 +851,6 @@ func (t *CRETransport) doJSONRPCWithResponse(ctx context.Context, method string,
 }
 
 // composeGatewayAuthMessage composes a SIWE-like authentication message.
-// This matches the format used by kwil-db gateway client.
-// Note: This is a custom format, not standard SIWE - it omits the account address line
-// and uses "Issue At" instead of "Issued At" to match kgw's expectations.
 func composeGatewayAuthMessage(param *gateway.AuthnParameterResponse, domain string, uri string, version string, chainID string) string {
 	var msg bytes.Buffer
 	msg.WriteString(domain + " wants you to sign in with your account:\n")
