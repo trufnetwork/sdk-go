@@ -21,56 +21,55 @@ import (
 // See the examples/cre_integration/ directory for complete working examples.
 
 func TestNewCRETransport(t *testing.T) {
-	// Note: We cannot create a real NodeRuntime outside of CRE environment,
-	// so this test just verifies the function signature and basic structure.
-
-	t.Run("constructor_exists", func(t *testing.T) {
-		// This test just verifies that the NewCRETransport function exists
-		// and has the expected signature.
-		// Actual testing requires CRE simulation environment.
-
-		// Verify the function is not nil
+	t.Run("constructor_exists", func(t *testi
 		assert.NotNil(t, NewCRETransport)
+	})
+
+	t.Run("defaults_and_endpoint_normalization", func(t *testing.T) {
+		tr, err := NewCRETransport(nil, "https://example.com", nil)
+		require.NoError(t, err)
+
+		// Endpoint should have /rpc/v1 suffix
+		assert.Equal(t, "https://example.com/rpc/v1", tr.endpoint)
+
+		// Cache defaults should be applied
+		assert.Equal(t, defaultHTTPCacheStore, tr.httpCacheStore)
+		assert.Equal(t, defaultHTTPCacheMaxAge, tr.httpCacheMaxAge)
+
+		// Sanity: cache settings should be non-nil for any method
+		cs := tr.cacheSettingsForJSONRPC("user.call", []byte(`{}`))
+		require.NotNil(t, cs)
+		assert.Equal(t, defaultHTTPCacheStore, cs.Store)
+		require.NotNil(t, cs.MaxAge)
+		assert.Equal(t, defaultHTTPCacheMaxAge, cs.MaxAge.AsDuration())
 	})
 }
 
 func TestCRETransport_Implements_Transport_Interface(t *testing.T) {
-	// This compile-time check verifies that CRETransport implements Transport
-	// The var _ Transport = (*CRETransport)(nil) line in transport_cre.go
-	// ensures this at compile time, but we include this test for documentation.
-
 	t.Run("implements_interface", func(t *testing.T) {
-		// If this compiles, the interface is implemented
 		var _ Transport = (*CRETransport)(nil)
 	})
 }
 
 func TestWithCRETransport(t *testing.T) {
 	t.Run("option_exists", func(t *testing.T) {
-		// Verify the WithCRETransport option function exists
 		assert.NotNil(t, WithCRETransport)
 	})
 
 	t.Run("option_signature", func(t *testing.T) {
-		// Verify the function returns an Option
-		// This test documents the expected signature
 		var _ Option = WithCRETransport(nil, "http://example.com")
 	})
 }
 
 func TestWithCRETransportAndSigner(t *testing.T) {
 	t.Run("option_exists", func(t *testing.T) {
-		// Verify the WithCRETransportAndSigner option function exists
 		assert.NotNil(t, WithCRETransportAndSigner)
 	})
 
 	t.Run("option_signature", func(t *testing.T) {
-		// Verify the function returns an Option
 		var _ Option = WithCRETransportAndSigner(nil, "http://example.com", nil)
 	})
 }
-
-// Unit tests for error classification
 
 func TestIsTransientTxError(t *testing.T) {
 	tests := []struct {
@@ -95,7 +94,7 @@ func TestIsTransientTxError(t *testing.T) {
 			name:      "Multi-word message with code",
 			err:       fmt.Errorf("JSON-RPC error: transaction not found in mempool or ledger (code: -202)"),
 			want:      true,
-			reasoning: "Regex should handle multi-word messages (fixed from %*s limitation)",
+			reasoning: "Regex should handle multi-word messages",
 		},
 		{
 			name:      "ErrorTimeout code",
@@ -170,34 +169,141 @@ func TestIsTransientTxError(t *testing.T) {
 	}
 }
 
-// -----------------------------------------------------------------------------
-// New tests for CRE HTTP cache settings
-// -----------------------------------------------------------------------------
+func TestCRETransport_ApplyHTTPCacheConfig(t *testing.T) {
+	t.Run("nil_config_is_noop", func(t *testing.T) {
+		tr, err := NewCRETransport(nil, "https://example.com", nil)
+		require.NoError(t, err)
 
-func TestCRETransport_CacheSettingsForJSONRPC(t *testing.T) {
-	t.Run("broadcast_is_cached", func(t *testing.T) {
-		tr := &CRETransport{}
-		cs := tr.cacheSettingsForJSONRPC("user.broadcast", []byte(`{"tx":"abc"}`))
-		require.NotNil(t, cs, "user.broadcast should return non-nil CacheSettings")
-		assert.True(t, cs.Store, "user.broadcast should set Store=true")
-		require.NotNil(t, cs.MaxAge, "user.broadcast should set MaxAge")
-		assert.Equal(t, defaultBroadcastCacheMaxAge, cs.MaxAge.AsDuration(), "MaxAge should match defaultBroadcastCacheMaxAge")
+		beforeStore := tr.httpCacheStore
+		beforeAge := tr.httpCacheMaxAge
+
+		tr.ApplyHTTPCacheConfig(nil)
+
+		assert.Equal(t, beforeStore, tr.httpCacheStore)
+		assert.Equal(t, beforeAge, tr.httpCacheMaxAge)
 	})
 
-	t.Run("non_broadcast_is_not_cached", func(t *testing.T) {
-		tr := &CRETransport{}
-		assert.Nil(t, tr.cacheSettingsForJSONRPC("user.call", []byte(`{}`)))
-		assert.Nil(t, tr.cacheSettingsForJSONRPC("user.tx_query", []byte(`{}`)))
-		assert.Nil(t, tr.cacheSettingsForJSONRPC("kgw.authn", []byte(`{}`)))
+	t.Run("overrides_are_applied", func(t *testing.T) {
+		tr, err := NewCRETransport(nil, "https://example.com", nil)
+		require.NoError(t, err)
+
+		store := false
+		secs := int64(30)
+		cfg := &CREHTTPCacheConfig{Store: &store, MaxAgeSeconds: &secs}
+
+		tr.ApplyHTTPCacheConfig(cfg)
+
+		assert.False(t, tr.httpCacheStore)
+		assert.Equal(t, 30*time.Second, tr.httpCacheMaxAge)
+
+		cs := tr.cacheSettingsForJSONRPC("user.call", []byte(`{}`))
+		require.NotNil(t, cs)
+		assert.False(t, cs.Store)
+		require.NotNil(t, cs.MaxAge)
+		assert.Equal(t, 30*time.Second, cs.MaxAge.AsDuration())
+	})
+
+	t.Run("negative_max_age_is_clamped_to_zero", func(t *testing.T) {
+		tr, err := NewCRETransport(nil, "https://example.com", nil)
+		require.NoError(t, err)
+
+		secs := int64(-5)
+		cfg := &CREHTTPCacheConfig{MaxAgeSeconds: &secs}
+		tr.ApplyHTTPCacheConfig(cfg)
+
+		assert.Equal(t, 0*time.Second, tr.httpCacheMaxAge)
+
+		cs := tr.cacheSettingsForJSONRPC("user.call", []byte(`{}`))
+		require.NotNil(t, cs)
+		require.NotNil(t, cs.MaxAge)
+		assert.Equal(t, 0*time.Second, cs.MaxAge.AsDuration())
+	})
+
+	t.Run("max_age_is_clamped_to_cre_max", func(t *testing.T) {
+		tr, err := NewCRETransport(nil, "https://example.com", nil)
+		require.NoError(t, err)
+
+		secs := int64(999999)
+		cfg := &CREHTTPCacheConfig{MaxAgeSeconds: &secs}
+		tr.ApplyHTTPCacheConfig(cfg)
+
+		assert.Equal(t, maxHTTPCacheMaxAge, tr.httpCacheMaxAge)
+
+		cs := tr.cacheSettingsForJSONRPC("user.call", []byte(`{}`))
+		require.NotNil(t, cs)
+		require.NotNil(t, cs.MaxAge)
+		assert.Equal(t, maxHTTPCacheMaxAge, cs.MaxAge.AsDuration())
+	})
+}
+
+func TestCRETransport_CacheSettingsForJSONRPC(t *testing.T) {
+	t.Run("all_methods_return_cache_settings", func(t *testing.T) {
+		tr, err := NewCRETransport(nil, "https://example.com", nil)
+		require.NoError(t, err)
+
+		methods := []string{
+			"user.call",
+			"user.tx_query",
+			"user.account",
+			"user.chain_info",
+			"kgw.authn_param",
+			"kgw.authn",
+			"user.broadcast",
+		}
+
+		for _, m := range methods {
+			cs := tr.cacheSettingsForJSONRPC(m, []byte(`{}`))
+			require.NotNil(t, cs, "method %s should return non-nil CacheSettings", m)
+			assert.Equal(t, defaultHTTPCacheStore, cs.Store, "method %s Store should match transport default", m)
+			require.NotNil(t, cs.MaxAge, "method %s should set MaxAge", m)
+			assert.Equal(t, defaultHTTPCacheMaxAge, cs.MaxAge.AsDuration(), "method %s MaxAge should match transport default", m)
+		}
 	})
 
 	t.Run("paramsJSON_is_accepted", func(t *testing.T) {
-		// Policy currently ignores paramsJSON, but this test ensures we can pass
-		// arbitrary JSON without panicking and still get the expected outcome.
-		tr := &CRETransport{}
-		cs := tr.cacheSettingsForJSONRPC("user.broadcast", []byte(`{"nested":{"a":[1,2,3]}}`))
+		tr, err := NewCRETransport(nil, "https://example.com", nil)
+		require.NoError(t, err)
+
+		cs := tr.cacheSettingsForJSONRPC("user.call", []byte(`{"nested":{"a":[1,2,3]}}`))
 		require.NotNil(t, cs)
-		assert.Equal(t, defaultBroadcastCacheMaxAge, cs.MaxAge.AsDuration())
+		require.NotNil(t, cs.MaxAge)
+		assert.Equal(t, defaultHTTPCacheMaxAge, cs.MaxAge.AsDuration())
+	})
+}
+
+func TestCRETransport_NextReqID(t *testing.T) {
+	t.Run("deterministic_when_caching_active", func(t *testing.T) {
+		tr, err := NewCRETransport(nil, "https://example.com", nil)
+		require.NoError(t, err)
+
+		params := []byte(`{"a":1}`)
+		id1 := tr.nextReqID("user.call", params)
+		id2 := tr.nextReqID("user.call", params)
+
+		assert.Equal(t, id1, id2)
+		assert.True(t, stringsHasPrefix(id1, "tn:"), "expected deterministic id to have tn: prefix")
+		assert.Equal(t, 19, len(id1), "expected tn: + 16 hex chars")
+
+		id3 := tr.nextReqID("user.call", []byte(`{"a":2}`))
+		assert.NotEqual(t, id1, id3)
+
+		// Different method -> different id
+		id4 := tr.nextReqID("user.tx_query", params)
+		assert.NotEqual(t, id1, id4)
+	})
+
+	t.Run("monotonic_sequence_when_caching_disabled", func(t *testing.T) {
+		// Construct minimal transport with caching disabled and fresh reqID counter.
+		tr := &CRETransport{
+			httpCacheStore:  false,
+			httpCacheMaxAge: 0,
+		}
+
+		id1 := tr.nextReqID("user.call", []byte(`{}`))
+		id2 := tr.nextReqID("user.call", []byte(`{}`))
+
+		assert.Equal(t, "1", id1)
+		assert.Equal(t, "2", id2)
 	})
 }
 
@@ -219,8 +325,8 @@ func TestCRETransport_HTTPRequestsIncludeCacheSettings(t *testing.T) {
 
 	targets := []struct {
 		funcName               string
-		expectFirstArgIsMethod bool   // if true, expects first arg ident "method"
-		expectFirstArgString   string // if non-empty, expects string literal
+		expectFirstArgIsMethod bool
+		expectFirstArgString   string
 	}{
 		{funcName: "doJSONRPC", expectFirstArgIsMethod: true},
 		{funcName: "doJSONRPCWithResponse", expectFirstArgIsMethod: true},
@@ -232,11 +338,9 @@ func TestCRETransport_HTTPRequestsIncludeCacheSettings(t *testing.T) {
 			fd := findFuncDecl(t, f, tc.funcName)
 			require.NotNil(t, fd, "function %s not found", tc.funcName)
 
-			// 1) Ensure we assign: cacheSettings := t.cacheSettingsForJSONRPC(<method>, paramsJSON)
 			assert.True(t, hasCacheSettingsAssignment(t, fd, tc.expectFirstArgIsMethod, tc.expectFirstArgString),
 				"%s should assign cacheSettings := t.cacheSettingsForJSONRPC(..., paramsJSON)", tc.funcName)
 
-			// 2) Ensure &http.Request{..., CacheSettings: cacheSettings, ...} exists
 			assert.True(t, hasHttpRequestWithCacheSettings(t, fd),
 				"%s should set CacheSettings on http.Request literal", tc.funcName)
 		})
@@ -268,7 +372,6 @@ func hasCacheSettingsAssignment(t *testing.T, fd *ast.FuncDecl, firstArgIsMethod
 			return true
 		}
 
-		// RHS must be t.cacheSettingsForJSONRPC(...)
 		call, ok := as.Rhs[0].(*ast.CallExpr)
 		if !ok {
 			return true
@@ -286,12 +389,9 @@ func hasCacheSettingsAssignment(t *testing.T, fd *ast.FuncDecl, firstArgIsMethod
 			return true
 		}
 
-		// Second arg must be paramsJSON ident
 		if id2, ok := call.Args[1].(*ast.Ident); !ok || id2.Name != "paramsJSON" {
 			return true
 		}
-
-		// First arg check
 		if firstArgIsMethod {
 			id1, ok := call.Args[0].(*ast.Ident)
 			if !ok || id1.Name != "method" {
@@ -320,7 +420,6 @@ func hasHttpRequestWithCacheSettings(t *testing.T, fd *ast.FuncDecl) bool {
 
 	found := false
 	ast.Inspect(fd, func(n ast.Node) bool {
-		// Look for: &http.Request{ ... CacheSettings: cacheSettings ... }
 		ue, ok := n.(*ast.UnaryExpr)
 		if !ok || ue.Op != token.AND {
 			return true
@@ -329,7 +428,6 @@ func hasHttpRequestWithCacheSettings(t *testing.T, fd *ast.FuncDecl) bool {
 		if !ok {
 			return true
 		}
-		// Type must be http.Request
 		se, ok := cl.Type.(*ast.SelectorExpr)
 		if !ok {
 			return true
@@ -339,7 +437,6 @@ func hasHttpRequestWithCacheSettings(t *testing.T, fd *ast.FuncDecl) bool {
 			return true
 		}
 
-		// Must include CacheSettings: cacheSettings
 		for _, elt := range cl.Elts {
 			kv, ok := elt.(*ast.KeyValueExpr)
 			if !ok {
@@ -362,8 +459,9 @@ func hasHttpRequestWithCacheSettings(t *testing.T, fd *ast.FuncDecl) bool {
 	return found
 }
 
-func TestDefaultBroadcastCacheMaxAge(t *testing.T) {
-	// Defensive check: ensure the constant remains what the transport expects.
-	// If this is intentionally changed, update tests accordingly.
-	assert.Equal(t, 2*time.Minute, defaultBroadcastCacheMaxAge)
+func stringsHasPrefix(s, prefix string) bool {
+	if len(prefix) > len(s) {
+		return false
+	}
+	return s[:len(prefix)] == prefix
 }
