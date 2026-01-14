@@ -915,6 +915,9 @@ func (t *CRETransport) doJSONRPCWithResponse(ctx context.Context, method string,
 }
 
 // composeGatewayAuthMessage composes a SIWE-like authentication message.
+// This matches the format used by kwil-db gateway client.
+// Note: This is a custom format, not standard SIWE - it omits the account address line
+// and uses "Issue At" instead of "Issued At" to match kgw's expectations.
 func composeGatewayAuthMessage(param *gateway.AuthnParameterResponse, domain string, uri string, version string, chainID string) string {
 	var msg bytes.Buffer
 	msg.WriteString(domain + " wants you to sign in with your account:\n")
