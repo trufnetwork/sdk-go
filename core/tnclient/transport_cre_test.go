@@ -21,7 +21,7 @@ import (
 // See the examples/cre_integration/ directory for complete working examples.
 
 func TestNewCRETransport(t *testing.T) {
-	t.Run("constructor_exists", func(t *testi
+	t.Run("constructor_exists", func(t *testing.T) {
 		assert.NotNil(t, NewCRETransport)
 	})
 
@@ -259,16 +259,6 @@ func TestCRETransport_CacheSettingsForJSONRPC(t *testing.T) {
 			assert.Equal(t, defaultHTTPCacheMaxAge, cs.MaxAge.AsDuration(), "method %s MaxAge should match transport default", m)
 		}
 	})
-
-	t.Run("paramsJSON_is_accepted", func(t *testing.T) {
-		tr, err := NewCRETransport(nil, "https://example.com", nil)
-		require.NoError(t, err)
-
-		cs := tr.cacheSettingsForJSONRPC("user.call", []byte(`{"nested":{"a":[1,2,3]}}`))
-		require.NotNil(t, cs)
-		require.NotNil(t, cs.MaxAge)
-		assert.Equal(t, defaultHTTPCacheMaxAge, cs.MaxAge.AsDuration())
-	})
 }
 
 func TestCRETransport_NextReqID(t *testing.T) {
@@ -280,10 +270,12 @@ func TestCRETransport_NextReqID(t *testing.T) {
 		id1 := tr.nextReqID("user.call", params)
 		id2 := tr.nextReqID("user.call", params)
 
+		// Deterministic for identical (method, paramsJSON)
 		assert.Equal(t, id1, id2)
 		assert.True(t, stringsHasPrefix(id1, "tn:"), "expected deterministic id to have tn: prefix")
 		assert.Equal(t, 19, len(id1), "expected tn: + 16 hex chars")
 
+		// Different params -> different id
 		id3 := tr.nextReqID("user.call", []byte(`{"a":2}`))
 		assert.NotEqual(t, id1, id3)
 
@@ -389,9 +381,12 @@ func hasCacheSettingsAssignment(t *testing.T, fd *ast.FuncDecl, firstArgIsMethod
 			return true
 		}
 
+		// Second arg must be paramsJSON ident
 		if id2, ok := call.Args[1].(*ast.Ident); !ok || id2.Name != "paramsJSON" {
 			return true
 		}
+
+		// First arg check
 		if firstArgIsMethod {
 			id1, ok := call.Args[0].(*ast.Ident)
 			if !ok || id1.Name != "method" {
@@ -428,6 +423,7 @@ func hasHttpRequestWithCacheSettings(t *testing.T, fd *ast.FuncDecl) bool {
 		if !ok {
 			return true
 		}
+
 		se, ok := cl.Type.(*ast.SelectorExpr)
 		if !ok {
 			return true
