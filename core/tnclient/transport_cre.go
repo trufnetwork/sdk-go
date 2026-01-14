@@ -782,7 +782,8 @@ func (t *CRETransport) Signer() auth.Signer {
 	return t.signer
 }
 
-// authenticate performs gateway authentication and stores the cookie.// This is called automatically when a 401 error is received.
+// authenticate performs gateway authentication and stores the cookie.
+// This is called automatically when a 401 error is received.
 func (t *CRETransport) authenticate(ctx context.Context) error {
 	if t.signer == nil {
 		return fmt.Errorf("cannot authenticate without a signer")
