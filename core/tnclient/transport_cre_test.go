@@ -270,12 +270,10 @@ func TestCRETransport_NextReqID(t *testing.T) {
 		id1 := tr.nextReqID("user.call", params)
 		id2 := tr.nextReqID("user.call", params)
 
-		// Deterministic for identical (method, paramsJSON)
 		assert.Equal(t, id1, id2)
 		assert.True(t, stringsHasPrefix(id1, "tn:"), "expected deterministic id to have tn: prefix")
 		assert.Equal(t, 19, len(id1), "expected tn: + 16 hex chars")
 
-		// Different params -> different id
 		id3 := tr.nextReqID("user.call", []byte(`{"a":2}`))
 		assert.NotEqual(t, id1, id3)
 
@@ -381,12 +379,10 @@ func hasCacheSettingsAssignment(t *testing.T, fd *ast.FuncDecl, firstArgIsMethod
 			return true
 		}
 
-		// Second arg must be paramsJSON ident
 		if id2, ok := call.Args[1].(*ast.Ident); !ok || id2.Name != "paramsJSON" {
 			return true
 		}
 
-		// First arg check
 		if firstArgIsMethod {
 			id1, ok := call.Args[0].(*ast.Ident)
 			if !ok || id1.Name != "method" {

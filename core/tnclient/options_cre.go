@@ -107,3 +107,12 @@ func WithCRETransportAndSigner(runtime cre.NodeRuntime, endpoint string, signer 
 		c.transport, _ = NewCRETransport(runtime, endpoint, signer)
 	}
 }
+
+func WithCRETransportAndSignerWithHTTPCache(runtime cre.NodeRuntime, endpoint string, signer auth.Signer, cacheCfg *CREHTTPCacheConfig) Option {
+	return func(c *Client) {
+		// Set signer first
+		c.signer = signer
+		// Then create CRE transport with the signer and HTTP cache
+		c.transport, _ = NewCRETransportWithHTTPCache(runtime, endpoint, signer, cacheCfg)
+	}
+}

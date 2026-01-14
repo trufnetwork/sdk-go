@@ -146,19 +146,6 @@ func (t *CRETransport) ApplyHTTPCacheConfig(cfg *CREHTTPCacheConfig) {
 	}
 }
 
-func shouldUseDeterministicID(cs *http.CacheSettings) bool {
-	if cs == nil {
-		return false
-	}
-	if cs.Store {
-		return true
-	}
-	if cs.MaxAge != nil && cs.MaxAge.AsDuration() > 0 {
-		return true
-	}
-	return false
-}
-
 func (t *CRETransport) nextReqID(method string, paramsJSON []byte) string {
 	// Cache is "active" if we store or we attempt cache reads (MaxAge > 0).
 	cacheActive := t.httpCacheStore || (t.httpCacheMaxAge > 0)
