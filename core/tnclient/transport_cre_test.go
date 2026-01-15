@@ -21,7 +21,15 @@ import (
 // See the examples/cre_integration/ directory for complete working examples.
 
 func TestNewCRETransport(t *testing.T) {
+	// Note: We cannot create a real NodeRuntime outside of CRE environment,
+	// so this test just verifies the function signature and basic structure.
+
 	t.Run("constructor_exists", func(t *testing.T) {
+		// This test just verifies that the NewCRETransport function exists
+		// and has the expected signature.
+		// Actual testing requires CRE simulation environment.
+
+		// Verify the function is not nil
 		assert.NotNil(t, NewCRETransport)
 	})
 
@@ -46,30 +54,41 @@ func TestNewCRETransport(t *testing.T) {
 }
 
 func TestCRETransport_Implements_Transport_Interface(t *testing.T) {
+	// This compile-time check verifies that CRETransport implements Transport
+	// The var _ Transport = (*CRETransport)(nil) line in transport_cre.go
+	// ensures this at compile time, but we include this test for documentation.
 	t.Run("implements_interface", func(t *testing.T) {
+		// If this compiles, the interface is implemented
 		var _ Transport = (*CRETransport)(nil)
 	})
 }
 
 func TestWithCRETransport(t *testing.T) {
 	t.Run("option_exists", func(t *testing.T) {
+		// Verify the WithCRETransport option function exists
 		assert.NotNil(t, WithCRETransport)
 	})
 
 	t.Run("option_signature", func(t *testing.T) {
+		// Verify the function returns an Option
+		// This test documents the expected signature
 		var _ Option = WithCRETransport(nil, "http://example.com")
 	})
 }
 
 func TestWithCRETransportAndSigner(t *testing.T) {
 	t.Run("option_exists", func(t *testing.T) {
+		// Verify the WithCRETransportAndSigner option function exists
 		assert.NotNil(t, WithCRETransportAndSigner)
 	})
 
 	t.Run("option_signature", func(t *testing.T) {
+		// Verify the function returns an Option
 		var _ Option = WithCRETransportAndSigner(nil, "http://example.com", nil)
 	})
 }
+
+// Unit tests for error classification
 
 func TestIsTransientTxError(t *testing.T) {
 	tests := []struct {
@@ -94,7 +113,7 @@ func TestIsTransientTxError(t *testing.T) {
 			name:      "Multi-word message with code",
 			err:       fmt.Errorf("JSON-RPC error: transaction not found in mempool or ledger (code: -202)"),
 			want:      true,
-			reasoning: "Regex should handle multi-word messages",
+			reasoning: "Regex should handle multi-word messages (fixed from %*s limitation)",
 		},
 		{
 			name:      "ErrorTimeout code",
