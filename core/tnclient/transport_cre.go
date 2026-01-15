@@ -189,7 +189,7 @@ type CREHTTPCacheConfig struct {
 func (t *CRETransport) cacheSettingsForJSONRPC(method string, paramsJSON []byte) *http.CacheSettings {
 	// Always attach cache settings so every CRE HTTP request participates.
 	// Note: per CRE docs, if MaxAge is nil/zero it won't read from cache,
-	// but may still store if Store is true. :contentReference[oaicite:2]{index=2}
+	// but may still store if Store is true.
 	return &http.CacheSettings{
 		Store:  t.httpCacheStore,
 		MaxAge: durationpb.New(t.httpCacheMaxAge),
