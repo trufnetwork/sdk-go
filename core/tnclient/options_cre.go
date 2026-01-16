@@ -108,6 +108,19 @@ func WithCRETransportAndSigner(runtime cre.NodeRuntime, endpoint string, signer 
 	}
 }
 
+// WithCRETransportAndSignerWithHTTPCache is a convenience function that combines
+// WithSigner and a CRE transport configured with an HTTP cache in the correct
+// order.
+//
+// This ensures the signer is set before creating the CRE transport, which is
+// necessary for write operations. The provided cacheCfg controls the HTTP cache
+// behavior used by the underlying CRE transport.
+//
+// Example:
+//
+//	client, err := tnclient.NewClient(ctx, endpoint,
+//	    tnclient.WithCRETransportAndSignerWithHTTPCache(nodeRuntime, endpoint, signer, cacheCfg),
+//	)
 func WithCRETransportAndSignerWithHTTPCache(runtime cre.NodeRuntime, endpoint string, signer auth.Signer, cacheCfg *CREHTTPCacheConfig) Option {
 	return func(c *Client) {
 		// Set signer first
