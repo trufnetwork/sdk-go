@@ -168,6 +168,36 @@ Use for:
 
 ---
 
+### CRE HTTP caching (recommended for non-idempotent writes)
+
+CRE executes workflow logic across multiple DON nodes. Without additional controls, **each node may independently issue the same HTTP request**, including requests that have side effects. For non-idempotent operations (for example, submitting transactions or creating resources), this can result in duplicate external calls.
+
+CRE’s Go HTTP client supports best-effort request de-duplication via `CacheSettings` on `http.Request`. When enabled, one node performs the request and stores the response; other nodes can reuse it if it is still fresh (`MaxAge`). This is most appropriate for **POST/PUT/PATCH/DELETE-style** operations that should not be executed multiple times.
+
+Example (raw CRE HTTP request):
+
+```go
+import (
+    "time"
+    "google.golang.org/protobuf/types/known/durationpb"
+    crehttp "github.com/smartcontractkit/cre-sdk-go/capabilities/networking/http"
+)
+
+// ...
+req := &crehttp.Request{
+    Url:    "https://example.com/api",
+    Method: "POST",
+    Body:   payloadBytes,
+    CacheSettings: &crehttp.CacheSettings{
+        Store:  true,
+        MaxAge: durationpb.New(2 * time.Minute),
+    },
+}
+resp, err := client.SendRequest(nodeRuntime, req).Await()
+
+```
+---
+
 ## API Reference
 
 For detailed API documentation including function signatures, parameters, and usage examples, see:
@@ -186,6 +216,7 @@ For detailed API documentation including function signatures, parameters, and us
 - [Chainlink CRE Documentation](https://docs.chain.link/cre)
 - [TRUF.NETWORK SDK Documentation](./api-reference.md)
 - [CRE SDK Go Documentation](https://pkg.go.dev/github.com/smartcontractkit/cre-sdk-go)
+- [CRE HTTP documentation](https://docs.chain.link/cre/guides/workflow/using-http-client/post-request-go)
 
 ### Examples
 - [TRUF + CRE Complete Demo](../examples/truf-cre-demo/) - 3-workflow pattern demonstrating full CRUD lifecycle
