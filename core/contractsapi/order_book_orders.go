@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
-	kwiltypes "github.com/kwilteam/kwil-db/core/types"
-	kwilClientType "github.com/kwilteam/kwil-db/core/types/client"
+	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
+	kwilClientType "github.com/trufnetwork/kwil-db/core/client/types"
 	"github.com/trufnetwork/sdk-go/core/types"
 )
 

@@ -2,10 +2,12 @@ package types
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
+	"time"
 
-	kwiltypes "github.com/kwilteam/kwil-db/core/types"
-	kwilClientType "github.com/kwilteam/kwil-db/core/types/client"
+	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
+	kwilClientType "github.com/trufnetwork/kwil-db/core/client/types"
 )
 
 // ═══════════════════════════════════════════════════════════════
@@ -173,6 +175,10 @@ func (c *CreateMarketInput) Validate() error {
 	}
 	if c.SettleTime <= 0 {
 		return fmt.Errorf("settle_time must be positive (unix timestamp)")
+	}
+	// Ensure settle_time is in the future
+	if c.SettleTime <= time.Now().Unix() {
+		return fmt.Errorf("settle_time must be a future unix timestamp, got %d (current time: %d)", c.SettleTime, time.Now().Unix())
 	}
 	if c.MaxSpread < 1 || c.MaxSpread > 50 {
 		return fmt.Errorf("max_spread must be between 1 and 50 cents, got %d", c.MaxSpread)
@@ -343,7 +349,10 @@ func (c *CancelOrderInput) Validate() error {
 	if c.QueryID < 1 {
 		return fmt.Errorf("query_id must be positive, got %d", c.QueryID)
 	}
-	if c.Price < -99 || c.Price > 99 || c.Price == 0 {
+	if c.Price == 0 {
+		return fmt.Errorf("price cannot be 0 (holdings cannot be cancelled)")
+	}
+	if c.Price < -99 || c.Price > 99 {
 		return fmt.Errorf("price must be between -99 and 99 (excluding 0), got %d", c.Price)
 	}
 	return nil
@@ -535,6 +544,11 @@ func (g *GetParticipantRewardHistoryInput) Validate() error {
 	}
 	if len(g.WalletHex) != 42 || g.WalletHex[:2] != "0x" {
 		return fmt.Errorf("wallet_hex must be 0x-prefixed 40-character hex string, got %s", g.WalletHex)
+	}
+	// Validate hex characters after "0x" prefix
+	_, err := hex.DecodeString(g.WalletHex[2:])
+	if err != nil {
+		return fmt.Errorf("wallet_hex contains invalid hex characters: %w", err)
 	}
 	return nil
 }

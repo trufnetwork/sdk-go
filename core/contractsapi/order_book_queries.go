@@ -114,7 +114,8 @@ func (o *OrderBook) GetBestPrices(ctx context.Context, input types.GetBestPrices
 	}
 
 	if len(result.Values) == 0 {
-		return nil, fmt.Errorf("no price data found for query_id=%d outcome=%v", input.QueryID, input.Outcome)
+		// Empty order book - return zero-value BestPrices (all fields nil)
+		return &types.BestPrices{}, nil
 	}
 
 	row := result.Values[0]

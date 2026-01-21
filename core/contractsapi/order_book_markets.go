@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
-	kwiltypes "github.com/kwilteam/kwil-db/core/types"
-	kwilClientType "github.com/kwilteam/kwil-db/core/types/client"
+	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
+	kwilClientType "github.com/trufnetwork/kwil-db/core/client/types"
 	"github.com/trufnetwork/sdk-go/core/types"
 )
 
@@ -77,6 +77,11 @@ func (o *OrderBook) GetMarketByHash(ctx context.Context, input types.GetMarketBy
 	}
 
 	row := result.Values[0]
+
+	// Validate row has expected number of columns (1 ID + 9 market info columns)
+	if len(row) < 10 {
+		return nil, errors.WithStack(fmt.Errorf("invalid row: expected at least 10 columns, got %d", len(row)))
+	}
 
 	// First column is ID for get_market_by_hash
 	var marketID int

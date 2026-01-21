@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
-	kwiltypes "github.com/kwilteam/kwil-db/core/types"
-	kwilClientType "github.com/kwilteam/kwil-db/core/types/client"
+	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
+	kwilClientType "github.com/trufnetwork/kwil-db/core/client/types"
 	"github.com/trufnetwork/sdk-go/core/types"
 )
 
@@ -93,7 +93,8 @@ func (o *OrderBook) GetDistributionSummary(ctx context.Context, input types.GetD
 	}
 
 	if len(result.Values) == 0 {
-		return nil, fmt.Errorf("no distribution found for query_id=%d (market may not be settled yet)", input.QueryID)
+		// No distribution yet (market may not be settled)
+		return nil, nil
 	}
 
 	row := result.Values[0]

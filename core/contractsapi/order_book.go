@@ -7,8 +7,8 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/trufnetwork/kwil-db/core/gatewayclient"
-	kwiltypes "github.com/kwilteam/kwil-db/core/types"
-	kwilClientType "github.com/kwilteam/kwil-db/core/types/client"
+	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
+	kwilClientType "github.com/trufnetwork/kwil-db/core/client/types"
 	"github.com/trufnetwork/sdk-go/core/types"
 )
 
@@ -51,6 +51,9 @@ func (o *OrderBook) call(ctx context.Context, action string, args []any) (*kwilt
 	if callResult.Error != nil {
 		return nil, fmt.Errorf("action %s returned error: %v", action, callResult.Error)
 	}
+	if callResult.QueryResult == nil {
+		return nil, fmt.Errorf("action %s returned nil QueryResult", action)
+	}
 	return callResult.QueryResult, nil
 }
 
@@ -58,26 +61,6 @@ func (o *OrderBook) call(ctx context.Context, action string, args []any) (*kwilt
 func (o *OrderBook) execute(ctx context.Context, action string, args [][]any,
 	opts ...kwilClientType.TxOpt) (kwiltypes.Hash, error) {
 	return o._client.Execute(ctx, "", action, args, opts...)
-}
-
-// extractInt64Column extracts an int64 value from a query result column
-// Handles int, int64, and string representations
-func extractInt64Column(val any, target *int64, colIndex int, colName string) error {
-	switch v := val.(type) {
-	case int64:
-		*target = v
-	case int:
-		*target = int64(v)
-	case string:
-		parsed, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			return fmt.Errorf("invalid %s (column %d): cannot parse string to int64: %w", colName, colIndex, err)
-		}
-		*target = parsed
-	default:
-		return fmt.Errorf("invalid %s type (column %d): %T", colName, colIndex, val)
-	}
-	return nil
 }
 
 // extractIntColumn extracts an int value from a query result column
@@ -127,12 +110,5 @@ func extractStringColumn(val any, target *string, colIndex int, colName string) 
 	return nil
 }
 
-// extractBytesColumn extracts a []byte value from a query result column
-func extractBytesColumn(val any, target *[]byte, colIndex int, colName string) error {
-	bytes, ok := val.([]byte)
-	if !ok {
-		return fmt.Errorf("invalid %s type (column %d): expected []byte, got %T", colName, colIndex, val)
-	}
-	*target = bytes
-	return nil
-}
+// Note: extractInt64Column and extractBytesColumn are defined in attestation_actions.go
+// and are available to all files in the contractsapi package
