@@ -20,10 +20,12 @@ const AnonWalletPK = "0000000000000000000000000000000000000000000000000000000000
 // ## Helper functions
 
 // waitTxToBeMinedWithSuccess waits for a transaction to be successful, failing the test if it fails.
-func waitTxToBeMinedWithSuccess(t *testing.T, ctx context.Context, client *tnclient.Client, txHash kwiltypes.Hash) {
+// It returns the transaction response so callers can make further assertions on the result.
+func waitTxToBeMinedWithSuccess(t *testing.T, ctx context.Context, client *tnclient.Client, txHash kwiltypes.Hash) *kwiltypes.TxQueryResponse {
 	txRes, err := client.WaitForTx(ctx, txHash, time.Second)
 	require.NoError(t, err, "Transaction failed")
 	require.Equal(t, kwiltypes.CodeOk, kwiltypes.TxCode(txRes.Result.Code), "Transaction code not OK: %s", txRes.Result.Log)
+	return txRes
 }
 
 // waitTxToBeMinedWithFailure waits for a transaction to be unsuccessful, failing the test if it succeeds.
