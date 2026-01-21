@@ -12,9 +12,10 @@ require (
 	github.com/smartcontractkit/cre-sdk-go v1.1.2
 	github.com/smartcontractkit/cre-sdk-go/capabilities/networking/http v0.10.0
 	github.com/stretchr/testify v1.11.1
-	github.com/trufnetwork/kwil-db v0.10.3-0.20250714184403-500f214cd4b5
-	github.com/trufnetwork/kwil-db/core v0.4.3-0.20250714184403-500f214cd4b5
+	github.com/trufnetwork/kwil-db v0.10.3-0.20260120153326-4fab48fcfa11
+	github.com/trufnetwork/kwil-db/core v0.4.3-0.20260120153326-4fab48fcfa11
 	go.uber.org/zap v1.27.0
+	google.golang.org/protobuf v1.36.8
 )
 
 require (
@@ -38,6 +39,5 @@ require (
 	golang.org/x/crypto v0.44.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
-	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -219,6 +219,24 @@ func (c *Client) LoadTransactionActions() (clientType.ITransactionAction, error)
 	})
 }
 
+// LoadOrderBook loads the prediction market order book interface
+//
+// Example:
+//
+//	orderBook, err := client.LoadOrderBook()
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	market, err := orderBook.GetMarketInfo(ctx, types.GetMarketInfoInput{QueryID: 1})
+func (c *Client) LoadOrderBook() (clientType.IOrderBook, error) {
+	if httpTransport, ok := c.transport.(*HTTPTransport); ok {
+		return tn_api.LoadOrderBook(tn_api.NewOrderBookOptions{
+			Client: httpTransport.gatewayClient,
+		})
+	}
+	return nil, errors.New("OrderBook is only available with HTTP transport")
+}
+
 func (c *Client) OwnStreamLocator(streamId util.StreamId) clientType.StreamLocator {
 	return clientType.StreamLocator{
 		StreamId:     streamId,
