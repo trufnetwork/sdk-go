@@ -11,15 +11,6 @@ import (
 	sdktypes "github.com/trufnetwork/sdk-go/core/types"
 )
 
-// BinaryActionResultIDs defines the action IDs that return boolean results
-// These are the binary attestation actions (IDs 6-9)
-var BinaryActionResultIDs = map[uint16]bool{
-	6: true, // price_above_threshold
-	7: true, // price_below_threshold
-	8: true, // value_in_range
-	9: true, // value_equals
-}
-
 // Security limits to prevent memory exhaustion attacks
 const (
 	maxRows    = 100000 // Maximum rows in query result
@@ -569,7 +560,7 @@ func ParseBooleanResult(payload []byte) (result bool, actionID uint16, err error
 	offset += 2
 
 	// Validate this is a binary action
-	if !BinaryActionResultIDs[actionID] {
+	if !sdktypes.IsBinaryActionID(actionID) {
 		return false, actionID, fmt.Errorf("action ID %d is not a binary action (expected 6-9)", actionID)
 	}
 
@@ -617,7 +608,7 @@ func ParseBooleanResultFromParsed(parsed *sdktypes.ParsedAttestationPayload) (bo
 	}
 
 	// Validate this is a binary action
-	if !BinaryActionResultIDs[parsed.ActionID] {
+	if !sdktypes.IsBinaryActionID(parsed.ActionID) {
 		return false, fmt.Errorf("action ID %d is not a binary action (expected 6-9)", parsed.ActionID)
 	}
 
@@ -652,5 +643,5 @@ func ParseBooleanResultFromParsed(parsed *sdktypes.ParsedAttestationPayload) (bo
 
 // IsBinaryActionResult returns true if the action ID corresponds to a binary action
 func IsBinaryActionResult(actionID uint16) bool {
-	return BinaryActionResultIDs[actionID]
+	return sdktypes.IsBinaryActionID(actionID)
 }
