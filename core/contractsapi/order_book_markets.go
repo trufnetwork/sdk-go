@@ -15,8 +15,8 @@ import (
 // ═══════════════════════════════════════════════════════════════
 
 // CreateMarket creates a new prediction market
-// Maps to: create_market($query_hash, $settle_time, $max_spread, $min_order_size)
-// Migration: 032-order-book-actions.sql:29-144
+// Maps to: create_market($bridge, $query_components, $settle_time, $max_spread, $min_order_size)
+// Migration: 032-order-book-actions.sql:85-226
 func (o *OrderBook) CreateMarket(ctx context.Context, input types.CreateMarketInput,
 	opts ...kwilClientType.TxOpt) (kwiltypes.Hash, error) {
 	if err := input.Validate(); err != nil {
@@ -24,7 +24,8 @@ func (o *OrderBook) CreateMarket(ctx context.Context, input types.CreateMarketIn
 	}
 
 	return o.execute(ctx, "create_market", [][]any{{
-		input.QueryHash,
+		input.Bridge,
+		input.QueryComponents,
 		input.SettleTime,
 		input.MaxSpread,
 		input.MinOrderSize,
@@ -60,7 +61,8 @@ func (o *OrderBook) GetMarketInfo(ctx context.Context, input types.GetMarketInfo
 
 // GetMarketByHash retrieves market details by query hash
 // Maps to: get_market_by_hash($query_hash)
-// Migration: 032-order-book-actions.sql:199-227
+// Migration: 032-order-book-actions.sql:283-311
+// Note: Returns fewer columns than get_market_info (no query_components or bridge)
 func (o *OrderBook) GetMarketByHash(ctx context.Context, input types.GetMarketByHashInput) (*types.MarketInfo, error) {
 	if err := input.Validate(); err != nil {
 		return nil, errors.WithStack(err)
@@ -78,19 +80,8 @@ func (o *OrderBook) GetMarketByHash(ctx context.Context, input types.GetMarketBy
 
 	row := result.Values[0]
 
-	// Validate row has expected number of columns (1 ID + 9 market info columns)
-	if len(row) < 10 {
-		return nil, errors.WithStack(fmt.Errorf("invalid row: expected at least 10 columns, got %d", len(row)))
-	}
-
-	// First column is ID for get_market_by_hash
-	var marketID int
-	if err := extractIntColumn(row[0], &marketID, 0, "id"); err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	// Rest of columns match get_market_info (offset by 1)
-	market, err := parseMarketInfoRow(row[1:], marketID)
+	// get_market_by_hash returns 9 columns: id, settle_time, settled, winning_outcome, settled_at, max_spread, min_order_size, created_at, creator
+	market, err := parseMarketByHashRow(row)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -201,11 +192,11 @@ func (o *OrderBook) ValidateMarketCollateral(ctx context.Context, input types.Va
 // PARSING HELPERS
 // ═══════════════════════════════════════════════════════════════
 
-// parseMarketInfoRow parses a row from get_market_info or get_market_by_hash
-// Row format: hash, settle_time, settled, winning_outcome, settled_at, max_spread, min_order_size, created_at, creator
+// parseMarketInfoRow parses a row from get_market_info
+// Row format: hash, query_components, bridge, settle_time, settled, winning_outcome, settled_at, max_spread, min_order_size, created_at, creator
 func parseMarketInfoRow(row []any, marketID int) (*types.MarketInfo, error) {
-	if len(row) < 9 {
-		return nil, fmt.Errorf("invalid row: expected 9 columns, got %d", len(row))
+	if len(row) < 11 {
+		return nil, fmt.Errorf("invalid row: expected 11 columns, got %d", len(row))
 	}
 
 	market := &types.MarketInfo{
@@ -214,6 +205,82 @@ func parseMarketInfoRow(row []any, marketID int) (*types.MarketInfo, error) {
 
 	// Column 0: hash (BYTEA)
 	if err := extractBytesColumn(row[0], &market.Hash, 0, "hash"); err != nil {
+		return nil, err
+	}
+
+	// Column 1: query_components (BYTEA)
+	if err := extractBytesColumn(row[1], &market.QueryComponents, 1, "query_components"); err != nil {
+		return nil, err
+	}
+
+	// Column 2: bridge (TEXT)
+	if err := extractStringColumn(row[2], &market.Bridge, 2, "bridge"); err != nil {
+		return nil, err
+	}
+
+	// Column 3: settle_time (INT8)
+	if err := extractInt64Column(row[3], &market.SettleTime, 3, "settle_time"); err != nil {
+		return nil, err
+	}
+
+	// Column 4: settled (BOOL)
+	if err := extractBoolColumn(row[4], &market.Settled, 4, "settled"); err != nil {
+		return nil, err
+	}
+
+	// Column 5: winning_outcome (BOOL, nullable)
+	if row[5] != nil {
+		var outcome bool
+		if err := extractBoolColumn(row[5], &outcome, 5, "winning_outcome"); err != nil {
+			return nil, err
+		}
+		market.WinningOutcome = &outcome
+	}
+
+	// Column 6: settled_at (INT8, nullable)
+	if row[6] != nil {
+		var settledAt int64
+		if err := extractInt64Column(row[6], &settledAt, 6, "settled_at"); err != nil {
+			return nil, err
+		}
+		market.SettledAt = &settledAt
+	}
+
+	// Column 7: max_spread (INT)
+	if err := extractIntColumn(row[7], &market.MaxSpread, 7, "max_spread"); err != nil {
+		return nil, err
+	}
+
+	// Column 8: min_order_size (INT8)
+	if err := extractInt64Column(row[8], &market.MinOrderSize, 8, "min_order_size"); err != nil {
+		return nil, err
+	}
+
+	// Column 9: created_at (INT8)
+	if err := extractInt64Column(row[9], &market.CreatedAt, 9, "created_at"); err != nil {
+		return nil, err
+	}
+
+	// Column 10: creator (BYTEA)
+	if err := extractBytesColumn(row[10], &market.Creator, 10, "creator"); err != nil {
+		return nil, err
+	}
+
+	return market, nil
+}
+
+// parseMarketByHashRow parses a row from get_market_by_hash
+// Row format: id, settle_time, settled, winning_outcome, settled_at, max_spread, min_order_size, created_at, creator
+// Note: get_market_by_hash does NOT return query_components or bridge
+func parseMarketByHashRow(row []any) (*types.MarketInfo, error) {
+	if len(row) < 9 {
+		return nil, fmt.Errorf("invalid row: expected 9 columns, got %d", len(row))
+	}
+
+	market := &types.MarketInfo{}
+
+	// Column 0: id (INT)
+	if err := extractIntColumn(row[0], &market.ID, 0, "id"); err != nil {
 		return nil, err
 	}
 
