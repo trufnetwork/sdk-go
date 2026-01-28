@@ -29,12 +29,14 @@ func TestBatchOperations(t *testing.T) {
 
 	deployerWallet, err := kwilcrypto.Secp256k1PrivateKeyFromHex(AnonWalletPK)
 	require.NoError(t, err, "failed to parse anon wallet private key")
-	tnClient, err := tnclient.NewClient(ctx, TestKwilProvider, tnclient.WithSigner(auth.GetUserSigner(deployerWallet)))
-	require.NoError(t, err, "failed to create client")
 
 	authorizeWalletToDeployStreams(t, ctx, fixture, deployerWallet)
 
 	t.Run("TestSequentialSmallBatches", func(t *testing.T) {
+		// Create fresh client for this subtest to ensure clean nonce management
+		tnClient, err := tnclient.NewClient(ctx, TestKwilProvider, tnclient.WithSigner(auth.GetUserSigner(deployerWallet)))
+		require.NoError(t, err, "failed to create client")
+
 		streamId := util.GenerateStreamId("test-sequential-small")
 		streamLocator := tnClient.OwnStreamLocator(streamId)
 
@@ -107,6 +109,10 @@ func TestBatchOperations(t *testing.T) {
 	})
 
 	t.Run("TestSequentialLargeBatches", func(t *testing.T) {
+		// Create fresh client for this subtest to ensure clean nonce management
+		tnClient, err := tnclient.NewClient(ctx, TestKwilProvider, tnclient.WithSigner(auth.GetUserSigner(deployerWallet)))
+		require.NoError(t, err, "failed to create client")
+
 		streamId := util.GenerateStreamId("test-sequential-large")
 		streamLocator := tnClient.OwnStreamLocator(streamId)
 
@@ -183,6 +189,10 @@ func TestBatchOperations(t *testing.T) {
 		if os.Getenv("CI") != "" {
 			t.Skip("Skipping flaky rapid single record inserts test in CI")
 		}
+
+		// Create fresh client for this subtest to ensure clean nonce management
+		tnClient, err := tnclient.NewClient(ctx, TestKwilProvider, tnclient.WithSigner(auth.GetUserSigner(deployerWallet)))
+		require.NoError(t, err, "failed to create client")
 
 		streamId := util.GenerateStreamId("test-rapid-singles")
 		streamLocator := tnClient.OwnStreamLocator(streamId)

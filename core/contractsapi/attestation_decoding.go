@@ -444,3 +444,204 @@ func ParseAttestationPayload(payload []byte) (*sdktypes.ParsedAttestationPayload
 		Result:       result,
 	}, nil
 }
+
+// ═══════════════════════════════════════════════════════════════
+// BINARY ACTION RESULT PARSING
+// ═══════════════════════════════════════════════════════════════
+
+// decodeABIBoolean decodes ABI-encoded boolean result
+//
+// Format: abi.encode(bool)
+// This is a single bool packed into 32 bytes (left-padded with zeros)
+func decodeABIBoolean(data []byte) (bool, error) {
+	if len(data) == 0 {
+		return false, fmt.Errorf("empty data for boolean result")
+	}
+
+	// ABI-encoded bool is 32 bytes (1 byte value, 31 bytes padding)
+	if len(data) != 32 {
+		return false, fmt.Errorf("expected 32 bytes for ABI-encoded bool, got %d", len(data))
+	}
+
+	// Define the ABI type
+	boolType, err := abi.NewType("bool", "", nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to create bool type: %w", err)
+	}
+
+	arguments := abi.Arguments{
+		{Type: boolType},
+	}
+
+	// Unpack the data
+	unpacked, err := arguments.Unpack(data)
+	if err != nil {
+		return false, fmt.Errorf("failed to unpack ABI bool: %w", err)
+	}
+
+	if len(unpacked) != 1 {
+		return false, fmt.Errorf("expected 1 value, got %d", len(unpacked))
+	}
+
+	result, ok := unpacked[0].(bool)
+	if !ok {
+		return false, fmt.Errorf("expected bool, got %T", unpacked[0])
+	}
+
+	return result, nil
+}
+
+// ParseBooleanResult extracts a boolean result from a binary action attestation payload.
+//
+// This function is specifically for binary attestation actions (IDs 6-9):
+//   - price_above_threshold (6)
+//   - price_below_threshold (7)
+//   - value_in_range (8)
+//   - value_equals (9)
+//
+// These actions return abi.encode(bool) instead of abi.encode(uint256[], int256[]).
+//
+// Parameters:
+//   - payload: The canonical attestation payload (without signature)
+//
+// Returns:
+//   - result: The boolean outcome (TRUE/FALSE)
+//   - actionID: The action ID from the payload (should be 6-9)
+//   - err: Error if parsing fails or action is not a binary action
+func ParseBooleanResult(payload []byte) (result bool, actionID uint16, err error) {
+	// First, parse enough to get the action ID and result bytes
+	// We'll do a partial parse to avoid fully decoding numeric results
+
+	offset := 0
+
+	// 1. Skip version (1 byte)
+	if len(payload) < 1 {
+		return false, 0, fmt.Errorf("payload too short for version")
+	}
+	offset++
+
+	// 2. Skip algorithm (1 byte)
+	if offset >= len(payload) {
+		return false, 0, fmt.Errorf("payload too short for algorithm")
+	}
+	offset++
+
+	// 3. Skip block height (8 bytes)
+	if offset+8 > len(payload) {
+		return false, 0, fmt.Errorf("payload too short for block height")
+	}
+	offset += 8
+
+	// 4. Skip data provider (length-prefixed)
+	if offset+4 > len(payload) {
+		return false, 0, fmt.Errorf("payload too short for data provider length")
+	}
+	dataProviderLen := readUint32BE(payload, offset)
+	if offset+4+int(dataProviderLen) > len(payload) {
+		return false, 0, fmt.Errorf("payload too short for data provider content")
+	}
+	offset += 4 + int(dataProviderLen)
+
+	// 5. Skip stream ID (length-prefixed)
+	if offset+4 > len(payload) {
+		return false, 0, fmt.Errorf("payload too short for stream ID length")
+	}
+	streamIDLen := readUint32BE(payload, offset)
+	if offset+4+int(streamIDLen) > len(payload) {
+		return false, 0, fmt.Errorf("payload too short for stream ID content")
+	}
+	offset += 4 + int(streamIDLen)
+
+	// 6. Read action ID (2 bytes)
+	if offset+2 > len(payload) {
+		return false, 0, fmt.Errorf("payload too short for action ID")
+	}
+	actionID = readUint16BE(payload, offset)
+	offset += 2
+
+	// Validate this is a binary action
+	if !sdktypes.IsBinaryActionID(actionID) {
+		return false, actionID, fmt.Errorf("action ID %d is not a binary action (expected 6-9)", actionID)
+	}
+
+	// 7. Skip arguments (length-prefixed)
+	if offset+4 > len(payload) {
+		return false, actionID, fmt.Errorf("payload too short for arguments length")
+	}
+	argsLen := readUint32BE(payload, offset)
+	if offset+4+int(argsLen) > len(payload) {
+		return false, actionID, fmt.Errorf("payload too short for arguments content")
+	}
+	offset += 4 + int(argsLen)
+
+	// 8. Read result (length-prefixed)
+	if offset+4 > len(payload) {
+		return false, actionID, fmt.Errorf("payload too short for result length")
+	}
+	resultLen := readUint32BE(payload, offset)
+	offset += 4
+
+	if offset+int(resultLen) > len(payload) {
+		return false, actionID, fmt.Errorf("payload too short for result")
+	}
+	resultBytes := payload[offset : offset+int(resultLen)]
+
+	// Decode the boolean result
+	result, err = decodeABIBoolean(resultBytes)
+	if err != nil {
+		return false, actionID, fmt.Errorf("failed to decode boolean result: %w", err)
+	}
+
+	return result, actionID, nil
+}
+
+// ParseBooleanResultFromParsed extracts a boolean result from an already-parsed attestation.
+// This is useful when you've already called ParseAttestationPayload and want to interpret
+// the result as a boolean.
+//
+// Note: This function attempts to re-interpret the Result field. For binary actions,
+// the Result will be empty (decodeABIDatapoints can't parse abi.encode(bool)).
+// Use ParseBooleanResult with raw payload instead for binary actions.
+func ParseBooleanResultFromParsed(parsed *sdktypes.ParsedAttestationPayload) (bool, error) {
+	if parsed == nil {
+		return false, fmt.Errorf("parsed payload is nil")
+	}
+
+	// Validate this is a binary action
+	if !sdktypes.IsBinaryActionID(parsed.ActionID) {
+		return false, fmt.Errorf("action ID %d is not a binary action (expected 6-9)", parsed.ActionID)
+	}
+
+	// For binary actions, the Result field may be empty or incorrectly parsed
+	// because decodeABIDatapoints expects uint256[]/int256[] format
+	if len(parsed.Result) == 0 {
+		return false, fmt.Errorf("no result in parsed payload (use ParseBooleanResult with raw payload for binary actions)")
+	}
+
+	// If result was somehow parsed, try to extract boolean
+	if len(parsed.Result[0].Values) == 0 {
+		return false, fmt.Errorf("no values in first result row")
+	}
+
+	// Try to interpret the value as boolean
+	switch v := parsed.Result[0].Values[0].(type) {
+	case bool:
+		return v, nil
+	case string:
+		// Sometimes boolean might be encoded as "true"/"false" string
+		if v == "true" || v == "1" {
+			return true, nil
+		}
+		if v == "false" || v == "0" {
+			return false, nil
+		}
+		return false, fmt.Errorf("cannot interpret string %q as boolean", v)
+	default:
+		return false, fmt.Errorf("unexpected result type: %T", v)
+	}
+}
+
+// IsBinaryActionResult returns true if the action ID corresponds to a binary action
+func IsBinaryActionResult(actionID uint16) bool {
+	return sdktypes.IsBinaryActionID(actionID)
+}

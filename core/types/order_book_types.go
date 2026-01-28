@@ -21,8 +21,8 @@ type IOrderBook interface {
 	// ═══════════════════════════════════════════════════════════════
 
 	// CreateMarket creates a new prediction market
-	// Maps to: create_market($query_hash, $settle_time, $max_spread, $min_order_size)
-	// Migration: 032-order-book-actions.sql:29-144
+	// Maps to: create_market($bridge, $query_components, $settle_time, $max_spread, $min_order_size)
+	// Migration: 032-order-book-actions.sql:85-226
 	CreateMarket(ctx context.Context, input CreateMarketInput,
 		opts ...kwilClientType.TxOpt) (kwiltypes.Hash, error)
 
@@ -162,17 +162,40 @@ type IOrderBook interface {
 
 // CreateMarketInput contains parameters for creating a new market
 type CreateMarketInput struct {
-	QueryHash    []byte // 32-byte SHA256 hash of (data_provider + stream_id + action_id + args)
-	SettleTime   int64  // Unix timestamp when market can be settled (must be future)
-	MaxSpread    int    // Maximum spread for LP rewards (1-50 cents)
-	MinOrderSize int64  // Minimum order size for LP rewards (must be positive)
+	Bridge          string // Bridge namespace for collateral (hoodi_tt2, sepolia_bridge, ethereum_bridge)
+	QueryComponents []byte // ABI-encoded tuple: (address data_provider, bytes32 stream_id, string action_id, bytes args)
+	SettleTime      int64  // Unix timestamp when market can be settled (must be future)
+	MaxSpread       int    // Maximum spread for LP rewards (1-50 cents)
+	MinOrderSize    int64  // Minimum order size for LP rewards (must be positive)
+}
+
+// ValidBridges defines the supported bridge namespaces
+var ValidBridges = map[string]bool{
+	"hoodi_tt2":       true,
+	"sepolia_bridge":  true,
+	"ethereum_bridge": true,
 }
 
 // Validate checks if CreateMarketInput is valid
 func (c *CreateMarketInput) Validate() error {
-	if len(c.QueryHash) != 32 {
-		return fmt.Errorf("query_hash must be exactly 32 bytes, got %d", len(c.QueryHash))
+	// Validate bridge
+	if c.Bridge == "" {
+		return fmt.Errorf("bridge is required")
 	}
+	if !ValidBridges[c.Bridge] {
+		return fmt.Errorf("bridge must be one of: hoodi_tt2, sepolia_bridge, ethereum_bridge, got %s", c.Bridge)
+	}
+
+	// Validate query components
+	if len(c.QueryComponents) == 0 {
+		return fmt.Errorf("query_components is required")
+	}
+	// ABI-encoded tuple minimum size: address(32) + bytes32(32) + string offset(32) + bytes offset(32) = 128 bytes
+	if len(c.QueryComponents) < 128 {
+		return fmt.Errorf("query_components too short for ABI-encoded tuple, got %d bytes (minimum 128)", len(c.QueryComponents))
+	}
+
+	// Validate settle time
 	if c.SettleTime <= 0 {
 		return fmt.Errorf("settle_time must be positive (unix timestamp)")
 	}
@@ -180,9 +203,13 @@ func (c *CreateMarketInput) Validate() error {
 	if c.SettleTime <= time.Now().Unix() {
 		return fmt.Errorf("settle_time must be a future unix timestamp, got %d (current time: %d)", c.SettleTime, time.Now().Unix())
 	}
+
+	// Validate max spread (1-50 cents)
 	if c.MaxSpread < 1 || c.MaxSpread > 50 {
 		return fmt.Errorf("max_spread must be between 1 and 50 cents, got %d", c.MaxSpread)
 	}
+
+	// Validate min order size
 	if c.MinOrderSize <= 0 {
 		return fmt.Errorf("min_order_size must be positive, got %d", c.MinOrderSize)
 	}
@@ -559,16 +586,18 @@ func (g *GetParticipantRewardHistoryInput) Validate() error {
 
 // MarketInfo contains detailed information about a market
 type MarketInfo struct {
-	ID             int     // Query ID (returned by get_market_by_hash)
-	Hash           []byte  // 32-byte query hash (BYTEA)
-	SettleTime     int64   // Unix timestamp (INT8)
-	Settled        bool    // Settlement status (BOOL)
-	WinningOutcome *bool   // TRUE=YES won, FALSE=NO won, nil=not settled (BOOL nullable)
-	SettledAt      *int64  // Settlement timestamp, nil if not settled (INT8 nullable)
-	MaxSpread      int     // LP reward spread (1-50 cents) (INT)
-	MinOrderSize   int64   // LP reward minimum (INT8)
-	CreatedAt      int64   // Creation block height (INT8)
-	Creator        []byte  // Creator's Ethereum address (BYTEA)
+	ID              int     // Query ID (returned by get_market_by_hash)
+	Hash            []byte  // 32-byte query hash (BYTEA)
+	QueryComponents []byte  // ABI-encoded query components (BYTEA) - only from get_market_info
+	Bridge          string  // Bridge namespace (TEXT) - only from get_market_info
+	SettleTime      int64   // Unix timestamp (INT8)
+	Settled         bool    // Settlement status (BOOL)
+	WinningOutcome  *bool   // TRUE=YES won, FALSE=NO won, nil=not settled (BOOL nullable)
+	SettledAt       *int64  // Settlement timestamp, nil if not settled (INT8 nullable)
+	MaxSpread       int     // LP reward spread (1-50 cents) (INT)
+	MinOrderSize    int64   // LP reward minimum (INT8)
+	CreatedAt       int64   // Creation block height (INT8)
+	Creator         []byte  // Creator's Ethereum address (BYTEA)
 }
 
 // MarketSummary contains summary information about a market
