@@ -12,10 +12,22 @@ import (
 var QueryComponentsABI abi.Arguments
 
 func init() {
-	addressType, _ := abi.NewType("address", "", nil)
-	bytes32Type, _ := abi.NewType("bytes32", "", nil)
-	stringType, _ := abi.NewType("string", "", nil)
-	bytesType, _ := abi.NewType("bytes", "", nil)
+	addressType, err := abi.NewType("address", "", nil)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create address ABI type: %v", err))
+	}
+	bytes32Type, err := abi.NewType("bytes32", "", nil)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create bytes32 ABI type: %v", err))
+	}
+	stringType, err := abi.NewType("string", "", nil)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create string ABI type: %v", err))
+	}
+	bytesType, err := abi.NewType("bytes", "", nil)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create bytes ABI type: %v", err))
+	}
 
 	QueryComponentsABI = abi.Arguments{
 		{Type: addressType, Name: "data_provider"},
@@ -103,7 +115,8 @@ func DecodeQueryComponents(encoded []byte) (dataProvider, streamID, actionID str
 		return "", "", "", nil, fmt.Errorf("expected [32]byte for stream_id, got %T", unpacked[1])
 	}
 	// Find the actual length by looking for trailing zeros
-	sidLen := 32
+	// Default to 0 so all-zero bytes yields empty string
+	sidLen := 0
 	for i := 31; i >= 0; i-- {
 		if sidBytes[i] != 0 {
 			sidLen = i + 1

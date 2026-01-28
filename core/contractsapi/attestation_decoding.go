@@ -546,6 +546,9 @@ func ParseBooleanResult(payload []byte) (result bool, actionID uint16, err error
 		return false, 0, fmt.Errorf("payload too short for data provider length")
 	}
 	dataProviderLen := readUint32BE(payload, offset)
+	if offset+4+int(dataProviderLen) > len(payload) {
+		return false, 0, fmt.Errorf("payload too short for data provider content")
+	}
 	offset += 4 + int(dataProviderLen)
 
 	// 5. Skip stream ID (length-prefixed)
@@ -553,6 +556,9 @@ func ParseBooleanResult(payload []byte) (result bool, actionID uint16, err error
 		return false, 0, fmt.Errorf("payload too short for stream ID length")
 	}
 	streamIDLen := readUint32BE(payload, offset)
+	if offset+4+int(streamIDLen) > len(payload) {
+		return false, 0, fmt.Errorf("payload too short for stream ID content")
+	}
 	offset += 4 + int(streamIDLen)
 
 	// 6. Read action ID (2 bytes)
@@ -572,6 +578,9 @@ func ParseBooleanResult(payload []byte) (result bool, actionID uint16, err error
 		return false, actionID, fmt.Errorf("payload too short for arguments length")
 	}
 	argsLen := readUint32BE(payload, offset)
+	if offset+4+int(argsLen) > len(payload) {
+		return false, actionID, fmt.Errorf("payload too short for arguments content")
+	}
 	offset += 4 + int(argsLen)
 
 	// 8. Read result (length-prefixed)

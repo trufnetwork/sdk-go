@@ -1,6 +1,7 @@
 package types
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -267,7 +268,7 @@ func TestCreateMarketInput_Validate_ValidMaxSpreadRange(t *testing.T) {
 	validSpreads := []int{1, 5, 10, 25, 50}
 
 	for _, spread := range validSpreads {
-		t.Run(string(rune(spread+'0')), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%d", spread), func(t *testing.T) {
 			input := CreateMarketInput{
 				Bridge:          "hoodi_tt2",
 				QueryComponents: createValidQueryComponents(128),
@@ -322,7 +323,7 @@ func TestCreateMarketInput_Validate_ValidMinOrderSize(t *testing.T) {
 	validSizes := []int64{1, 10, 100, 1000, 1000000}
 
 	for _, size := range validSizes {
-		t.Run(string(rune(size)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%d", size), func(t *testing.T) {
 			input := CreateMarketInput{
 				Bridge:          "hoodi_tt2",
 				QueryComponents: createValidQueryComponents(128),

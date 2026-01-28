@@ -93,8 +93,8 @@ func TestEncodeQueryComponents_InvalidAddress(t *testing.T) {
 		},
 		{
 			name:         "Missing 0x prefix",
-			dataProvider: "1111111111111111111111111111111111111111",
-			expectError:  "data_provider must be 42 characters",
+			dataProvider: "xx1111111111111111111111111111111111111111",
+			expectError:  "data_provider must be 0x-prefixed",
 		},
 	}
 
