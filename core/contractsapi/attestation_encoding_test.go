@@ -216,6 +216,58 @@ func TestEncodeActionArgs_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestEncodeActionArgs_WithDecimal(t *testing.T) {
+	// Test encoding Decimal types (used for threshold values)
+	decimal, err := types.ParseDecimalExplicit("87000.50", 36, 18)
+	require.NoError(t, err)
+
+	args := []any{
+		"0x1111111111111111111111111111111111111111",
+		"stbtcusd000000000000000000000000",
+		int64(1735689600),
+		decimal, // Threshold as Decimal
+		nil,     // FrozenAt
+	}
+
+	encoded, err := EncodeActionArgs(args)
+	require.NoError(t, err)
+	require.NotNil(t, encoded)
+
+	// Verify we can read the encoded format
+	buf := bytes.NewReader(encoded)
+	var argCount uint32
+	err = binary.Read(buf, binary.LittleEndian, &argCount)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(5), argCount)
+
+	// Decode each argument
+	for i := 0; i < 5; i++ {
+		var argLen uint32
+		err = binary.Read(buf, binary.LittleEndian, &argLen)
+		require.NoError(t, err)
+
+		argBytes := make([]byte, argLen)
+		_, err = buf.Read(argBytes)
+		require.NoError(t, err)
+
+		var encodedVal types.EncodedValue
+		err = encodedVal.UnmarshalBinary(argBytes)
+		require.NoError(t, err)
+
+		decodedVal, err := encodedVal.Decode()
+		require.NoError(t, err)
+
+		// Verify the Decimal argument (index 3)
+		if i == 3 {
+			decodedDecimal, ok := decodedVal.(*types.Decimal)
+			require.True(t, ok, "arg 3 should be *types.Decimal")
+			require.NotNil(t, decodedDecimal)
+			// The value should match (87000.50 with 18 decimal places)
+			assert.Equal(t, "87000.500000000000000000", decodedDecimal.String())
+		}
+	}
+}
+
 func TestEncodeActionArgs_EdgeCases(t *testing.T) {
 	t.Run("nil args", func(t *testing.T) {
 		encoded, err := EncodeActionArgs(nil)

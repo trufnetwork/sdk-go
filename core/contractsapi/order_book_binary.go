@@ -102,13 +102,19 @@ func (o *OrderBook) CreatePriceAboveThresholdMarket(
 	input CreatePriceAboveThresholdMarketInput,
 	opts ...kwilClientType.TxOpt,
 ) (kwiltypes.Hash, error) {
+	// Parse threshold as Decimal (NUMERIC(36,18))
+	thresholdDecimal, err := kwiltypes.ParseDecimalExplicit(input.Threshold, 36, 18)
+	if err != nil {
+		return kwiltypes.Hash{}, fmt.Errorf("invalid threshold: %w", err)
+	}
+
 	// Build action arguments in the order expected by the node
 	// price_above_threshold($data_provider, $stream_id, $timestamp, $threshold, $frozen_at)
 	args := []any{
 		input.DataProvider,
 		input.StreamID,
 		input.Timestamp,
-		input.Threshold,
+		thresholdDecimal,
 		input.FrozenAt, // Can be nil
 	}
 
@@ -152,13 +158,19 @@ func (o *OrderBook) CreatePriceBelowThresholdMarket(
 	input CreatePriceBelowThresholdMarketInput,
 	opts ...kwilClientType.TxOpt,
 ) (kwiltypes.Hash, error) {
+	// Parse threshold as Decimal (NUMERIC(36,18))
+	thresholdDecimal, err := kwiltypes.ParseDecimalExplicit(input.Threshold, 36, 18)
+	if err != nil {
+		return kwiltypes.Hash{}, fmt.Errorf("invalid threshold: %w", err)
+	}
+
 	// Build action arguments
 	// price_below_threshold($data_provider, $stream_id, $timestamp, $threshold, $frozen_at)
 	args := []any{
 		input.DataProvider,
 		input.StreamID,
 		input.Timestamp,
-		input.Threshold,
+		thresholdDecimal,
 		input.FrozenAt,
 	}
 
@@ -200,14 +212,24 @@ func (o *OrderBook) CreateValueInRangeMarket(
 	input CreateValueInRangeMarketInput,
 	opts ...kwilClientType.TxOpt,
 ) (kwiltypes.Hash, error) {
+	// Parse min/max values as Decimal (NUMERIC(36,18))
+	minValueDecimal, err := kwiltypes.ParseDecimalExplicit(input.MinValue, 36, 18)
+	if err != nil {
+		return kwiltypes.Hash{}, fmt.Errorf("invalid min_value: %w", err)
+	}
+	maxValueDecimal, err := kwiltypes.ParseDecimalExplicit(input.MaxValue, 36, 18)
+	if err != nil {
+		return kwiltypes.Hash{}, fmt.Errorf("invalid max_value: %w", err)
+	}
+
 	// Build action arguments
 	// value_in_range($data_provider, $stream_id, $timestamp, $min_value, $max_value, $frozen_at)
 	args := []any{
 		input.DataProvider,
 		input.StreamID,
 		input.Timestamp,
-		input.MinValue,
-		input.MaxValue,
+		minValueDecimal,
+		maxValueDecimal,
 		input.FrozenAt,
 	}
 
@@ -249,14 +271,24 @@ func (o *OrderBook) CreateValueEqualsMarket(
 	input CreateValueEqualsMarketInput,
 	opts ...kwilClientType.TxOpt,
 ) (kwiltypes.Hash, error) {
+	// Parse target/tolerance values as Decimal (NUMERIC(36,18))
+	targetValueDecimal, err := kwiltypes.ParseDecimalExplicit(input.TargetValue, 36, 18)
+	if err != nil {
+		return kwiltypes.Hash{}, fmt.Errorf("invalid target_value: %w", err)
+	}
+	toleranceDecimal, err := kwiltypes.ParseDecimalExplicit(input.Tolerance, 36, 18)
+	if err != nil {
+		return kwiltypes.Hash{}, fmt.Errorf("invalid tolerance: %w", err)
+	}
+
 	// Build action arguments
 	// value_equals($data_provider, $stream_id, $timestamp, $target_value, $tolerance, $frozen_at)
 	args := []any{
 		input.DataProvider,
 		input.StreamID,
 		input.Timestamp,
-		input.TargetValue,
-		input.Tolerance,
+		targetValueDecimal,
+		toleranceDecimal,
 		input.FrozenAt,
 	}
 
@@ -294,11 +326,17 @@ func BuildPriceAboveThresholdQueryComponents(input types.PriceAboveThresholdInpu
 		return nil, fmt.Errorf("invalid input: %w", err)
 	}
 
+	// Parse threshold as Decimal (NUMERIC(36,18))
+	thresholdDecimal, err := kwiltypes.ParseDecimalExplicit(input.Threshold, 36, 18)
+	if err != nil {
+		return nil, fmt.Errorf("invalid threshold: %w", err)
+	}
+
 	args := []any{
 		input.DataProvider,
 		input.StreamID,
 		input.Timestamp,
-		input.Threshold,
+		thresholdDecimal,
 		input.FrozenAt,
 	}
 
@@ -321,11 +359,17 @@ func BuildPriceBelowThresholdQueryComponents(input types.PriceBelowThresholdInpu
 		return nil, fmt.Errorf("invalid input: %w", err)
 	}
 
+	// Parse threshold as Decimal (NUMERIC(36,18))
+	thresholdDecimal, err := kwiltypes.ParseDecimalExplicit(input.Threshold, 36, 18)
+	if err != nil {
+		return nil, fmt.Errorf("invalid threshold: %w", err)
+	}
+
 	args := []any{
 		input.DataProvider,
 		input.StreamID,
 		input.Timestamp,
-		input.Threshold,
+		thresholdDecimal,
 		input.FrozenAt,
 	}
 
@@ -348,12 +392,22 @@ func BuildValueInRangeQueryComponents(input types.ValueInRangeInput) ([]byte, er
 		return nil, fmt.Errorf("invalid input: %w", err)
 	}
 
+	// Parse min/max values as Decimal (NUMERIC(36,18))
+	minValueDecimal, err := kwiltypes.ParseDecimalExplicit(input.MinValue, 36, 18)
+	if err != nil {
+		return nil, fmt.Errorf("invalid min_value: %w", err)
+	}
+	maxValueDecimal, err := kwiltypes.ParseDecimalExplicit(input.MaxValue, 36, 18)
+	if err != nil {
+		return nil, fmt.Errorf("invalid max_value: %w", err)
+	}
+
 	args := []any{
 		input.DataProvider,
 		input.StreamID,
 		input.Timestamp,
-		input.MinValue,
-		input.MaxValue,
+		minValueDecimal,
+		maxValueDecimal,
 		input.FrozenAt,
 	}
 
@@ -376,12 +430,22 @@ func BuildValueEqualsQueryComponents(input types.ValueEqualsInput) ([]byte, erro
 		return nil, fmt.Errorf("invalid input: %w", err)
 	}
 
+	// Parse target/tolerance values as Decimal (NUMERIC(36,18))
+	targetValueDecimal, err := kwiltypes.ParseDecimalExplicit(input.TargetValue, 36, 18)
+	if err != nil {
+		return nil, fmt.Errorf("invalid target_value: %w", err)
+	}
+	toleranceDecimal, err := kwiltypes.ParseDecimalExplicit(input.Tolerance, 36, 18)
+	if err != nil {
+		return nil, fmt.Errorf("invalid tolerance: %w", err)
+	}
+
 	args := []any{
 		input.DataProvider,
 		input.StreamID,
 		input.Timestamp,
-		input.TargetValue,
-		input.Tolerance,
+		targetValueDecimal,
+		toleranceDecimal,
 		input.FrozenAt,
 	}
 
