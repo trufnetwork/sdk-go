@@ -33,3 +33,5 @@ gitignore
 
 # CRE workflow build artifacts
 *.wasm
+
+GEMINI.md
