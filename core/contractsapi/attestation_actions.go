@@ -3,6 +3,7 @@ package contractsapi
 import (
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 
@@ -272,13 +273,14 @@ func (a *AttestationAction) ListAttestations(
 
 // Helper function to extract bytes from a column
 // The Kwil gateway returns BYTEA columns as base64-encoded strings in JSON responses.
+// However, for certain fields (like wallet addresses), it returns hex strings (prefixed with 0x).
 func extractBytesColumn(value any, dest *[]byte, rowIdx int, colName string) error {
 	if value == nil {
 		*dest = nil
 		return nil
 	}
 
-	// Gateway always returns BYTEA as string (base64-encoded)
+	// Gateway always returns BYTEA as string (base64-encoded or hex)
 	str, ok := value.(string)
 	if !ok {
 		return fmt.Errorf("row %d: expected %s to be string, got %T", rowIdx, colName, value)
@@ -286,6 +288,16 @@ func extractBytesColumn(value any, dest *[]byte, rowIdx int, colName string) err
 
 	if len(str) == 0 {
 		*dest = nil
+		return nil
+	}
+
+	// Check if it's a hex string (starts with 0x)
+	if len(str) >= 2 && str[:2] == "0x" {
+		decoded, err := hex.DecodeString(str[2:])
+		if err != nil {
+			return fmt.Errorf("row %d: failed to decode %s as hex (len=%d, data=%q): %w", rowIdx, colName, len(str), str, err)
+		}
+		*dest = decoded
 		return nil
 	}
 
@@ -300,20 +312,25 @@ func extractBytesColumn(value any, dest *[]byte, rowIdx int, colName string) err
 }
 
 // Helper function to extract int64 from a column
-// The Kwil gateway returns INT8 columns as strings in JSON responses.
+// The Kwil gateway typically returns INT8 columns as strings to preserve precision.
+// However, in some contexts (e.g. non-DECIMAL numeric types), standard JSON number serialization (float64) is used.
 func extractInt64Column(value any, dest *int64, rowIdx int, colName string) error {
-	// Gateway always returns INT8 as string
-	str, ok := value.(string)
-	if !ok {
-		return fmt.Errorf("row %d: expected %s to be string, got %T", rowIdx, colName, value)
+	switch v := value.(type) {
+	case string:
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return fmt.Errorf("row %d: failed to parse %s as int64 (value=%q): %w", rowIdx, colName, v, err)
+		}
+		*dest = n
+	case float64:
+		*dest = int64(v)
+	case int:
+		*dest = int64(v)
+	case int64:
+		*dest = v
+	default:
+		return fmt.Errorf("row %d: expected %s to be string or number, got %T", rowIdx, colName, value)
 	}
 
-	// Parse string as int64
-	n, err := strconv.ParseInt(str, 10, 64)
-	if err != nil {
-		return fmt.Errorf("row %d: failed to parse %s as int64 (value=%q): %w", rowIdx, colName, str, err)
-	}
-
-	*dest = n
 	return nil
 }

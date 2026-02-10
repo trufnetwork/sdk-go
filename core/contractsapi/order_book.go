@@ -64,12 +64,14 @@ func (o *OrderBook) execute(ctx context.Context, action string, args [][]any,
 }
 
 // extractIntColumn extracts an int value from a query result column
-// Handles int, int64, and string representations
+// Handles int, int64, float64, and string representations
 func extractIntColumn(val any, target *int, colIndex int, colName string) error {
 	switch v := val.(type) {
 	case int:
 		*target = v
 	case int64:
+		*target = int(v)
+	case float64:
 		*target = int(v)
 	case string:
 		parsed, err := strconv.Atoi(v)
