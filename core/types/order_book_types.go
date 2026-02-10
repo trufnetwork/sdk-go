@@ -629,19 +629,20 @@ type MarketValidation struct {
 
 // OrderBookEntry represents a single order in the order book
 type OrderBookEntry struct {
-	WalletAddress []byte // Participant's Ethereum address (BYTEA)
+	ParticipantID int    // Participant ID (INT)
 	Price         int    // Order price (negative=buy, positive=sell) (INT)
 	Amount        int64  // Share amount (INT8)
 	LastUpdated   int64  // Unix timestamp for FIFO ordering (INT8)
+	WalletAddress []byte // Participant's Ethereum address (BYTEA/TEXT)
 }
 
 // UserPosition represents a user's position in a market
 type UserPosition struct {
-	QueryID     int   // Market ID (INT)
-	Outcome     bool  // TRUE=YES, FALSE=NO (BOOL)
-	Price       int   // 0=holding, <0=buy, >0=sell (INT)
-	Amount      int64 // Share amount (INT8)
-	LastUpdated int64 // Unix timestamp (INT8)
+	QueryID      int    // Market ID (INT)
+	Outcome      bool   // TRUE=YES, FALSE=NO (BOOL)
+	Price        int    // 0=holding, <0=buy, >0=sell (INT)
+	Amount       int64  // Share amount (INT8)
+	PositionType string // 'holding', 'buy_order', 'sell_order' (TEXT)
 }
 
 // DepthLevel represents aggregated volume at a price level

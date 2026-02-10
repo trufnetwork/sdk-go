@@ -167,16 +167,16 @@ func (o *OrderBook) GetUserCollateral(ctx context.Context) (*types.UserCollatera
 // ═══════════════════════════════════════════════════════════════
 
 // parseOrderBookEntryRow parses a row from get_order_book
-// Row format: wallet_address, price, amount, last_updated
+// Row format: participant_id, price, amount, last_updated, wallet_address
 func parseOrderBookEntryRow(row []any) (types.OrderBookEntry, error) {
-	if len(row) < 4 {
-		return types.OrderBookEntry{}, fmt.Errorf("invalid row: expected 4 columns, got %d", len(row))
+	if len(row) < 5 {
+		return types.OrderBookEntry{}, fmt.Errorf("invalid row: expected 5 columns, got %d", len(row))
 	}
 
 	entry := types.OrderBookEntry{}
 
-	// Column 0: wallet_address (BYTEA)
-	if err := extractBytesColumn(row[0], &entry.WalletAddress, 0, "wallet_address"); err != nil {
+	// Column 0: participant_id (INT)
+	if err := extractIntColumn(row[0], &entry.ParticipantID, 0, "participant_id"); err != nil {
 		return entry, err
 	}
 
@@ -195,11 +195,16 @@ func parseOrderBookEntryRow(row []any) (types.OrderBookEntry, error) {
 		return entry, err
 	}
 
+	// Column 4: wallet_address (TEXT/BYTEA)
+	if err := extractBytesColumn(row[4], &entry.WalletAddress, 4, "wallet_address"); err != nil {
+		return entry, err
+	}
+
 	return entry, nil
 }
 
 // parseUserPositionRow parses a row from get_user_positions
-// Row format: query_id, outcome, price, amount, last_updated
+// Row format: query_id, outcome, price, amount, position_type
 func parseUserPositionRow(row []any) (types.UserPosition, error) {
 	if len(row) < 5 {
 		return types.UserPosition{}, fmt.Errorf("invalid row: expected 5 columns, got %d", len(row))
@@ -227,8 +232,8 @@ func parseUserPositionRow(row []any) (types.UserPosition, error) {
 		return position, err
 	}
 
-	// Column 4: last_updated (INT8)
-	if err := extractInt64Column(row[4], &position.LastUpdated, 4, "last_updated"); err != nil {
+	// Column 4: position_type (TEXT)
+	if err := extractStringColumn(row[4], &position.PositionType, 4, "position_type"); err != nil {
 		return position, err
 	}
 
