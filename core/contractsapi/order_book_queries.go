@@ -241,10 +241,10 @@ func parseUserPositionRow(row []any) (types.UserPosition, error) {
 }
 
 // parseDepthLevelRow parses a row from get_market_depth
-// Row format: price, total_amount
+// Row format: price, buy_volume, sell_volume
 func parseDepthLevelRow(row []any) (types.DepthLevel, error) {
-	if len(row) < 2 {
-		return types.DepthLevel{}, fmt.Errorf("invalid row: expected 2 columns, got %d", len(row))
+	if len(row) < 3 {
+		return types.DepthLevel{}, fmt.Errorf("invalid row: expected 3 columns, got %d", len(row))
 	}
 
 	level := types.DepthLevel{}
@@ -254,8 +254,13 @@ func parseDepthLevelRow(row []any) (types.DepthLevel, error) {
 		return level, err
 	}
 
-	// Column 1: total_amount (INT8)
-	if err := extractInt64Column(row[1], &level.TotalAmount, 1, "total_amount"); err != nil {
+	// Column 1: buy_volume (INT8)
+	if err := extractInt64Column(row[1], &level.BuyVolume, 1, "buy_volume"); err != nil {
+		return level, err
+	}
+
+	// Column 2: sell_volume (INT8)
+	if err := extractInt64Column(row[2], &level.SellVolume, 2, "sell_volume"); err != nil {
 		return level, err
 	}
 

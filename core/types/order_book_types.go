@@ -647,8 +647,9 @@ type UserPosition struct {
 
 // DepthLevel represents aggregated volume at a price level
 type DepthLevel struct {
-	Price       int   // Price level (INT)
-	TotalAmount int64 // Aggregated amount at this price (INT8)
+	Price      int   // Price level (INT)
+	BuyVolume  int64 // Total buy volume at this price (INT8)
+	SellVolume int64 // Total sell volume at this price (INT8)
 }
 
 // BestPrices contains the current bid/ask spread
