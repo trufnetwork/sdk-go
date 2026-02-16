@@ -978,6 +978,37 @@ for _, row := range result.Values {
 }
 ```
 
+#### `GetHistory`
+
+```go
+GetHistory(ctx context.Context, input types.GetHistoryInput) ([]types.BridgeHistory, error)
+```
+
+Retrieves the transaction history for a wallet on a specific bridge.
+
+**Parameters:**
+
+- `ctx`: Operation context.
+- `input`: Input containing:
+  - `BridgeIdentifier`: The unique identifier of the bridge (e.g., "hoodi_tt2")
+  - `Wallet`: The wallet address to query
+  - `Limit`: Max number of records to return (optional, default 20)
+  - `Offset`: Number of records to skip (optional, default 0)
+
+**Returns:**
+
+- `[]types.BridgeHistory`: List of history records
+- `error`: Error if query fails
+
+**Example:**
+
+```go
+history, err := client.GetHistory(ctx, types.GetHistoryInput{
+    BridgeIdentifier: "hoodi_tt2",
+    Wallet:           "0x...",
+})
+```
+
 ### Performance Optimization
 
 #### Cache Strategy
@@ -2012,6 +2043,25 @@ Represents a decoded row from attestation query results.
 ```go
 type DecodedRow struct {
     Values []any `json:"values"`
+}
+```
+
+#### `BridgeHistory`
+
+Represents a transaction history record from the bridge extension.
+
+```go
+type BridgeHistory struct {
+    Type                string  `json:"type"`                // "deposit" or "withdrawal"
+    Amount              string  `json:"amount"`              // NUMERIC(78,0) as string
+    FromAddress         []byte  `json:"from_address"`        // Sender address (if available)
+    ToAddress           []byte  `json:"to_address"`          // Recipient address
+    InternalTxHash      []byte  `json:"internal_tx_hash"`    // Kwil TX hash
+    ExternalTxHash      []byte  `json:"external_tx_hash"`    // Ethereum TX hash
+    Status              string  `json:"status"`              // "completed", "claimed", "pending_epoch"
+    BlockHeight         int64   `json:"block_height"`        // Kwil block height
+    BlockTimestamp      int64   `json:"block_timestamp"`     // Kwil block timestamp
+    ExternalBlockHeight *int64  `json:"external_block_height"` // Ethereum block height
 }
 ```
 

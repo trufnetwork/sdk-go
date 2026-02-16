@@ -98,7 +98,7 @@ func mapColumnsToStructFieldsInternal(structElemType reflect.Type, columnNames [
 // structInstanceVal is the reflect.Value of the struct instance (not a pointer to it).
 // structElemType is the reflect.Type of the struct, for error messages.
 // mappings is the output from mapColumnsToStructFieldsInternal.
-func prepareScanTargetsForStructInternal(structInstanceVal reflect.Value, structElemType reflect.Type, mappings []*fieldMappingInfo) ([]any, error) {
+func prepareScanTargetsForStructInternal(structInstanceVal reflect.Value, structElemType reflect.Type, mappings []*fieldMappingInfo, rowSrc []any) ([]any, error) {
 	numCols := len(mappings)
 	dstArgs := make([]any, numCols)
 
@@ -106,13 +106,32 @@ func prepareScanTargetsForStructInternal(structInstanceVal reflect.Value, struct
 		if targetInfo := mappings[colIdx]; targetInfo != nil {
 			fieldInStruct := structInstanceVal.Field(targetInfo.StructFieldIndex)
 			if !fieldInStruct.CanAddr() {
-				// This should ideally not happen for exported fields of a struct obtained via reflect.New().Elem()
 				return nil, errors.Errorf("cannot address field %s (index %d) in struct %s", structElemType.Field(targetInfo.StructFieldIndex).Name, targetInfo.StructFieldIndex, structElemType.Name())
 			}
-			dstArgs[colIdx] = fieldInStruct.Addr().Interface() // Pointer to field
+
+			// Handle pointer fields
+			if fieldInStruct.Kind() == reflect.Ptr {
+				// If source value is nil, set field to nil and skip scanning
+				if rowSrc[colIdx] == nil {
+					fieldInStruct.Set(reflect.Zero(fieldInStruct.Type()))
+					dstArgs[colIdx] = new(any) // Dummy target for ScanTo
+					continue
+				}
+
+				// If field is nil, allocate memory for it
+				if fieldInStruct.IsNil() {
+					fieldInStruct.Set(reflect.New(fieldInStruct.Type().Elem()))
+				}
+				// Pass the pointer to the underlying value (e.g., *int64) to ScanTo
+				// fieldInStruct is *int64, fieldInStruct.Interface() returns that *int64
+				dstArgs[colIdx] = fieldInStruct.Interface()
+			} else {
+				// Non-pointer field, pass address of the field
+				dstArgs[colIdx] = fieldInStruct.Addr().Interface()
+			}
 		} else {
 			// For columns in QueryResult that don't map to any field in T, scan into a dummy var.
-			dstArgs[colIdx] = new(any) // Or use &sql.RawBytes{} or similar if specific discard behavior is needed
+			dstArgs[colIdx] = new(any)
 		}
 	}
 	return dstArgs, nil
@@ -192,7 +211,7 @@ func DecodeCallResult[T any](result *kwiltypes.QueryResult) ([]T, error) {
 		// Get the actual struct value (MyStruct) to access its fields
 		itemStructVal := itemContainer.Elem()
 
-		dstArgs, err := prepareScanTargetsForStructInternal(itemStructVal, elementType, mappings)
+		dstArgs, err := prepareScanTargetsForStructInternal(itemStructVal, elementType, mappings, rowSrc)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to prepare scan targets for struct %s", elementType.Name())
 		}

@@ -47,4 +47,6 @@ type Client interface {
 	// BatchFilterStreamsByExistence filters a list of streams based on their existence in the database.
 	// Use this instead of BatchStreamExists if you want less data returned.
 	BatchFilterStreamsByExistence(ctx context.Context, streams []StreamLocator, returnExisting bool) ([]StreamLocator, error)
+	// GetHistory retrieves the transaction history for a wallet on a specific bridge
+	GetHistory(ctx context.Context, input GetHistoryInput) ([]BridgeHistory, error)
 }
