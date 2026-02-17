@@ -1009,6 +1009,23 @@ history, err := client.GetHistory(ctx, types.GetHistoryInput{
 })
 ```
 
+#### `BridgeHistory` Struct
+
+```go
+type BridgeHistory struct {
+    Type                string  `json:"type"`                // "deposit" or "withdrawal"
+    Amount              string  `json:"amount"`              // NUMERIC(78,0) as string
+    FromAddress         []byte  `json:"from_address"`        // Sender address (if available)
+    ToAddress           []byte  `json:"to_address"`          // Recipient address
+    InternalTxHash      []byte  `json:"internal_tx_hash"`    // Kwil TX hash
+    ExternalTxHash      []byte  `json:"external_tx_hash"`    // Ethereum TX hash
+    Status              string  `json:"status"`              // "completed", "claimed", "pending_epoch"
+    BlockHeight         int64   `json:"block_height"`        // Kwil block height
+    BlockTimestamp      int64   `json:"block_timestamp"`     // Kwil block timestamp
+    ExternalBlockHeight *int64  `json:"external_block_height"` // Ethereum block height
+}
+```
+
 ### Performance Optimization
 
 #### Cache Strategy
@@ -2043,25 +2060,6 @@ Represents a decoded row from attestation query results.
 ```go
 type DecodedRow struct {
     Values []any `json:"values"`
-}
-```
-
-#### `BridgeHistory`
-
-Represents a transaction history record from the bridge extension.
-
-```go
-type BridgeHistory struct {
-    Type                string  `json:"type"`                // "deposit" or "withdrawal"
-    Amount              string  `json:"amount"`              // NUMERIC(78,0) as string
-    FromAddress         []byte  `json:"from_address"`        // Sender address (if available)
-    ToAddress           []byte  `json:"to_address"`          // Recipient address
-    InternalTxHash      []byte  `json:"internal_tx_hash"`    // Kwil TX hash
-    ExternalTxHash      []byte  `json:"external_tx_hash"`    // Ethereum TX hash
-    Status              string  `json:"status"`              // "completed", "claimed", "pending_epoch"
-    BlockHeight         int64   `json:"block_height"`        // Kwil block height
-    BlockTimestamp      int64   `json:"block_timestamp"`     // Kwil block timestamp
-    ExternalBlockHeight *int64  `json:"external_block_height"` // Ethereum block height
 }
 ```
 

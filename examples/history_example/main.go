@@ -33,7 +33,7 @@ func main() {
 	// Use testnet gateway or local node
 	endpoint := os.Getenv("TN_GATEWAY_URL")
 	if endpoint == "" {
-		endpoint = "https://gateway.testnet.truf.network" // Default to local node
+		endpoint = "https://gateway.testnet.truf.network"
 	}
 
 	client, err := tnclient.NewClient(ctx, endpoint, tnclient.WithSigner(signer))
@@ -77,6 +77,17 @@ func main() {
 		return
 	}
 
+	// Helper to format byte slices
+	formatHexShort := func(b []byte) string {
+		if len(b) == 0 {
+			return "null"
+		}
+		if len(b) > 4 {
+			return fmt.Sprintf("0x%x...", b[:4])
+		}
+		return fmt.Sprintf("0x%x", b)
+	}
+
 	// Use tabwriter for aligned output
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "TYPE\tAMOUNT\tFROM\tTO\tINTERNAL TX\tEXTERNAL TX\tSTATUS\tBLOCK\tEXT BLOCK\tTIMESTAMP")
@@ -86,19 +97,6 @@ func main() {
 		// Format timestamp
 		tm := time.Unix(rec.BlockTimestamp, 0)
 		timeStr := tm.Format(time.RFC3339)
-
-		// Shorten hashes for display if needed, but printing full for now as per request
-		// Or shortening to keep table readable? The CLI output truncated them.
-		// "0x%x..." logic was used before. I will use a helper to optionally shorten.
-		formatHexShort := func(b []byte) string {
-			if len(b) == 0 {
-				return "null"
-			}
-			if len(b) > 4 {
-				return fmt.Sprintf("0x%x...", b[:4])
-			}
-			return fmt.Sprintf("0x%x", b)
-		}
 
 		// Handle nullable external block height
 		extBlock := "null"

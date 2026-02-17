@@ -18,10 +18,19 @@ func (s *Action) GetHistory(ctx context.Context, input types.GetHistoryInput) ([
 
 	limit := 20
 	if input.Limit != nil {
+		if *input.Limit < 0 {
+			return nil, errors.New("limit must be non-negative")
+		}
 		limit = *input.Limit
+		if limit > 100 {
+			limit = 100
+		}
 	}
 	offset := 0
 	if input.Offset != nil {
+		if *input.Offset < 0 {
+			return nil, errors.New("offset must be non-negative")
+		}
 		offset = *input.Offset
 	}
 

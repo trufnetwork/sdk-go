@@ -18,6 +18,6 @@ type BridgeHistory struct {
 type GetHistoryInput struct {
 	BridgeIdentifier string `validate:"required"`
 	Wallet           string `validate:"required"`
-	Limit            *int
-	Offset           *int
+	Limit            *int   `validate:"omitempty,min=1"`
+	Offset           *int   `validate:"omitempty,min=0"`
 }
