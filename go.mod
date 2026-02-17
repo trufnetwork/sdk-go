@@ -12,8 +12,8 @@ require (
 	github.com/smartcontractkit/cre-sdk-go v1.1.2
 	github.com/smartcontractkit/cre-sdk-go/capabilities/networking/http v0.10.0
 	github.com/stretchr/testify v1.11.1
-	github.com/trufnetwork/kwil-db v0.10.3-0.20260120153326-4fab48fcfa11
-	github.com/trufnetwork/kwil-db/core v0.4.3-0.20260120153326-4fab48fcfa11
+	github.com/trufnetwork/kwil-db v0.10.3-0.20260216231327-01b863886682
+	github.com/trufnetwork/kwil-db/core v0.4.3-0.20260216231327-01b863886682
 	go.uber.org/zap v1.27.0
 	google.golang.org/protobuf v1.36.8
 )

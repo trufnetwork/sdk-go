@@ -289,3 +289,12 @@ func (c *Client) BatchFilterStreamsByExistence(ctx context.Context, streams []cl
 	}
 	return actions.BatchFilterStreamsByExistence(ctx, streams, returnExisting)
 }
+
+// GetHistory retrieves the transaction history for a wallet on a specific bridge
+func (c *Client) GetHistory(ctx context.Context, input clientType.GetHistoryInput) ([]clientType.BridgeHistory, error) {
+	actions, err := c.LoadActions()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load actions for GetHistory")
+	}
+	return actions.GetHistory(ctx, input)
+}

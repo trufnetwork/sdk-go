@@ -170,6 +170,10 @@ func (a *TransportAction) BatchFilterStreamsByExistence(ctx context.Context, str
 	return nil, fmt.Errorf("BatchFilterStreamsByExistence not implemented for custom transports - use HTTP transport or implement if needed")
 }
 
+func (a *TransportAction) GetHistory(ctx context.Context, input clientType.GetHistoryInput) ([]clientType.BridgeHistory, error) {
+	return nil, fmt.Errorf("GetHistory not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
 // TransportPrimitiveAction implements IPrimitiveAction interface using the Transport abstraction.
 // This allows primitive stream actions to work with any transport (HTTP, CRE, etc.).
 //

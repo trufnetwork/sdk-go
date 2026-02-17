@@ -64,8 +64,12 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/trufnetwork/kwil-db v0.10.3-0.20260120153326-4fab48fcfa11 h1:9oUJRGlPMIlpY1t6hOEdw/Lf0iluTnordB66XAXlfGk=
 github.com/trufnetwork/kwil-db v0.10.3-0.20260120153326-4fab48fcfa11/go.mod h1:LiBAC48uZl2B0IiLtD2hpOce7RNfpuDdghVAOc3u1Qo=
+github.com/trufnetwork/kwil-db v0.10.3-0.20260216231327-01b863886682 h1:Gqee9/lNZMohOQEq8McpjLXMhpD60CqBxVlZPYdFdL4=
+github.com/trufnetwork/kwil-db v0.10.3-0.20260216231327-01b863886682/go.mod h1:LiBAC48uZl2B0IiLtD2hpOce7RNfpuDdghVAOc3u1Qo=
 github.com/trufnetwork/kwil-db/core v0.4.3-0.20260120153326-4fab48fcfa11 h1:/q4xCpZrI2oBxbkIyVC7WlKzFA0z2lIF5o1LPqsxdhs=
 github.com/trufnetwork/kwil-db/core v0.4.3-0.20260120153326-4fab48fcfa11/go.mod h1:HnOsh9+BN13LJCjiH0+XKaJzyjWKf+H9AofFFp90KwQ=
+github.com/trufnetwork/kwil-db/core v0.4.3-0.20260216231327-01b863886682 h1:iaxXr8D3dU79MBhmS/uCuBhnlc+gbLvCvV6GtAz3ukw=
+github.com/trufnetwork/kwil-db/core v0.4.3-0.20260216231327-01b863886682/go.mod h1:HnOsh9+BN13LJCjiH0+XKaJzyjWKf+H9AofFFp90KwQ=
 go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
 go.uber.org/goleak v1.3.0/go.mod h1:CoHD4mav9JJNrW/WLlf7HGZPjdw8EucARQHekz1X6bE=
 go.uber.org/multierr v1.11.0 h1:blXXJkSxSSfBVBlC76pxqeO+LN3aDfLQo+309xJstO0=
