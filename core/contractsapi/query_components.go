@@ -2,6 +2,7 @@ package contractsapi
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -138,4 +139,89 @@ func DecodeQueryComponents(encoded []byte) (dataProvider, streamID, actionID str
 	}
 
 	return dataProvider, streamID, actionID, args, nil
+}
+
+// MarketData represents the structured content of a prediction market's query components
+type MarketData struct {
+	DataProvider string   `json:"data_provider"`
+	StreamID     string   `json:"stream_id"`
+	ActionID     string   `json:"action_id"`
+	Type         string   `json:"type"`       // "above", "below", "between", "equals"
+	Thresholds   []string `json:"thresholds"` // Formatted numeric values
+}
+
+// DecodeMarketData decodes ABI-encoded query_components into high-level MarketData
+func DecodeMarketData(encoded []byte) (*MarketData, error) {
+	dataProvider, streamID, actionID, argsBytes, err := DecodeQueryComponents(encoded)
+	if err != nil {
+		return nil, err
+	}
+
+	args, err := DecodeActionArgs(argsBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode action args: %w", err)
+	}
+
+	market := &MarketData{
+		DataProvider: dataProvider,
+		StreamID:     streamID,
+		ActionID:     actionID,
+		Thresholds:   []string{},
+	}
+
+	// Helper to format arguments (handling Decimal and pointer types)
+	formatArg := func(arg any) string {
+		if arg == nil {
+			return ""
+		}
+		
+		// Handle *string directly (common in decoded results)
+		if s, ok := arg.(*string); ok {
+			if s == nil {
+				return ""
+			}
+			return *s
+		}
+
+		// Use reflection to find String() method (handles other pointer types like *Decimal)
+		v := reflect.ValueOf(arg)
+		method := v.MethodByName("String")
+		if method.IsValid() && method.Type().NumIn() == 0 && method.Type().NumOut() == 1 {
+			results := method.Call(nil)
+			if s, ok := results[0].Interface().(string); ok {
+				return s
+			}
+		}
+
+		return fmt.Sprint(arg)
+	}
+
+	// Map action_id to market type and thresholds
+	// Based on 040-binary-attestation-actions.sql
+	switch actionID {
+	case "price_above_threshold":
+		market.Type = "above"
+		if len(args) >= 4 {
+			market.Thresholds = append(market.Thresholds, formatArg(args[3]))
+		}
+	case "price_below_threshold":
+		market.Type = "below"
+		if len(args) >= 4 {
+			market.Thresholds = append(market.Thresholds, formatArg(args[3]))
+		}
+	case "value_in_range":
+		market.Type = "between"
+		if len(args) >= 5 {
+			market.Thresholds = append(market.Thresholds, formatArg(args[3]), formatArg(args[4]))
+		}
+	case "value_equals":
+		market.Type = "equals"
+		if len(args) >= 5 {
+			market.Thresholds = append(market.Thresholds, formatArg(args[3]), formatArg(args[4]))
+		}
+	default:
+		market.Type = "unknown"
+	}
+
+	return market, nil
 }

@@ -6,7 +6,7 @@ require (
 	github.com/ethereum/go-ethereum v1.16.7
 	github.com/smartcontractkit/cre-sdk-go v1.1.2
 	github.com/smartcontractkit/cre-sdk-go/capabilities/scheduler/cron v1.0.0-beta.0
-	github.com/trufnetwork/kwil-db/core v0.4.3-0.20260120153326-4fab48fcfa11
+	github.com/trufnetwork/kwil-db/core v0.4.3-0.20260216231327-01b863886682
 	github.com/trufnetwork/sdk-go v0.5.2-0.20251224114553-dc627bdc51f7
 )
 
@@ -33,7 +33,7 @@ require (
 	github.com/smartcontractkit/chainlink-protos/cre/go v0.0.0-20251021010742-3f8d3dba17d8 // indirect
 	github.com/smartcontractkit/cre-sdk-go/capabilities/networking/http v0.10.0 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
-	github.com/trufnetwork/kwil-db v0.10.3-0.20260120153326-4fab48fcfa11 // indirect
+	github.com/trufnetwork/kwil-db v0.10.3-0.20260216231327-01b863886682 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.44.0 // indirect

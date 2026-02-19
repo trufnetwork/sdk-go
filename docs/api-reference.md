@@ -1679,6 +1679,77 @@ if err != nil {
 }
 ```
 
+## Prediction Market Data Decoding
+
+The `contractsapi` package provides high-level utilities for decoding prediction market query components. This is essential for extracting market types (above, below, between) and threshold values from `marketInfo.QueryComponents`.
+
+### Core Methods
+
+#### `DecodeMarketData`
+
+Decodes ABI-encoded `query_components` into a structured `MarketData` object.
+
+**Signature:**
+```go
+func DecodeMarketData(encoded []byte) (*MarketData, error)
+```
+
+**Parameters:**
+- `encoded` ([]byte): The `QueryComponents` field from a `MarketInfo` object.
+
+**Returns:**
+- `*MarketData`: Structured market information.
+- `error`: Error if decoding fails.
+
+**Example:**
+```go
+import "github.com/trufnetwork/sdk-go/core/contractsapi"
+
+// market.QueryComponents is []byte from the node
+data, err := contractsapi.DecodeMarketData(market.QueryComponents)
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("Type: %s\n", data.Type)             // e.g. "above"
+fmt.Printf("Thresholds: %v\n", data.Thresholds) // e.g. ["100000"]
+```
+
+---
+
+#### `DecodeActionArgs`
+
+Decodes Kwil-native canonical bytes back into a slice of action arguments.
+
+**Signature:**
+```go
+func DecodeActionArgs(data []byte) ([]any, error) {
+```
+
+**Example:**
+```go
+args, err := contractsapi.DecodeActionArgs(argsBytes)
+for i, arg := range args {
+    fmt.Printf("Arg %d: %v (Type: %T)\n", i, arg, arg)
+}
+```
+
+### Types
+
+#### `MarketData`
+
+```go
+type MarketData struct {
+    DataProvider string   `json:"data_provider"`
+    StreamID     string   `json:"stream_id"`
+    ActionID     string   `json:"action_id"`
+    Type         string   `json:"type"`       // "above", "below", "between", "equals" or "unknown"
+    Thresholds   []string `json:"thresholds"` // Formatted numeric values as strings
+}
+```
+
+---
+
 ## Attestation Actions Interface
 
 ### Overview

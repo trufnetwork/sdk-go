@@ -371,3 +371,63 @@ func TestDecodeQueryComponents(t *testing.T) {
 	require.Equal(t, actionID, decodedActionID)
 	require.Equal(t, args, decodedArgs)
 }
+
+func TestDecodeMarketData(t *testing.T) {
+	dataProvider := "0x1111111111111111111111111111111111111111"
+	streamID := "stbtcusd000000000000000000000000"
+
+	tests := []struct {
+		name       string
+		actionID   string
+		args       []any
+		expectType string
+		expectThresh []string
+	}{
+		{
+			name:       "Price Above",
+			actionID:   "price_above_threshold",
+			args:       []any{"0x...", "stream", int64(123), "100000", nil},
+			expectType: "above",
+			expectThresh: []string{"100000"},
+		},
+		{
+			name:       "Price Below",
+			actionID:   "price_below_threshold",
+			args:       []any{"0x...", "stream", int64(123), "4.5", nil},
+			expectType: "below",
+			expectThresh: []string{"4.5"},
+		},
+		{
+			name:       "Value In Range",
+			actionID:   "value_in_range",
+			args:       []any{"0x...", "stream", int64(123), "90000", "110000", nil},
+			expectType: "between",
+			expectThresh: []string{"90000", "110000"},
+		},
+		{
+			name:       "Value Equals",
+			actionID:   "value_equals",
+			args:       []any{"0x...", "stream", int64(123), "5.25", "0.01", nil},
+			expectType: "equals",
+			expectThresh: []string{"5.25", "0.01"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			argsBytes, err := EncodeActionArgs(tt.args)
+			require.NoError(t, err)
+
+			encoded, err := EncodeQueryComponents(dataProvider, streamID, tt.actionID, argsBytes)
+			require.NoError(t, err)
+
+			market, err := DecodeMarketData(encoded)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.expectType, market.Type)
+			require.Equal(t, tt.expectThresh, market.Thresholds)
+			require.Equal(t, streamID, market.StreamID)
+			require.Equal(t, tt.actionID, market.ActionID)
+		})
+	}
+}
