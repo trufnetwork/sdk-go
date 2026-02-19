@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 
 	"github.com/trufnetwork/kwil-db/core/types"
 )
@@ -56,4 +57,58 @@ func EncodeActionArgs(args []any) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+// DecodeActionArgs decodes canonical bytes back into action arguments.
+// This is the inverse operation of EncodeActionArgs.
+//
+// Returns an error if:
+//   - Data is too short to contain arg count
+//   - Individual arguments fail to decode
+//   - Type information is invalid
+func DecodeActionArgs(data []byte) ([]any, error) {
+	if len(data) < 4 {
+		return nil, fmt.Errorf("data too short for arg count")
+	}
+
+	buf := bytes.NewReader(data)
+
+	// Read argument count (little-endian uint32)
+	var argCount uint32
+	if err := binary.Read(buf, binary.LittleEndian, &argCount); err != nil {
+		return nil, fmt.Errorf("failed to read arg count: %w", err)
+	}
+
+	args := make([]any, argCount)
+
+	// Decode each argument
+	for i := uint32(0); i < argCount; i++ {
+		// Read argument length (little-endian uint32)
+		var argLen uint32
+		if err := binary.Read(buf, binary.LittleEndian, &argLen); err != nil {
+			return nil, fmt.Errorf("failed to read arg %d length: %w", i, err)
+		}
+
+		// Read argument bytes
+		argBytes := make([]byte, argLen)
+		if _, err := io.ReadFull(buf, argBytes); err != nil {
+			return nil, fmt.Errorf("failed to read arg %d bytes: %w", i, err)
+		}
+
+		// Unmarshal EncodedValue
+		var encodedVal types.EncodedValue
+		if err := encodedVal.UnmarshalBinary(argBytes); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal arg %d: %w", i, err)
+		}
+
+		// Decode to Go value
+		decodedVal, err := encodedVal.Decode()
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode arg %d value: %w", i, err)
+		}
+
+		args[i] = decodedVal
+	}
+
+	return args, nil
 }

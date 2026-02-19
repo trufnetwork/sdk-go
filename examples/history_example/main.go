@@ -18,10 +18,10 @@ func main() {
 	ctx := context.Background()
 
 	// 1. Initialize Client
-	// Use environment variable for private key to avoid hardcoding
+	// Use environment variable for private key or default to test key
 	privateKeyHex := os.Getenv("TN_PRIVATE_KEY")
 	if privateKeyHex == "" {
-		log.Fatal("TN_PRIVATE_KEY environment variable is required")
+		privateKeyHex = "0000000000000000000000000000000000000000000000000000000000000001"
 	}
 
 	pk, err := crypto.Secp256k1PrivateKeyFromHex(privateKeyHex)
