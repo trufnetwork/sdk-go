@@ -49,4 +49,10 @@ type Client interface {
 	BatchFilterStreamsByExistence(ctx context.Context, streams []StreamLocator, returnExisting bool) ([]StreamLocator, error)
 	// GetHistory retrieves the transaction history for a wallet on a specific bridge
 	GetHistory(ctx context.Context, input GetHistoryInput) ([]BridgeHistory, error)
+	// GetWalletBalance retrieves the wallet balance for a specific bridge instance
+	GetWalletBalance(ctx context.Context, bridgeIdentifier string, walletAddress string) (string, error)
+	// Withdraw performs a withdrawal operation by bridging tokens from TN to a destination chain
+	Withdraw(ctx context.Context, bridgeIdentifier string, amount string, recipient string) (string, error)
+	// GetWithdrawalProof retrieves the proofs and signatures needed to claim a withdrawal on EVM.
+	GetWithdrawalProof(ctx context.Context, input GetWithdrawalProofInput) ([]WithdrawalProof, error)
 }

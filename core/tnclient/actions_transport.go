@@ -174,6 +174,18 @@ func (a *TransportAction) GetHistory(ctx context.Context, input clientType.GetHi
 	return nil, fmt.Errorf("GetHistory not implemented for custom transports - use HTTP transport or implement if needed")
 }
 
+func (a *TransportAction) GetWalletBalance(ctx context.Context, bridgeIdentifier string, walletAddress string) (string, error) {
+	return "", fmt.Errorf("GetWalletBalance not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
+func (a *TransportAction) Withdraw(ctx context.Context, bridgeIdentifier string, amount string, recipient string) (string, error) {
+	return "", fmt.Errorf("Withdraw not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
+func (a *TransportAction) GetWithdrawalProof(ctx context.Context, input clientType.GetWithdrawalProofInput) ([]clientType.WithdrawalProof, error) {
+	return nil, fmt.Errorf("GetWithdrawalProof not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
 // TransportPrimitiveAction implements IPrimitiveAction interface using the Transport abstraction.
 // This allows primitive stream actions to work with any transport (HTTP, CRE, etc.).
 //
