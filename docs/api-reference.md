@@ -2371,3 +2371,108 @@ if err != nil {
 3. **Validator Trust**: Only accept attestations from known validator addresses
 4. **Payload Integrity**: Hash payload before verification; detect tampering
 5. **Fee Limits**: Set appropriate `MaxFee` to prevent unexpected charges
+
+## Bridge Actions Interface
+
+### Overview
+
+The Bridge Actions Interface enables programmatic interaction with the TRUF.NETWORK bridge system. It allows bots and applications to manage token balances, initiate withdrawals to external chains (like Ethereum), and retrieve cryptographic proofs for claiming assets.
+
+### Core Methods
+
+These methods are available directly on the `Client` interface.
+
+#### `GetWalletBalance`
+
+Retrieves the token balance for a wallet on a specific bridge instance.
+
+**Signature:**
+```go
+func (c *Client) GetWalletBalance(bridgeIdentifier string, walletAddress string) (string, error)
+```
+
+**Parameters:**
+- `bridgeIdentifier` (string): Unique identifier for the bridge (e.g., "hoodi_tt", "sepolia").
+- `walletAddress` (string): The wallet address to query (0x-prefixed).
+
+**Returns:**
+- `string`: The balance in wei (as a string to preserve precision).
+- `error`: Error if the bridge or wallet is invalid.
+
+**Example:**
+```go
+balance, err := client.GetWalletBalance("hoodi_tt", "0x123...")
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("Balance: %s wei\n", balance)
+```
+
+---
+
+#### `Withdraw`
+
+Initiates a withdrawal by burning tokens on the TRUF.NETWORK. This is the first step in bridging assets back to an external chain.
+
+**Signature:**
+```go
+func (c *Client) Withdraw(bridgeIdentifier string, amount string, recipient string) (string, error)
+```
+
+**Parameters:**
+- `bridgeIdentifier` (string): Unique identifier for the bridge (e.g., "hoodi_tt").
+- `amount` (string): The amount to withdraw in wei. Must be a valid numeric string.
+- `recipient` (string): The EVM address that will receive the funds on the destination chain.
+
+**Returns:**
+- `string`: The transaction hash of the burn operation on Kwil.
+- `error`: Error if validation fails or the transaction is rejected.
+
+**Example:**
+```go
+// Withdraw 1 token (18 decimals)
+txHash, err := client.Withdraw("hoodi_tt", "1000000000000000000", "0xRecipient...")
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("Burn TX Hash: %s\n", txHash)
+```
+
+---
+
+#### `GetWithdrawalProof`
+
+Retrieves the cryptographic proofs required to claim a withdrawal on the destination chain (e.g., via the `withdraw` function on the bridge contract).
+
+**Signature:**
+```go
+func (c *Client) GetWithdrawalProof(ctx context.Context, input types.GetWithdrawalProofInput) ([]types.WithdrawalProof, error)
+```
+
+**Parameters:**
+- `input`:
+  - `BridgeIdentifier` (string): The bridge ID (e.g., "hoodi_tt").
+  - `Wallet` (string): The wallet address that initiated the withdrawal.
+
+**Returns:**
+- `[]types.WithdrawalProof`: A list of proof objects, each containing:
+  - `BlockHeight`: Kwil block height of the withdrawal.
+  - `BlockHash`: Base64 encoded block hash.
+  - `Root`: Base64 encoded merkle root.
+  - `Signatures`: List of Base64 encoded validator signatures.
+  - `Amount`: The amount withdrawn.
+  - `Recipient`: The recipient address.
+
+**Example:**
+```go
+proofs, err := client.GetWithdrawalProof(ctx, types.GetWithdrawalProofInput{
+    BridgeIdentifier: "hoodi_tt",
+    Wallet:           "0xSender...",
+})
+
+if len(proofs) > 0 {
+    proof := proofs[0]
+    fmt.Printf("Ready to claim %s tokens for recipient %s\n", proof.Amount, proof.Recipient)
+    // Use proof.Signatures, proof.Root, etc. to submit claim transaction on Ethereum
+}
+```

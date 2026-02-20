@@ -21,7 +21,7 @@ import (
 type Client struct {
 	signer    auth.Signer `validate:"required"`
 	logger    *log.Logger
-	transport Transport   `validate:"required"`
+	transport Transport `validate:"required"`
 }
 
 var _ clientType.Client = (*Client)(nil)
@@ -297,4 +297,31 @@ func (c *Client) GetHistory(ctx context.Context, input clientType.GetHistoryInpu
 		return nil, errors.Wrap(err, "failed to load actions for GetHistory")
 	}
 	return actions.GetHistory(ctx, input)
+}
+
+// GetWalletBalance retrieves the wallet balance for a specific bridge instance
+func (c *Client) GetWalletBalance(bridgeIdentifier string, walletAddress string) (string, error) {
+	actions, err := c.LoadActions()
+	if err != nil {
+		return "", errors.Wrap(err, "failed to load actions for GetWalletBalance")
+	}
+	return actions.GetWalletBalance(bridgeIdentifier, walletAddress)
+}
+
+// Withdraw performs a withdrawal operation by bridging tokens from TN to a destination chain
+func (c *Client) Withdraw(bridgeIdentifier string, amount string, recipient string) (string, error) {
+	actions, err := c.LoadActions()
+	if err != nil {
+		return "", errors.Wrap(err, "failed to load actions for Withdraw")
+	}
+	return actions.Withdraw(bridgeIdentifier, amount, recipient)
+}
+
+// GetWithdrawalProof retrieves the proofs and signatures needed to claim a withdrawal on EVM.
+func (c *Client) GetWithdrawalProof(ctx context.Context, input clientType.GetWithdrawalProofInput) ([]clientType.WithdrawalProof, error) {
+	actions, err := c.LoadActions()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load actions for GetWithdrawalProof")
+	}
+	return actions.GetWithdrawalProof(ctx, input)
 }
