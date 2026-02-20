@@ -9,7 +9,7 @@ type BridgeHistory struct {
 	InternalTxHash      []byte  `json:"internal_tx_hash"`
 	ExternalTxHash      []byte  `json:"external_tx_hash"`
 	Status              string  `json:"status"`
-	BlockHeight         int64   `json:"block_height"`
+	BlockHeight         uint64  `json:"block_height"`
 	BlockTimestamp      int64   `json:"block_timestamp"`
 	ExternalBlockHeight *int64  `json:"external_block_height"`
 }
