@@ -300,21 +300,21 @@ func (c *Client) GetHistory(ctx context.Context, input clientType.GetHistoryInpu
 }
 
 // GetWalletBalance retrieves the wallet balance for a specific bridge instance
-func (c *Client) GetWalletBalance(bridgeIdentifier string, walletAddress string) (string, error) {
+func (c *Client) GetWalletBalance(ctx context.Context, bridgeIdentifier string, walletAddress string) (string, error) {
 	actions, err := c.LoadActions()
 	if err != nil {
 		return "", errors.Wrap(err, "failed to load actions for GetWalletBalance")
 	}
-	return actions.GetWalletBalance(bridgeIdentifier, walletAddress)
+	return actions.GetWalletBalance(ctx, bridgeIdentifier, walletAddress)
 }
 
 // Withdraw performs a withdrawal operation by bridging tokens from TN to a destination chain
-func (c *Client) Withdraw(bridgeIdentifier string, amount string, recipient string) (string, error) {
+func (c *Client) Withdraw(ctx context.Context, bridgeIdentifier string, amount string, recipient string) (string, error) {
 	actions, err := c.LoadActions()
 	if err != nil {
 		return "", errors.Wrap(err, "failed to load actions for Withdraw")
 	}
-	return actions.Withdraw(bridgeIdentifier, amount, recipient)
+	return actions.Withdraw(ctx, bridgeIdentifier, amount, recipient)
 }
 
 // GetWithdrawalProof retrieves the proofs and signatures needed to claim a withdrawal on EVM.

@@ -38,7 +38,7 @@ func TestBridgeActions(t *testing.T) {
 		bridgeID := "non_existent_bridge"
 		walletAddr := "0x1234567890123456789012345678901234567890"
 
-		_, err := tnClient.GetWalletBalance(bridgeID, walletAddr)
+		_, err := tnClient.GetWalletBalance(ctx, bridgeID, walletAddr)
 		
 		// We expect an error because the bridge doesn't exist, but getting *an* error 
 		// from the node proves the SDK method is wired up and sending the request.
@@ -55,12 +55,12 @@ func TestBridgeActions(t *testing.T) {
 		amount := "1000000000000000000" // 1 token
 		recipient := "0x1234567890123456789012345678901234567890"
 
-		hash, err := tnClient.Withdraw(bridgeID, amount, recipient)
+		hash, err := tnClient.Withdraw(ctx, bridgeID, amount, recipient)
 
 		if err != nil {
 			t.Logf("Withdraw returned error (acceptable): %v", err)
 		} else {
-			assert.NotEmpty(t, hash, "should return a transaction hash if no error")
+			require.NotEmpty(t, hash, "must return a non-empty transaction hash when no error")
 			t.Logf("Withdraw returned hash (acceptable): %v", hash)
 		}
 	})
@@ -82,12 +82,12 @@ func TestBridgeActions(t *testing.T) {
 	// Test 4: Input Validation
 	t.Run("InputValidation", func(t *testing.T) {
 		// Withdraw Empty Bridge
-		_, err := tnClient.Withdraw("", "100", "0x123")
+		_, err := tnClient.Withdraw(ctx, "", "100", "0x123")
 		require.Error(t, err) // Use require to stop if nil, preventing panic
 		assert.Contains(t, err.Error(), "bridge identifier is required")
 
 		// Withdraw Invalid Amount
-		_, err = tnClient.Withdraw("bridge", "invalid_amount", "0x123")
+		_, err = tnClient.Withdraw(ctx, "bridge", "invalid_amount", "0x123")
 		require.Error(t, err)
 		// Error might come from the node or SDK decimal parsing
 		

@@ -9,7 +9,7 @@ import (
 )
 
 // GetWalletBalance retrieves the wallet balance for a specific bridge instance
-func (s *Action) GetWalletBalance(bridgeIdentifier string, walletAddress string) (string, error) {
+func (s *Action) GetWalletBalance(ctx context.Context, bridgeIdentifier string, walletAddress string) (string, error) {
 	if bridgeIdentifier == "" {
 		return "", errors.New("bridge identifier is required")
 	}
@@ -17,7 +17,6 @@ func (s *Action) GetWalletBalance(bridgeIdentifier string, walletAddress string)
 		return "", errors.New("wallet address is required")
 	}
 
-	ctx := context.Background()
 	actionName := bridgeIdentifier + "_wallet_balance"
 
 	res, err := s.call(ctx, actionName, []any{walletAddress})
@@ -25,15 +24,20 @@ func (s *Action) GetWalletBalance(bridgeIdentifier string, walletAddress string)
 		return "", err
 	}
 
-	if len(res.Values) == 0 {
+	if len(res.Values) == 0 || len(res.Values[0]) == 0 {
 		return "0", nil
 	}
 
-	return fmt.Sprint(res.Values[0][0]), nil
+	val := res.Values[0][0]
+	if val == nil {
+		return "0", nil
+	}
+
+	return fmt.Sprint(val), nil
 }
 
 // Withdraw performs a withdrawal operation by bridging tokens from TN to a destination chain
-func (s *Action) Withdraw(bridgeIdentifier string, amount string, recipient string) (string, error) {
+func (s *Action) Withdraw(ctx context.Context, bridgeIdentifier string, amount string, recipient string) (string, error) {
 	if bridgeIdentifier == "" {
 		return "", errors.New("bridge identifier is required")
 	}
@@ -49,7 +53,6 @@ func (s *Action) Withdraw(bridgeIdentifier string, amount string, recipient stri
 		return "", errors.New("recipient address is required")
 	}
 
-	ctx := context.Background()
 	actionName := bridgeIdentifier + "_bridge_tokens"
 
 	// Arguments for the action: $recipient, $amount

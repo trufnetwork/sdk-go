@@ -174,11 +174,11 @@ func (a *TransportAction) GetHistory(ctx context.Context, input clientType.GetHi
 	return nil, fmt.Errorf("GetHistory not implemented for custom transports - use HTTP transport or implement if needed")
 }
 
-func (a *TransportAction) GetWalletBalance(bridgeIdentifier string, walletAddress string) (string, error) {
+func (a *TransportAction) GetWalletBalance(ctx context.Context, bridgeIdentifier string, walletAddress string) (string, error) {
 	return "", fmt.Errorf("GetWalletBalance not implemented for custom transports - use HTTP transport or implement if needed")
 }
 
-func (a *TransportAction) Withdraw(bridgeIdentifier string, amount string, recipient string) (string, error) {
+func (a *TransportAction) Withdraw(ctx context.Context, bridgeIdentifier string, amount string, recipient string) (string, error) {
 	return "", fmt.Errorf("Withdraw not implemented for custom transports - use HTTP transport or implement if needed")
 }
 
