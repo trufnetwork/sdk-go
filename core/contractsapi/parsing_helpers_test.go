@@ -43,7 +43,10 @@ func TestParsingHelpers(t *testing.T) {
 		}
 
 		// Verify result matches base64 content
-		expectedBytes, _ := base64.StdEncoding.DecodeString(validB64)
+		expectedBytes, err := base64.StdEncoding.DecodeString(validB64)
+		if err != nil {
+			t.Fatalf("failed to decode validB64 fixture: %v", err)
+		}
 		if string(result) != string(expectedBytes) {
 			t.Errorf("expected %x, got %x", expectedBytes, result)
 		}

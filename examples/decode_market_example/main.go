@@ -53,7 +53,8 @@ func main() {
 			SettledFilter: &isSettled,
 		})
 		if err != nil {
-			log.Fatalf("Failed to list %s markets: %v", stateStr, err)
+			log.Printf("Failed to list %s markets: %v", stateStr, err)
+			continue
 		}
 
 		fmt.Printf("Found %d %s markets. Decoding details...\n", len(markets), stateStr)

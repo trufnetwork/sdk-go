@@ -341,7 +341,6 @@ func extractBytesColumn(value any, dest *[]byte, rowIdx int, colName string) err
 	}
 
 	return fmt.Errorf("row %d: failed to decode %s as hex or base64 (len=%d, data=%q): %w", rowIdx, colName, len(str), str, b64err)
-	return nil
 }
 
 // Helper function to extract int64 from a column
