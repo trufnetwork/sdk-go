@@ -37,40 +37,52 @@ func main() {
 		log.Fatalf("Failed to load order book: %v", err)
 	}
 
-	// 3. List Latest Markets
-	limit := 3
-	markets, err := orderBook.ListMarkets(ctx, types.ListMarketsInput{
-		Limit: &limit,
-	})
-	if err != nil {
-		log.Fatalf("Failed to list markets: %v", err)
-	}
+	// 3. List and Decode Markets (Both Active and Settled)
+	settledStates := []bool{false, true}
+	limit := 2
 
-	fmt.Printf("Found %d latest markets. Decoding details...\n\n", len(markets))
+	for _, isSettled := range settledStates {
+		stateStr := "ACTIVE"
+		if isSettled {
+			stateStr = "SETTLED"
+		}
+		fmt.Printf("--- Fetching Latest %s Markets ---\n", stateStr)
 
-	// 4. Fetch and Decode each market
-	for _, m := range markets {
-		fmt.Printf("Processing Market ID: %d\n", m.ID)
-
-		// Fetch full info (including queryComponents)
-		marketInfo, err := orderBook.GetMarketInfo(ctx, types.GetMarketInfoInput{
-			QueryID: m.ID,
+		markets, err := orderBook.ListMarkets(ctx, types.ListMarketsInput{
+			Limit:         &limit,
+			SettledFilter: &isSettled,
 		})
 		if err != nil {
-			fmt.Printf("  Error fetching info: %v\n\n", err)
-			continue
+			log.Fatalf("Failed to list %s markets: %v", stateStr, err)
 		}
 
-		// Decode components
-		data, err := contractsapi.DecodeMarketData(marketInfo.QueryComponents)
-		if err != nil {
-			fmt.Printf("  Error decoding data: %v\n\n", err)
-			continue
-		}
+		fmt.Printf("Found %d %s markets. Decoding details...\n", len(markets), stateStr)
 
-		fmt.Printf("  Market Type:   %s\n", data.Type)
-		fmt.Printf("  Thresholds:    %v\n", data.Thresholds)
-		fmt.Printf("  Action:        %s\n", data.ActionID)
-		fmt.Printf("  Stream:        %s\n\n", data.StreamID)
+		// 4. Fetch and Decode each market
+		for _, m := range markets {
+			fmt.Printf("  Processing Market ID: %d\n", m.ID)
+
+			// Fetch full info (including queryComponents)
+			marketInfo, err := orderBook.GetMarketInfo(ctx, types.GetMarketInfoInput{
+				QueryID: m.ID,
+			})
+			if err != nil {
+				fmt.Printf("    Error fetching info: %v\n", err)
+				continue
+			}
+
+			// Decode components
+			data, err := contractsapi.DecodeMarketData(marketInfo.QueryComponents)
+			if err != nil {
+				fmt.Printf("    Error decoding data: %v\n", err)
+				continue
+			}
+
+			fmt.Printf("    Market Type:   %s\n", data.Type)
+			fmt.Printf("    Thresholds:    %v\n", data.Thresholds)
+			fmt.Printf("    Action:        %s\n", data.ActionID)
+			fmt.Printf("    Stream:        %s\n", data.StreamID)
+		}
+		fmt.Println()
 	}
 }

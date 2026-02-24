@@ -1,6 +1,7 @@
 package contractsapi
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"testing"
 )
@@ -23,6 +24,26 @@ func TestParsingHelpers(t *testing.T) {
 			t.Fatalf("extractBytesColumn failed on hex string: %v", err)
 		}
 
+		if string(result) != string(expectedBytes) {
+			t.Errorf("expected %x, got %x", expectedBytes, result)
+		}
+	})
+
+	// 1b. Test extractBytesColumn with Hybrid Base64 string (starts with 0x but is Base64)
+	t.Run("extractBytesColumn_HybridBase64", func(t *testing.T) {
+		// We use a known valid 32-byte base64 string
+		validB64 := "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
+		hybridStr := "0x" + validB64
+		
+		var result []byte
+		err := extractBytesColumn(hybridStr, &result, 0, "hash")
+
+		if err != nil {
+			t.Fatalf("extractBytesColumn failed on hybrid base64 string: %v", err)
+		}
+
+		// Verify result matches base64 content
+		expectedBytes, _ := base64.StdEncoding.DecodeString(validB64)
 		if string(result) != string(expectedBytes) {
 			t.Errorf("expected %x, got %x", expectedBytes, result)
 		}
