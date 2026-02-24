@@ -291,24 +291,56 @@ func extractBytesColumn(value any, dest *[]byte, rowIdx int, colName string) err
 		return nil
 	}
 
-	// Check if it's a hex string (starts with 0x)
+	// Encoding logic:
+	// 1. If it starts with 0x, try HEX first.
+	// 2. If HEX fails OR it doesn't start with 0x, try Base64.
+	// This handles the "Hybrid" case (0x + Base64) gracefully.
+
 	if len(str) >= 2 && str[:2] == "0x" {
-		decoded, err := hex.DecodeString(str[2:])
-		if err != nil {
-			return fmt.Errorf("row %d: failed to decode %s as hex (len=%d, data=%q): %w", rowIdx, colName, len(str), str, err)
+		hexData := str[2:]
+		decoded, err := hex.DecodeString(hexData)
+		if err == nil {
+			*dest = decoded
+			return nil
 		}
+		// If Hex failed but it had 0x, it might be the Hybrid Base64 case.
+		// We fall through to base64 decoding but strip the 0x first.
+		str = hexData
+	}
+
+	// Decode base64 string (try multiple variants for maximum resilience)
+	var decoded []byte
+	var b64err error
+
+	// 1. Try Standard encoding
+	decoded, b64err = base64.StdEncoding.DecodeString(str)
+	if b64err == nil {
 		*dest = decoded
 		return nil
 	}
 
-	// Decode base64 string
-	decoded, err := base64.StdEncoding.DecodeString(str)
-	if err != nil {
-		return fmt.Errorf("row %d: failed to decode %s as base64 (len=%d, data=%q): %w", rowIdx, colName, len(str), str, err)
+	// 2. Try Raw Standard encoding (no padding)
+	decoded, b64err = base64.RawStdEncoding.DecodeString(str)
+	if b64err == nil {
+		*dest = decoded
+		return nil
 	}
 
-	*dest = decoded
-	return nil
+	// 3. Try URL-safe encoding
+	decoded, b64err = base64.URLEncoding.DecodeString(str)
+	if b64err == nil {
+		*dest = decoded
+		return nil
+	}
+
+	// 4. Try Raw URL-safe encoding
+	decoded, b64err = base64.RawURLEncoding.DecodeString(str)
+	if b64err == nil {
+		*dest = decoded
+		return nil
+	}
+
+	return fmt.Errorf("row %d: failed to decode %s as hex or base64 (len=%d, data=%q): %w", rowIdx, colName, len(str), str, b64err)
 }
 
 // Helper function to extract int64 from a column
