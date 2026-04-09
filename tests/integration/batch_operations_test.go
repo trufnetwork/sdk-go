@@ -70,7 +70,7 @@ func TestBatchOperations(t *testing.T) {
 					DataProvider: streamLocator.DataProvider.Address(),
 					StreamId:     streamLocator.StreamId.String(),
 					EventTime:    baseTimestamp + (batch * 86400) + (i * 3600),
-					Value:        float64(batch*100 + i),
+					Value:        float64(batch*100 + i + 1), // +1 to avoid zero (consensus filters WHERE value != 0)
 				}
 			}
 
@@ -131,9 +131,13 @@ func TestBatchOperations(t *testing.T) {
 		deployedStream, err := tnClient.LoadPrimitiveActions()
 		assertNoErrorOrFail(t, err, "Failed to load stream")
 
-		const numBatches = 5000
+		const numBatches = 500
 		const recordsPerBatch = 10 // node enforces max 10 records per insert_records call
 		baseTimestamp := 1672531200 // Start from 2023-01-01
+
+		// Total: 500*10 = 5000 records — comfortably under the 10,000-row
+		// query cap enforced by get_record_primitive (LIMIT 10000).
+		// Previous value of 5000*10=50000 always failed at query time.
 
 		// Insert multiple batches without waiting
 		txHashes := make([]kwiltypes.Hash, 0, numBatches)
@@ -146,7 +150,7 @@ func TestBatchOperations(t *testing.T) {
 					DataProvider: streamLocator.DataProvider.Address(),
 					StreamId:     streamLocator.StreamId.String(),
 					EventTime:    baseTimestamp + (batch * 86400) + (i * 300), // 5-minute intervals
-					Value:        float64(batch*1000 + i),
+					Value:        float64(batch*1000 + i + 1), // +1 to avoid zero (consensus filters WHERE value != 0)
 				}
 			}
 

@@ -3,6 +3,7 @@ package contractsapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -52,7 +53,10 @@ func (s *localRPCServer) baseURL() string { return s.server.URL }
 func (s *localRPCServer) setResult(method string, result any) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	b, _ := json.Marshal(result)
+	b, err := json.Marshal(result)
+	if err != nil {
+		panic(fmt.Sprintf("setResult: failed to marshal fixture for %q: %v", method, err))
+	}
 	s.resultByMethod[method] = b
 }
 

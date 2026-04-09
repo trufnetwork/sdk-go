@@ -2,6 +2,7 @@ package contractsapi
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
 	adminclient "github.com/trufnetwork/kwil-db/core/rpc/client/admin/jsonrpc"
@@ -33,7 +34,7 @@ type LocalActionsOptions struct {
 // LoadLocalActions creates a new LocalActions instance.
 func LoadLocalActions(opts LocalActionsOptions) (types.ILocalActions, error) {
 	if opts.Admin == nil {
-		return nil, errors.New("admin client is required; construct tnclient with WithAdmin()")
+		return nil, errors.New("admin client is required; use tnclient.WithAdmin() or tnclient.NewLocalClient()")
 	}
 	return &LocalActions{admin: opts.Admin}, nil
 }
@@ -129,6 +130,10 @@ func (l *LocalActions) CreateStream(ctx context.Context, input types.LocalCreate
 
 // InsertRecords → local.insert_records
 func (l *LocalActions) InsertRecords(ctx context.Context, input types.LocalInsertRecordsInput) error {
+	if len(input.StreamID) != len(input.EventTime) || len(input.StreamID) != len(input.Value) {
+		return fmt.Errorf("local.insert_records: array lengths mismatch (stream_id=%d, event_time=%d, value=%d)",
+			len(input.StreamID), len(input.EventTime), len(input.Value))
+	}
 	req := localInsertRecordsRequest{
 		StreamID:  input.StreamID,
 		EventTime: input.EventTime,
@@ -143,6 +148,10 @@ func (l *LocalActions) InsertRecords(ctx context.Context, input types.LocalInser
 
 // InsertTaxonomy → local.insert_taxonomy
 func (l *LocalActions) InsertTaxonomy(ctx context.Context, input types.LocalInsertTaxonomyInput) error {
+	if len(input.ChildStreamIDs) != len(input.Weights) {
+		return fmt.Errorf("local.insert_taxonomy: array lengths mismatch (child_stream_ids=%d, weights=%d)",
+			len(input.ChildStreamIDs), len(input.Weights))
+	}
 	req := localInsertTaxonomyRequest{
 		StreamID:       input.StreamID,
 		ChildStreamIDs: input.ChildStreamIDs,
