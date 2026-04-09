@@ -229,7 +229,7 @@ func TestBatchOperations(t *testing.T) {
 					DataProvider: streamLocator.DataProvider.Address(),
 					StreamId:     streamLocator.StreamId.String(),
 					EventTime:    baseTimestamp + (i * 3600),
-					Value:        float64(i),
+					Value:        float64(i + 1), // +1 to avoid zero (consensus filters WHERE value != 0)
 				},
 			}
 
