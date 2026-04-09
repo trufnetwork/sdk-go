@@ -145,8 +145,9 @@ func WithTransport(transport Transport) Option {
 //	local, err := client.LoadLocalActions()
 //
 // If adminURL is malformed or lacks a scheme/host, the error is stored
-// and surfaced at Validate() time so the functional-option shape
-// (no return value) is preserved.
+// in c.adminErr and returned immediately by NewClient (before transport
+// construction or Validate). The functional-option shape (no return
+// value) is preserved by deferring the error to the NewClient caller.
 func WithAdmin(adminURL string, opts ...rpcclient.RPCClientOpts) Option {
 	return func(c *Client) {
 		// Reset both fields so repeated calls (e.g. duplicate options)

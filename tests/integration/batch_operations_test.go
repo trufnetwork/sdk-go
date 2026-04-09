@@ -63,7 +63,7 @@ func TestBatchOperations(t *testing.T) {
 		txHashes := make([]kwiltypes.Hash, 0, numBatches)
 		startTime := time.Now()
 
-		for batch := 0; batch <= numBatches; batch++ {
+		for batch := 0; batch < numBatches; batch++ {
 			records := make([]types.InsertRecordInput, recordsPerBatch)
 			for i := 0; i < recordsPerBatch; i++ {
 				records[i] = types.InsertRecordInput{
@@ -139,7 +139,7 @@ func TestBatchOperations(t *testing.T) {
 		txHashes := make([]kwiltypes.Hash, 0, numBatches)
 		startTime := time.Now()
 
-		for batch := 0; batch <= numBatches; batch++ {
+		for batch := 0; batch < numBatches; batch++ {
 			records := make([]types.InsertRecordInput, recordsPerBatch)
 			for i := 0; i < recordsPerBatch; i++ {
 				records[i] = types.InsertRecordInput{
@@ -219,7 +219,7 @@ func TestBatchOperations(t *testing.T) {
 		txHashes := make([]kwiltypes.Hash, 0, numRecords)
 		startTime := time.Now()
 
-		for i := 0; i <= numRecords; i++ {
+		for i := 0; i < numRecords; i++ {
 			records := []types.InsertRecordInput{
 				{
 					DataProvider: streamLocator.DataProvider.Address(),
