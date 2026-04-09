@@ -47,6 +47,12 @@ func NewClient(ctx context.Context, provider string, options ...Option) (*Client
 		option(c)
 	}
 
+	// Fail fast if an option (e.g. WithAdmin) already recorded an error —
+	// no point building the default transport for a Client we'll reject.
+	if c.adminErr != nil {
+		return nil, c.adminErr
+	}
+
 	// Create default HTTPTransport if no transport was provided via options
 	if c.transport == nil {
 		var logger log.Logger
