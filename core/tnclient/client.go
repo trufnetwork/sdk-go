@@ -2,6 +2,7 @@ package tnclient
 
 import (
 	"context"
+	"net/url"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -9,6 +10,8 @@ import (
 	"github.com/trufnetwork/kwil-db/core/crypto/auth"
 	"github.com/trufnetwork/kwil-db/core/gatewayclient"
 	"github.com/trufnetwork/kwil-db/core/log"
+	rpcclient "github.com/trufnetwork/kwil-db/core/rpc/client"
+	adminclient "github.com/trufnetwork/kwil-db/core/rpc/client/admin/jsonrpc"
 	kwilType "github.com/trufnetwork/kwil-db/core/types"
 	"github.com/trufnetwork/kwil-db/node/types"
 	tn_api "github.com/trufnetwork/sdk-go/core/contractsapi"
@@ -22,6 +25,11 @@ type Client struct {
 	signer    auth.Signer `validate:"required"`
 	logger    *log.Logger
 	transport Transport `validate:"required"`
+	// admin is an optional kwil-db admin JSON-RPC client used by
+	// LoadLocalActions() to call tn_local.* methods on the node's admin
+	// server (port 8485). nil unless configured via WithAdmin(). Unused by
+	// all other Client methods, which go through the gateway.
+	admin *adminclient.Client
 }
 
 var _ clientType.Client = (*Client)(nil)
@@ -93,6 +101,53 @@ func WithLogger(logger log.Logger) Option {
 func WithTransport(transport Transport) Option {
 	return func(c *Client) {
 		c.transport = transport
+	}
+}
+
+// WithAdmin configures the client to also talk to a Kwil admin JSON-RPC
+// server (port 8485 by default), enabling LoadLocalActions(). The admin
+// server is separate from the gateway used by every other SDK method —
+// it exposes the node operator's local stream operations via the
+// tn_local extension.
+//
+// adminURL is the base URL of the admin server — typically
+// "http://127.0.0.1:8485" for loopback TCP. For unix sockets use
+// "http://unix" with an HTTP client that dials the socket; see
+// kwil-db's rpcclient.WithHTTPClient() for passing a custom client.
+//
+// opts are passed through to kwil-db's admin client unchanged. Common
+// options:
+//
+//   - rpcclient.WithPass("admin-password") for basic auth
+//   - rpcclient.WithHTTPClient(customClient) for mTLS or unix sockets
+//   - rpcclient.WithLogger(logger) for debug logging
+//
+// Example — local node with basic auth:
+//
+//	client, err := tnclient.NewClient(ctx, gatewayURL,
+//	    tnclient.WithSigner(signer),
+//	    tnclient.WithAdmin("http://127.0.0.1:8485",
+//	        rpcclient.WithPass("admin-secret")),
+//	)
+//	if err != nil { /* ... */ }
+//	local, err := client.LoadLocalActions()
+//
+// Returns an Option that errors lazily when Validate() runs if adminURL
+// is malformed.
+func WithAdmin(adminURL string, opts ...rpcclient.RPCClientOpts) Option {
+	return func(c *Client) {
+		u, err := url.Parse(adminURL)
+		if err != nil {
+			// Defer error surfacing to Validate() so WithAdmin keeps
+			// the functional-option shape (no return value). Leaving
+			// c.admin nil causes LoadLocalActions() to fail with a
+			// clear error.
+			if c.logger != nil {
+				(*c.logger).Error("WithAdmin: invalid admin URL", zap.Error(err))
+			}
+			return
+		}
+		c.admin = adminclient.NewClient(u, opts...)
 	}
 }
 
@@ -202,6 +257,34 @@ func (c *Client) LoadAttestationActions() (clientType.IAttestationAction, error)
 	return tn_api.LoadAttestationActions(tn_api.AttestationActionOptions{
 		Client: c.GetKwilClient(),
 	})
+}
+
+// LoadLocalActions loads the interface for local (off-chain, node-only)
+// stream operations. Requires the client to have been constructed with
+// the WithAdmin() option — returns an error otherwise.
+//
+// Local streams are stored on a single node, bypass consensus, incur no
+// transaction fees, and are always owned by the node operator (the server
+// derives the data_provider from the node's secp256k1 key). See the
+// LocalActions interface in core/types/local_actions_types.go for method
+// documentation.
+//
+// Example:
+//
+//	local, err := client.LoadLocalActions()
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	err = local.CreateStream(ctx, types.LocalCreateStreamInput{
+//	    StreamID:   "st00000000000000000000000000demo",
+//	    StreamType: types.StreamTypePrimitive,
+//	})
+func (c *Client) LoadLocalActions() (clientType.ILocalActions, error) {
+	if c.admin == nil {
+		return nil, errors.New("LoadLocalActions requires tnclient.WithAdmin() option; " +
+			"construct the client with the admin URL to enable local stream operations")
+	}
+	return tn_api.LoadLocalActions(tn_api.LocalActionsOptions{Admin: c.admin})
 }
 
 // LoadTransactionActions loads the transaction ledger query interface
