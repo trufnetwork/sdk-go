@@ -131,8 +131,8 @@ func TestBatchOperations(t *testing.T) {
 		deployedStream, err := tnClient.LoadPrimitiveActions()
 		assertNoErrorOrFail(t, err, "Failed to load stream")
 
-		const numBatches = 500
-		const recordsPerBatch = 100
+		const numBatches = 5000
+		const recordsPerBatch = 10 // node enforces max 10 records per insert_records call
 		baseTimestamp := 1672531200 // Start from 2023-01-01
 
 		// Insert multiple batches without waiting
