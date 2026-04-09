@@ -34,25 +34,23 @@ func parseAdminURL(adminURL string) (*url.URL, error) {
 // to read/write local streams on a node it operates.
 //
 // Unlike NewClient, this constructor does NOT require an auth.Signer — the
-// admin API uses its own auth (unix socket / mTLS / basic password) and has
-// no concept of Ethereum signatures. Callers who need both on-chain and
-// local operations should use NewClient(..., WithAdmin(adminURL, ...))
+// admin server handles its own transport auth (unix socket by default, mTLS
+// for remote TCP). tn_local itself has no auth concept — if you can reach
+// the admin server, you can operate on local streams. Callers who need both
+// on-chain and local operations should use NewClient(..., WithAdmin(adminURL))
 // and call client.LoadLocalActions() instead.
 //
 // adminURL is the base URL of the admin server, e.g. "http://127.0.0.1:8485"
-// for loopback TCP. For unix sockets or mTLS, pass a custom *http.Client via
-// rpcclient.WithHTTPClient().
+// for loopback TCP.
 //
 // opts are forwarded unchanged to kwil-db's admin client. Common options:
 //
-//   - rpcclient.WithPass("admin-secret") for HTTP basic auth
-//   - rpcclient.WithHTTPClient(customClient) for mTLS / unix sockets
+//   - rpcclient.WithHTTPClient(customClient) for mTLS or unix sockets
 //   - rpcclient.WithLogger(logger) for debug logging
 //
-// Example — local node with basic auth:
+// Example — local node (default, no auth needed):
 //
-//	local, err := tnclient.NewLocalClient("http://127.0.0.1:8485",
-//	    rpcclient.WithPass("admin-secret"))
+//	local, err := tnclient.NewLocalClient("http://127.0.0.1:8485")
 //	if err != nil { /* ... */ }
 //	err = local.CreateStream(ctx, types.LocalCreateStreamInput{
 //	    StreamID:   "st00000000000000000000000000demo",

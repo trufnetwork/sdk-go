@@ -234,6 +234,81 @@ func TestLocalActions_InsertTaxonomy_MethodAndParams(t *testing.T) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// DELETE STREAM
+// ═══════════════════════════════════════════════════════════════
+
+func TestLocalActions_DeleteStream_MethodAndParams(t *testing.T) {
+	local, srv := newTestLocalActions(t)
+	defer srv.close()
+
+	err := local.DeleteStream(context.Background(), types.LocalDeleteStreamInput{
+		StreamID: "st00000000000000000000000000test",
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, "local.delete_stream", srv.capturedMethod())
+
+	var params map[string]any
+	require.NoError(t, json.Unmarshal(srv.capturedParams(), &params))
+	require.NotContains(t, params, "data_provider",
+		"DeleteStream request must not include data_provider")
+	require.Equal(t, "st00000000000000000000000000test", params["stream_id"])
+}
+
+func TestLocalActions_DeleteStream_PropagatesError(t *testing.T) {
+	local, srv := newTestLocalActions(t)
+	defer srv.close()
+
+	srv.setError("local.delete_stream", rpcjson.NewError(
+		rpcjson.ErrorInvalidParams, "stream not found: st...", nil))
+
+	err := local.DeleteStream(context.Background(), types.LocalDeleteStreamInput{
+		StreamID: "st00000000000000000000000000test",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "stream not found")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DISABLE TAXONOMY
+// ═══════════════════════════════════════════════════════════════
+
+func TestLocalActions_DisableTaxonomy_MethodAndParams(t *testing.T) {
+	local, srv := newTestLocalActions(t)
+	defer srv.close()
+
+	err := local.DisableTaxonomy(context.Background(), types.LocalDisableTaxonomyInput{
+		StreamID:      "st0000000000000000000000composed",
+		GroupSequence: 1,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, "local.disable_taxonomy", srv.capturedMethod())
+
+	var params map[string]any
+	require.NoError(t, json.Unmarshal(srv.capturedParams(), &params))
+	require.NotContains(t, params, "data_provider",
+		"DisableTaxonomy request must not include data_provider")
+	require.Equal(t, "st0000000000000000000000composed", params["stream_id"])
+	require.Equal(t, float64(1), params["group_sequence"])
+}
+
+func TestLocalActions_DisableTaxonomy_PropagatesError(t *testing.T) {
+	local, srv := newTestLocalActions(t)
+	defer srv.close()
+
+	srv.setError("local.disable_taxonomy", rpcjson.NewError(
+		rpcjson.ErrorInvalidParams, "taxonomy group 99 not found", nil))
+
+	err := local.DisableTaxonomy(context.Background(), types.LocalDisableTaxonomyInput{
+		StreamID:      "st0000000000000000000000composed",
+		GroupSequence: 99,
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "taxonomy group 99 not found")
+}
+
+// ═══════════════════════════════════════════════════════════════
 // GET RECORD
 // ═══════════════════════════════════════════════════════════════
 
