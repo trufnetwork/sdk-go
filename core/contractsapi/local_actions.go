@@ -99,6 +99,17 @@ type localGetIndexResponse struct {
 	Records []localIndexOutputWire `json:"records"`
 }
 
+type localDeleteStreamRequest struct {
+	StreamID string `json:"stream_id"`
+}
+type localDeleteStreamResponse struct{}
+
+type localDisableTaxonomyRequest struct {
+	StreamID      string `json:"stream_id"`
+	GroupSequence int    `json:"group_sequence"`
+}
+type localDisableTaxonomyResponse struct{}
+
 type localListStreamsRequest struct{}
 
 type localStreamInfoWire struct {
@@ -207,6 +218,31 @@ func (l *LocalActions) GetIndex(ctx context.Context, input types.LocalGetIndexIn
 		})
 	}
 	return records, nil
+}
+
+// DeleteStream → local.delete_stream
+func (l *LocalActions) DeleteStream(ctx context.Context, input types.LocalDeleteStreamInput) error {
+	req := localDeleteStreamRequest{
+		StreamID: input.StreamID,
+	}
+	res := &localDeleteStreamResponse{}
+	if err := l.admin.CallMethod(ctx, "local.delete_stream", req, res); err != nil {
+		return errors.Wrap(err, "local.delete_stream")
+	}
+	return nil
+}
+
+// DisableTaxonomy → local.disable_taxonomy
+func (l *LocalActions) DisableTaxonomy(ctx context.Context, input types.LocalDisableTaxonomyInput) error {
+	req := localDisableTaxonomyRequest{
+		StreamID:      input.StreamID,
+		GroupSequence: input.GroupSequence,
+	}
+	res := &localDisableTaxonomyResponse{}
+	if err := l.admin.CallMethod(ctx, "local.disable_taxonomy", req, res); err != nil {
+		return errors.Wrap(err, "local.disable_taxonomy")
+	}
+	return nil
 }
 
 // ListStreams → local.list_streams

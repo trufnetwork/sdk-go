@@ -130,16 +130,14 @@ func WithTransport(transport Transport) Option {
 // opts are passed through to kwil-db's admin client unchanged. Common
 // options:
 //
-//   - rpcclient.WithPass("admin-password") for basic auth
 //   - rpcclient.WithHTTPClient(customClient) for mTLS or unix sockets
 //   - rpcclient.WithLogger(logger) for debug logging
 //
-// Example — local node with basic auth:
+// Example — local node (default, no auth needed):
 //
 //	client, err := tnclient.NewClient(ctx, gatewayURL,
 //	    tnclient.WithSigner(signer),
-//	    tnclient.WithAdmin("http://127.0.0.1:8485",
-//	        rpcclient.WithPass("admin-secret")),
+//	    tnclient.WithAdmin("http://127.0.0.1:8485"),
 //	)
 //	if err != nil { /* ... */ }
 //	local, err := client.LoadLocalActions()

@@ -53,6 +53,14 @@ type ILocalActions interface {
 	// Maps to: local.get_index (tn_local handlers.go GetIndex)
 	GetIndex(ctx context.Context, input LocalGetIndexInput) ([]LocalIndexOutput, error)
 
+	// DeleteStream removes a local stream and all associated data.
+	// Maps to: local.delete_stream (tn_local handlers.go DeleteStream)
+	DeleteStream(ctx context.Context, input LocalDeleteStreamInput) error
+
+	// DisableTaxonomy disables a taxonomy group on a local composed stream.
+	// Maps to: local.disable_taxonomy (tn_local handlers.go DisableTaxonomy)
+	DisableTaxonomy(ctx context.Context, input LocalDisableTaxonomyInput) error
+
 	// ListStreams returns all local streams owned by this node.
 	// Maps to: local.list_streams (tn_local handlers.go ListStreams)
 	ListStreams(ctx context.Context) ([]LocalStreamInfo, error)
@@ -104,6 +112,17 @@ type LocalGetIndexInput struct {
 	FromTime *int64 `json:"from_time,omitempty"`
 	ToTime   *int64 `json:"to_time,omitempty"`
 	BaseTime *int64 `json:"base_time,omitempty"`
+}
+
+// LocalDeleteStreamInput is the input for local.delete_stream.
+type LocalDeleteStreamInput struct {
+	StreamID string `json:"stream_id"`
+}
+
+// LocalDisableTaxonomyInput is the input for local.disable_taxonomy.
+type LocalDisableTaxonomyInput struct {
+	StreamID      string `json:"stream_id"`
+	GroupSequence int    `json:"group_sequence"`
 }
 
 // ═══════════════════════════════════════════════════════════════
