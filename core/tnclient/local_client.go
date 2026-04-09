@@ -1,6 +1,7 @@
 package tnclient
 
 import (
+	"fmt"
 	"net/url"
 
 	"github.com/pkg/errors"
@@ -9,6 +10,23 @@ import (
 	tn_api "github.com/trufnetwork/sdk-go/core/contractsapi"
 	clientType "github.com/trufnetwork/sdk-go/core/types"
 )
+
+// parseAdminURL parses and validates an admin server URL. Returns an error
+// if the URL is unparseable or missing a scheme/host, which would produce a
+// broken admin client that silently fails at request time.
+func parseAdminURL(adminURL string) (*url.URL, error) {
+	if adminURL == "" {
+		return nil, errors.New("adminURL is required")
+	}
+	u, err := url.Parse(adminURL)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid adminURL")
+	}
+	if u.Scheme == "" || u.Host == "" {
+		return nil, fmt.Errorf("adminURL must be an absolute URL with scheme and host (e.g. http://127.0.0.1:8485), got %q", adminURL)
+	}
+	return u, nil
+}
 
 // NewLocalClient constructs a standalone client for the tn_local admin API
 // only. Use this when the caller does not need any of the full tnclient's
@@ -41,12 +59,9 @@ import (
 //	    StreamType: types.StreamTypePrimitive,
 //	})
 func NewLocalClient(adminURL string, opts ...rpcclient.RPCClientOpts) (clientType.ILocalActions, error) {
-	if adminURL == "" {
-		return nil, errors.New("adminURL is required")
-	}
-	u, err := url.Parse(adminURL)
+	u, err := parseAdminURL(adminURL)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid adminURL")
+		return nil, err
 	}
 	admin := adminclient.NewClient(u, opts...)
 	return tn_api.LoadLocalActions(tn_api.LocalActionsOptions{Admin: admin})

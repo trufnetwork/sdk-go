@@ -2,7 +2,6 @@ package tnclient
 
 import (
 	"context"
-	"net/url"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -30,6 +29,10 @@ type Client struct {
 	// server (port 8485). nil unless configured via WithAdmin(). Unused by
 	// all other Client methods, which go through the gateway.
 	admin *adminclient.Client
+	// adminErr captures any URL-parsing or validation error from WithAdmin
+	// so it can be surfaced at Validate() time rather than silently
+	// swallowed inside the functional-option closure.
+	adminErr error
 }
 
 var _ clientType.Client = (*Client)(nil)
@@ -67,6 +70,9 @@ func NewClient(ctx context.Context, provider string, options ...Option) (*Client
 }
 
 func (c *Client) Validate() error {
+	if c.adminErr != nil {
+		return c.adminErr
+	}
 	validate := validator.New()
 	return validate.Struct(c)
 }
@@ -132,19 +138,14 @@ func WithTransport(transport Transport) Option {
 //	if err != nil { /* ... */ }
 //	local, err := client.LoadLocalActions()
 //
-// Returns an Option that errors lazily when Validate() runs if adminURL
-// is malformed.
+// If adminURL is malformed or lacks a scheme/host, the error is stored
+// and surfaced at Validate() time so the functional-option shape
+// (no return value) is preserved.
 func WithAdmin(adminURL string, opts ...rpcclient.RPCClientOpts) Option {
 	return func(c *Client) {
-		u, err := url.Parse(adminURL)
+		u, err := parseAdminURL(adminURL)
 		if err != nil {
-			// Defer error surfacing to Validate() so WithAdmin keeps
-			// the functional-option shape (no return value). Leaving
-			// c.admin nil causes LoadLocalActions() to fail with a
-			// clear error.
-			if c.logger != nil {
-				(*c.logger).Error("WithAdmin: invalid admin URL", zap.Error(err))
-			}
+			c.adminErr = err
 			return
 		}
 		c.admin = adminclient.NewClient(u, opts...)
@@ -280,6 +281,9 @@ func (c *Client) LoadAttestationActions() (clientType.IAttestationAction, error)
 //	    StreamType: types.StreamTypePrimitive,
 //	})
 func (c *Client) LoadLocalActions() (clientType.ILocalActions, error) {
+	if c.adminErr != nil {
+		return nil, errors.Wrap(c.adminErr, "LoadLocalActions: invalid admin configuration")
+	}
 	if c.admin == nil {
 		return nil, errors.New("LoadLocalActions requires tnclient.WithAdmin() option; " +
 			"construct the client with the admin URL to enable local stream operations")
