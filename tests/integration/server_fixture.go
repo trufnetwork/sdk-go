@@ -210,7 +210,14 @@ func (s *ServerFixture) Setup() error {
 		mgrSigner := &auth.EthPersonalSigner{Key: *mgrPk}
 		mgrAddr, _ := auth.EthSecp256k1Authenticator{}.Identifier(mgrSigner.CompactID())
 		adminWalletArg := fmt.Sprintf("ADMIN_WALLET=%s", mgrAddr)
-		migrateCmd := exec.CommandContext(s.ctx, "task", "action:migrate", providerArg, privateKeyArg, adminWalletArg)
+
+		// Use a 3-minute timeout so a hanging migration command doesn't
+		// consume the entire test timeout (default 10m). The migration
+		// typically completes in seconds; 3 minutes is generous.
+		migrateCtx, cancel := context.WithTimeout(s.ctx, 3*time.Minute)
+		defer cancel()
+
+		migrateCmd := exec.CommandContext(migrateCtx, "task", "action:migrate", providerArg, privateKeyArg, adminWalletArg)
 		migrateCmd.Dir = nodeRepoDir
 
 		s.t.Logf("Executing command in %s: %s", migrateCmd.Dir, strings.Join(migrateCmd.Args, " "))
