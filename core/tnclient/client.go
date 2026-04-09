@@ -143,6 +143,11 @@ func WithTransport(transport Transport) Option {
 // (no return value) is preserved.
 func WithAdmin(adminURL string, opts ...rpcclient.RPCClientOpts) Option {
 	return func(c *Client) {
+		// Reset both fields so repeated calls (e.g. duplicate options)
+		// don't leave stale state from a prior invocation.
+		c.admin = nil
+		c.adminErr = nil
+
 		u, err := parseAdminURL(adminURL)
 		if err != nil {
 			c.adminErr = err
