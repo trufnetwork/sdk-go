@@ -293,54 +293,58 @@ func extractBytesColumn(value any, dest *[]byte, rowIdx int, colName string) err
 
 	// Encoding logic:
 	// 1. If it starts with 0x, try HEX first.
-	// 2. If HEX fails OR it doesn't start with 0x, try Base64.
-	// This handles the "Hybrid" case (0x + Base64) gracefully.
+	// 2. Try Base64 on the original string — "0" and "x" are valid base64
+	//    characters (indices 52 and 49), so a base64-encoded hash can
+	//    legitimately start with "0x" (e.g. any SHA-256 whose first two
+	//    bytes are 0xD3 0x1X). Stripping the prefix would truncate the
+	//    base64 payload and break decoding.
+	// 3. If the string had a 0x prefix and both hex and full-string base64
+	//    failed, try base64 on the stripped suffix — this handles the
+	//    "hybrid" case where the gateway prepends 0x to a base64 value.
 
-	if len(str) >= 2 && str[:2] == "0x" {
+	has0xPrefix := len(str) >= 2 && str[:2] == "0x"
+
+	if has0xPrefix {
 		hexData := str[2:]
 		decoded, err := hex.DecodeString(hexData)
 		if err == nil {
 			*dest = decoded
 			return nil
 		}
-		// If Hex failed but it had 0x, it might be the Hybrid Base64 case.
-		// We fall through to base64 decoding but strip the 0x first.
-		str = hexData
 	}
 
-	// Decode base64 string (try multiple variants for maximum resilience)
-	var decoded []byte
-	var b64err error
-
-	// 1. Try Standard encoding
-	decoded, b64err = base64.StdEncoding.DecodeString(str)
-	if b64err == nil {
+	// Try base64 on the original string (handles pure base64 starting with "0x")
+	if decoded, err := tryBase64Decode(str); err == nil {
 		*dest = decoded
 		return nil
 	}
 
-	// 2. Try Raw Standard encoding (no padding)
-	decoded, b64err = base64.RawStdEncoding.DecodeString(str)
-	if b64err == nil {
-		*dest = decoded
-		return nil
+	// If it had a 0x prefix, try base64 on the stripped suffix (hybrid case)
+	if has0xPrefix {
+		if decoded, err := tryBase64Decode(str[2:]); err == nil {
+			*dest = decoded
+			return nil
+		}
 	}
 
-	// 3. Try URL-safe encoding
-	decoded, b64err = base64.URLEncoding.DecodeString(str)
-	if b64err == nil {
-		*dest = decoded
-		return nil
-	}
+	return fmt.Errorf("row %d: failed to decode %s as hex or base64 (len=%d, data=%q)", rowIdx, colName, len(str), str)
+}
 
-	// 4. Try Raw URL-safe encoding
-	decoded, b64err = base64.RawURLEncoding.DecodeString(str)
-	if b64err == nil {
-		*dest = decoded
-		return nil
+// tryBase64Decode attempts to decode s using multiple base64 variants
+// (standard, raw, URL-safe, raw URL-safe). Returns the decoded bytes on
+// success or an error if none of the variants work.
+func tryBase64Decode(s string) ([]byte, error) {
+	for _, enc := range []interface{ DecodeString(string) ([]byte, error) }{
+		base64.StdEncoding,
+		base64.RawStdEncoding,
+		base64.URLEncoding,
+		base64.RawURLEncoding,
+	} {
+		if decoded, err := enc.DecodeString(s); err == nil {
+			return decoded, nil
+		}
 	}
-
-	return fmt.Errorf("row %d: failed to decode %s as hex or base64 (len=%d, data=%q): %w", rowIdx, colName, len(str), str, b64err)
+	return nil, fmt.Errorf("no base64 variant could decode input (len=%d)", len(s))
 }
 
 // Helper function to extract int64 from a column

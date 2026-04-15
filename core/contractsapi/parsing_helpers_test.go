@@ -52,6 +52,31 @@ func TestParsingHelpers(t *testing.T) {
 		}
 	})
 
+	// 1c. Test extractBytesColumn with base64 that legitimately starts with "0x"
+	// Regression: hashes whose first bytes are 0xD3 0x1X produce base64
+	// starting with "0x", which was incorrectly stripped as a hex prefix.
+	t.Run("extractBytesColumn_Base64StartsWithZeroX", func(t *testing.T) {
+		// Real hash from testnet: d315e51ac72b8461f852e92b1484207cd0d9a42e7485b87848922540f96283b9
+		hashHex := "d315e51ac72b8461f852e92b1484207cd0d9a42e7485b87848922540f96283b9"
+		expectedBytes, _ := hex.DecodeString(hashHex)
+
+		// This is the correct base64 for these bytes — it starts with "0x"
+		b64Str := base64.StdEncoding.EncodeToString(expectedBytes)
+		if b64Str[:2] != "0x" {
+			t.Fatalf("test fixture should produce base64 starting with '0x', got %q", b64Str[:4])
+		}
+
+		var result []byte
+		err := extractBytesColumn(b64Str, &result, 0, "hash")
+		if err != nil {
+			t.Fatalf("extractBytesColumn failed on base64 starting with '0x': %v", err)
+		}
+
+		if hex.EncodeToString(result) != hashHex {
+			t.Errorf("expected %s, got %s", hashHex, hex.EncodeToString(result))
+		}
+	})
+
 	// 2. Test extractInt64Column with non-string type (e.g. float64 from JSON)
 	t.Run("extractInt64Column_Float64", func(t *testing.T) {
 		// Mock a float64 value (common for JSON numbers)
