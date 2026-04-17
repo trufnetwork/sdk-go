@@ -58,7 +58,7 @@ type BulkInserter struct {
 
 	batchSize    int
 	maxInflight  int
-	retryMax     int
+	maxAttempts  int
 	retryBackoff time.Duration
 	waitInterval time.Duration
 
@@ -91,12 +91,13 @@ func WithMaxInflight(n int) BulkInserterOption {
 	}
 }
 
-// WithRetryMax sets the maximum number of retries per chunk on transient
-// errors (invalid nonce, mempool full). Default: 5.
-func WithRetryMax(n int) BulkInserterOption {
+// WithMaxAttempts sets the maximum number of attempts per chunk (initial
+// attempt plus retries) on transient errors (invalid nonce, mempool full).
+// Default: 5.
+func WithMaxAttempts(n int) BulkInserterOption {
 	return func(b *BulkInserter) {
 		if n > 0 {
-			b.retryMax = n
+			b.maxAttempts = n
 		}
 	}
 }
@@ -166,7 +167,7 @@ func NewBulkInserter(
 		logger:       log.DiscardLogger,
 		batchSize:    10,
 		maxInflight:  200,
-		retryMax:     5,
+		maxAttempts:  5,
 		retryBackoff: 2 * time.Second,
 		waitInterval: 1 * time.Second,
 	}
@@ -176,15 +177,29 @@ func NewBulkInserter(
 	return b, nil
 }
 
-// BulkInsertError carries the chunk index of the first chunk that failed to
-// broadcast after exhausting retries. The caller can resume from
-// inputs[FailedChunkIndex*batchSize:] after fixing the underlying issue.
+// BulkInsertError reports a bulk insert failure.
+//
+// When DrainFailure is false, FailedChunkIndex is the index of the first
+// chunk that failed to broadcast after exhausting retries. The caller can
+// resume from inputs[FailedChunkIndex*batchSize:] after fixing the
+// underlying issue.
+//
+// When DrainFailure is true, all broadcasts succeeded but waiting for
+// inclusion (WaitTx) failed. FailedChunkIndex equals the total number of
+// chunks broadcast (i.e. all of them); the broadcast hashes are returned
+// as the first value alongside the error so the caller can investigate
+// or poll inclusion separately.
 type BulkInsertError struct {
 	FailedChunkIndex int
+	DrainFailure     bool
 	LastError        error
 }
 
 func (e *BulkInsertError) Error() string {
+	if e.DrainFailure {
+		return fmt.Sprintf("bulk insert drain failed after %d chunks broadcast: %v",
+			e.FailedChunkIndex, e.LastError)
+	}
 	return fmt.Sprintf("bulk insert failed at chunk %d: %v", e.FailedChunkIndex, e.LastError)
 }
 
@@ -221,7 +236,11 @@ func (b *BulkInserter) InsertAll(
 
 		if len(inflight) >= b.maxInflight {
 			if err := b.drain(ctx, inflight); err != nil {
-				return allHashes, &BulkInsertError{FailedChunkIndex: i, LastError: err}
+				return allHashes, &BulkInsertError{
+					FailedChunkIndex: len(allHashes),
+					DrainFailure:     true,
+					LastError:        err,
+				}
 			}
 			inflight = inflight[:0]
 		}
@@ -229,7 +248,11 @@ func (b *BulkInserter) InsertAll(
 
 	if len(inflight) > 0 {
 		if err := b.drain(ctx, inflight); err != nil {
-			return allHashes, &BulkInsertError{FailedChunkIndex: len(chunks) - 1, LastError: err}
+			return allHashes, &BulkInsertError{
+				FailedChunkIndex: len(allHashes),
+				DrainFailure:     true,
+				LastError:        err,
+			}
 		}
 	}
 
@@ -245,7 +268,7 @@ func (b *BulkInserter) broadcastWithRetry(
 		nonce       int64
 		nonceLoaded bool
 	)
-	for attempt := 0; attempt < b.retryMax; attempt++ {
+	for attempt := 0; attempt < b.maxAttempts; attempt++ {
 		// Pull a fresh nonce only on the first attempt OR after an
 		// ErrInvalidNonce reset. On ErrMempoolFull we keep the same nonce
 		// because the tx was rejected at admission — the mempool's

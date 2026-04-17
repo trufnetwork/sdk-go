@@ -265,13 +265,13 @@ func (c *Client) LoadComposedActions() (clientType.IComposedAction, error) {
 // See contractsapi.BulkInserter for the broadcast model and recovery
 // semantics.
 func (c *Client) LoadBulkInserter(opts ...tn_api.BulkInserterOption) (*tn_api.BulkInserter, error) {
-	primitive, err := c.LoadPrimitiveActions()
-	if err != nil {
-		return nil, errors.Wrap(err, "load primitive actions")
-	}
 	kwilClient := c.GetKwilClient()
 	if kwilClient == nil {
 		return nil, errors.New("BulkInserter requires HTTP transport (GetKwilClient returned nil)")
+	}
+	primitive, err := c.LoadPrimitiveActions()
+	if err != nil {
+		return nil, errors.Wrap(err, "load primitive actions")
 	}
 	return tn_api.NewBulkInserter(primitive, kwilClient, c.transport.Signer(), opts...)
 }

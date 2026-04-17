@@ -200,7 +200,7 @@ func TestBulkInserter_InvalidNonce_ResetsAndRetries(t *testing.T) {
 	}
 	tc := &mockTxClient{ledgerNonce: 50}
 	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
-		contractsapi.WithRetryMax(3),
+		contractsapi.WithMaxAttempts(3),
 		contractsapi.WithRetryBackoff(1*time.Millisecond),
 	)
 	require.NoError(t, err)
@@ -221,7 +221,7 @@ func TestBulkInserter_MempoolFull_BackoffWithoutReset(t *testing.T) {
 	}
 	tc := &mockTxClient{ledgerNonce: 50}
 	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
-		contractsapi.WithRetryMax(3),
+		contractsapi.WithMaxAttempts(3),
 		contractsapi.WithRetryBackoff(1*time.Millisecond),
 	)
 	require.NoError(t, err)
@@ -247,7 +247,7 @@ func TestBulkInserter_PersistentFailure_ReturnsBulkInsertError(t *testing.T) {
 	}
 	tc := &mockTxClient{ledgerNonce: 50}
 	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
-		contractsapi.WithRetryMax(3),
+		contractsapi.WithMaxAttempts(3),
 		contractsapi.WithRetryBackoff(1*time.Millisecond),
 	)
 	require.NoError(t, err)
@@ -270,7 +270,7 @@ func TestBulkInserter_UnknownError_FailsFast(t *testing.T) {
 	}
 	tc := &mockTxClient{ledgerNonce: 50}
 	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
-		contractsapi.WithRetryMax(5),
+		contractsapi.WithMaxAttempts(5),
 		contractsapi.WithRetryBackoff(1*time.Millisecond),
 	)
 	require.NoError(t, err)
@@ -283,27 +283,18 @@ func TestBulkInserter_UnknownError_FailsFast(t *testing.T) {
 }
 
 func TestBulkInserter_FailureMidway_ReportsCorrectIndex(t *testing.T) {
-	bc := &mockBroadcaster{}
 	tc := &mockTxClient{ledgerNonce: 0}
-	// Custom: fail only on the 3rd call (chunk index 2)
-	bc.failErr = fmt.Errorf("wrapped: %w", kwiltypes.ErrInvalidNonce)
-
-	// Tricky setup: we need chunk 0 + 1 to succeed, chunk 2 to fail all retries
-	// We'll override: succeed for first 2 chunks, then fail forever
-	originalFail := bc.failNext
-	_ = originalFail
-	// Simpler: use a counter inside the mock via closure pattern
-	// (Reusing the field-based mock requires a different approach.)
-	// Build a chunked-fail mock instead:
 	type chunkedFailBroadcaster struct {
 		mu       sync.Mutex
-		calls    []broadcastCall
 		callNum  int
 		failFrom int
 		failErr  error
 	}
-	cb := &chunkedFailBroadcaster{failFrom: 3, failErr: bc.failErr}
-	insertFn := func(_ context.Context, inputs []sdktypes.InsertRecordInput, opts ...kwilclient.TxOpt) (kwiltypes.Hash, error) {
+	cb := &chunkedFailBroadcaster{
+		failFrom: 3,
+		failErr:  fmt.Errorf("wrapped: %w", kwiltypes.ErrInvalidNonce),
+	}
+	insertFn := func(_ context.Context, _ []sdktypes.InsertRecordInput, _ ...kwilclient.TxOpt) (kwiltypes.Hash, error) {
 		cb.mu.Lock()
 		defer cb.mu.Unlock()
 		cb.callNum++
@@ -318,7 +309,7 @@ func TestBulkInserter_FailureMidway_ReportsCorrectIndex(t *testing.T) {
 
 	bi, err := contractsapi.NewBulkInserter(wrapper, tc, newTestSigner(t),
 		contractsapi.WithBatchSize(10),
-		contractsapi.WithRetryMax(2),
+		contractsapi.WithMaxAttempts(2),
 		contractsapi.WithRetryBackoff(1*time.Millisecond),
 	)
 	require.NoError(t, err)
@@ -330,6 +321,7 @@ func TestBulkInserter_FailureMidway_ReportsCorrectIndex(t *testing.T) {
 	var bie *contractsapi.BulkInsertError
 	require.ErrorAs(t, err, &bie)
 	assert.Equal(t, 2, bie.FailedChunkIndex, "third chunk (index 2) should be the failing one")
+	assert.False(t, bie.DrainFailure, "broadcast failure, not drain failure")
 }
 
 // funcBroadcaster lets a test supply an InsertRecords closure.
@@ -348,7 +340,7 @@ func TestBulkInserter_ContextCancellation_DuringBackoff(t *testing.T) {
 	}
 	tc := &mockTxClient{ledgerNonce: 0}
 	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
-		contractsapi.WithRetryMax(10),
+		contractsapi.WithMaxAttempts(10),
 		contractsapi.WithRetryBackoff(100*time.Millisecond),
 	)
 	require.NoError(t, err)
@@ -377,6 +369,28 @@ func TestBulkInserter_ChunkingByBatchSize(t *testing.T) {
 	assert.Equal(t, 7, calls[0].chunkSize)
 	assert.Equal(t, 7, calls[1].chunkSize)
 	assert.Equal(t, 6, calls[2].chunkSize, "last chunk gets the remainder")
+}
+
+func TestBulkInserter_DrainFailure_FlagsAndReportsAllBroadcast(t *testing.T) {
+	bc := &mockBroadcaster{}
+	tc := &mockTxClient{
+		ledgerNonce: 0,
+		waitTxErr:   errors.New("wait failed: timeout"),
+	}
+	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
+		contractsapi.WithBatchSize(10),
+		contractsapi.WithMaxInflight(100),
+	)
+	require.NoError(t, err)
+
+	hashes, err := bi.InsertAll(context.Background(), makeInputs(30)) // 3 chunks
+	require.Error(t, err)
+	assert.Len(t, hashes, 3, "all 3 chunks were broadcast successfully before final drain failed")
+
+	var bie *contractsapi.BulkInsertError
+	require.ErrorAs(t, err, &bie)
+	assert.True(t, bie.DrainFailure, "should be flagged as drain failure")
+	assert.Equal(t, 3, bie.FailedChunkIndex, "FailedChunkIndex should equal total chunks broadcast")
 }
 
 func TestBulkInserter_PassesNonceAndSyncBroadcastOpts(t *testing.T) {
