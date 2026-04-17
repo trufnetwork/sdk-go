@@ -258,6 +258,24 @@ func (c *Client) LoadComposedActions() (clientType.IComposedAction, error) {
 	})
 }
 
+// LoadBulkInserter wires up a BulkInserter for high-throughput record
+// ingestion. Requires HTTP transport (returns an error otherwise) since the
+// nonce cache needs direct GetAccount access on the gateway client.
+//
+// See contractsapi.BulkInserter for the broadcast model and recovery
+// semantics.
+func (c *Client) LoadBulkInserter(opts ...tn_api.BulkInserterOption) (*tn_api.BulkInserter, error) {
+	kwilClient := c.GetKwilClient()
+	if kwilClient == nil {
+		return nil, errors.New("BulkInserter requires HTTP transport (GetKwilClient returned nil)")
+	}
+	primitive, err := c.LoadPrimitiveActions()
+	if err != nil {
+		return nil, errors.Wrap(err, "load primitive actions")
+	}
+	return tn_api.NewBulkInserter(primitive, kwilClient, c.transport.Signer(), opts...)
+}
+
 func (c *Client) LoadRoleManagementActions() (clientType.IRoleManagement, error) {
 	return tn_api.LoadRoleManagementActions(tn_api.NewRoleManagementOptions{
 		Client: c.GetKwilClient(),
