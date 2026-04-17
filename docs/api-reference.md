@@ -18,7 +18,7 @@ The SDK is structured around several key interfaces:
 
 - [Client](#client-interface): Primary entry point for network interactions
 - [Stream](#stream-interface): Core stream operations and access control
-- [Primitive Stream](#primitive-stream-interface): Raw data stream management
+- [Primitive Stream](#primitive-stream-interface): Raw data stream management (includes [`BulkInserter`](#bulk-insertion) for high-throughput ingestion)
 - [Composed Stream](#composed-stream-interface): Aggregated data stream handling and taxonomy management
 - [Transaction Actions](#transaction-actions-interface): Query transaction history, fees, and distributions
 - [Attestation Actions](#attestation-actions-interface): Request and parse cryptographically signed attestations for on-chain verification
@@ -1189,6 +1189,105 @@ txHash, err := primitiveStream.InsertRecords(ctx, records)
 ### Performance Considerations
 
 - Batch record insertions when possible
+- For bulk ingestion of hundreds or thousands of records, use [`BulkInserter`](#bulk-insertion) — it pipelines broadcasts so admission (~50ms) becomes the rate limit instead of inclusion (~1–2s per block)
+
+### Bulk Insertion
+
+For high-throughput ingestion (hundreds or thousands of records), use
+`BulkInserter`. It chunks records to the protocol's per-tx cap and broadcasts
+each chunk fire-and-forget with a locally-cached nonce — typically reducing
+ingestion time from hours to minutes for a single signer.
+
+#### `LoadBulkInserter`
+
+```go
+inserter, err := tnClient.LoadBulkInserter(opts ...contractsapi.BulkInserterOption)
+```
+
+Returns a `*contractsapi.BulkInserter` wired to the client's primitive action,
+gateway client, and signer. Requires HTTP transport.
+
+##### Options
+
+```go
+contractsapi.WithBatchSize(n int)              // records per tx; default 10 (protocol cap)
+contractsapi.WithMaxInflight(n int)            // broadcasts queued before forced drain; default 200
+contractsapi.WithMaxAttempts(n int)            // initial + retries per chunk on transient errors; default 5
+contractsapi.WithRetryBackoff(d time.Duration) // base backoff; actual delay = backoff * (attempt + 1); default 2s
+contractsapi.WithWaitInterval(d time.Duration) // polling interval for WaitTx during drain; default 1s
+contractsapi.WithLogger(log.Logger)            // structured logger; default discard
+```
+
+#### `InsertAll`
+
+```go
+hashes, err := inserter.InsertAll(ctx, inputs []types.InsertRecordInput) ([]kwiltypes.Hash, error)
+```
+
+Chunks `inputs` by `batchSize`, broadcasts each chunk pipelined (no wait
+between broadcasts), and drains the inflight queue every `maxInflight` plus
+once at the end. Returns hashes in submission order.
+
+##### Example
+
+```go
+inserter, err := tnClient.LoadBulkInserter()
+if err != nil { /* ... */ }
+
+inputs := []types.InsertRecordInput{
+    {DataProvider: addr, StreamId: streamID, EventTime: 1700000000, Value: 1.5},
+    // ... thousands more
+}
+
+hashes, err := inserter.InsertAll(ctx, inputs)
+if err != nil {
+    var bie *contractsapi.BulkInsertError
+    if errors.As(err, &bie) {
+        if bie.DrainFailure {
+            // All broadcasts succeeded; only WaitTx failed.
+            // hashes contains every submitted tx — investigate or poll later.
+        } else {
+            // Broadcast failed at chunk bie.FailedChunkIndex.
+            // Resume from inputs[bie.FailedChunkIndex*batchSize:].
+        }
+    }
+}
+```
+
+##### Constraints
+
+- **One BulkInserter per signer key.** The cache is per-instance; concurrent
+  inserters from the same signer will collide on nonces because the mempool
+  admits transactions strictly in nonce order
+  (`kwil-db/node/txapp/mempool.go:180-204`).
+- **Sequential per signer, not concurrent.** Out-of-order HTTP arrival from
+  one signer triggers `ErrInvalidNonce` rejections; the helper is
+  single-threaded by design.
+- **Different signers are independent.** Per-signer nonces are independent, so
+  multiple BulkInserters with different keys run safely in parallel.
+
+##### Error semantics
+
+`BulkInsertError` distinguishes broadcast failures from drain failures:
+
+```go
+type BulkInsertError struct {
+    FailedChunkIndex int   // for broadcast failures: the chunk that failed
+                           // for drain failures: total chunks broadcast
+    DrainFailure     bool  // true if all broadcasts succeeded but WaitTx failed
+    LastError        error
+}
+```
+
+`Unwrap()` exposes the underlying error, so `errors.Is(err, kwiltypes.ErrInvalidNonce)` works.
+
+##### Reference
+
+- Source: [`core/contractsapi/bulk_inserter.go`](../core/contractsapi/bulk_inserter.go)
+- Working example: [`examples/bulk_insert_example`](../examples/bulk_insert_example)
+- Mirrors the cached-nonce pattern from `node/extensions/tn_attestation/extension.go`
+  (kwilteam/node#1356) which solves the same problem on the node side for the
+  attestation submitter.
 
 ## Composed Stream Interface
 
