@@ -2,6 +2,7 @@ package tnclient
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -33,6 +34,10 @@ type Client struct {
 	// so it can be surfaced at Validate() time rather than silently
 	// swallowed inside the functional-option closure.
 	adminErr error
+	// localSigner is the operator's secp256k1 key used to sign tn_local
+	// admin requests when the server has require_signature=true. nil unless
+	// configured via WithLocalSigner(). Plumbed through to LoadLocalActions.
+	localSigner *ecdsa.PrivateKey
 }
 
 var _ clientType.Client = (*Client)(nil)
@@ -160,6 +165,29 @@ func WithAdmin(adminURL string, opts ...rpcclient.RPCClientOpts) Option {
 		}
 		c.admin = adminclient.NewClient(u, opts...)
 	}
+}
+
+// WithLocalSigner attaches an operator secp256k1 private key for signing
+// tn_local admin requests. Required when the target node was started with
+// require_signature=true on the tn_local extension; ignored (but harmless)
+// otherwise.
+//
+// Each LocalActions call signs `_auth = {sig, ts, ver}` against a digest
+// over the method name, params (with `_auth` stripped), and timestamp —
+// the server recovers the signing address and rejects the call unless it
+// matches the node's operator address.
+//
+// Pair with WithAdmin(adminURL) to wire both transport and signing in
+// one client. Example:
+//
+//	priv, _ := ethcrypto.HexToECDSA(operatorHexKey)
+//	client, err := tnclient.NewClient(ctx, gatewayURL,
+//	    tnclient.WithSigner(gatewaySigner),
+//	    tnclient.WithAdmin("http://127.0.0.1:8485"),
+//	    tnclient.WithLocalSigner(priv),
+//	)
+func WithLocalSigner(priv *ecdsa.PrivateKey) Option {
+	return func(c *Client) { c.localSigner = priv }
 }
 
 func (c *Client) GetSigner() auth.Signer {
@@ -316,7 +344,10 @@ func (c *Client) LoadLocalActions() (clientType.ILocalActions, error) {
 		return nil, errors.New("LoadLocalActions requires tnclient.WithAdmin() option; " +
 			"construct the client with the admin URL to enable local stream operations")
 	}
-	return tn_api.LoadLocalActions(tn_api.LocalActionsOptions{Admin: c.admin})
+	return tn_api.LoadLocalActions(tn_api.LocalActionsOptions{
+		Admin:  c.admin,
+		Signer: c.localSigner,
+	})
 }
 
 // LoadTransactionActions loads the transaction ledger query interface
