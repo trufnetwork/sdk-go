@@ -1,6 +1,7 @@
 package tnclient
 
 import (
+	"crypto/ecdsa"
 	"fmt"
 	"net/url"
 
@@ -63,4 +64,31 @@ func NewLocalClient(adminURL string, opts ...rpcclient.RPCClientOpts) (clientTyp
 	}
 	admin := adminclient.NewClient(u, opts...)
 	return tn_api.LoadLocalActions(tn_api.LocalActionsOptions{Admin: admin})
+}
+
+// NewLocalClientWithSigner is NewLocalClient with an operator secp256k1
+// private key for signing tn_local admin requests. Use this when the target
+// node has require_signature=true on the tn_local extension. The SDK
+// attaches a `_auth` envelope to every call; the server recovers the
+// signing address and rejects calls that don't match its operator address.
+//
+// Pass nil for priv to behave identically to NewLocalClient (no signing,
+// only nodes with the flag off will accept the request).
+//
+// Example:
+//
+//	priv, _ := ethcrypto.HexToECDSA(operatorHexKey)
+//	local, err := tnclient.NewLocalClientWithSigner("http://127.0.0.1:8485", priv)
+//	if err != nil { /* ... */ }
+//	err = local.CreateStream(ctx, types.LocalCreateStreamInput{
+//	    StreamID:   "st00000000000000000000000000demo",
+//	    StreamType: types.StreamTypePrimitive,
+//	})
+func NewLocalClientWithSigner(adminURL string, priv *ecdsa.PrivateKey, opts ...rpcclient.RPCClientOpts) (clientType.ILocalActions, error) {
+	u, err := parseAdminURL(adminURL)
+	if err != nil {
+		return nil, err
+	}
+	admin := adminclient.NewClient(u, opts...)
+	return tn_api.LoadLocalActions(tn_api.LocalActionsOptions{Admin: admin, Signer: priv})
 }
