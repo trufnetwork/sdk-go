@@ -240,6 +240,75 @@ func TestBulkInserter_MempoolFull_BackoffWithoutReset(t *testing.T) {
 	assert.Equal(t, int64(51), calls[1].nonce, "retry should reuse nonce after mempool-full")
 }
 
+func TestBulkInserter_CatchingUp_BackoffWithoutReset(t *testing.T) {
+	// Mirrors the wire-level shape: kwild rejects with a BroadcastError whose
+	// message contains "node is catching up, cannot process transactions
+	// right now" (see kwil-db/node/node.go). Since there's no exported
+	// sentinel in kwil-db today, BulkInserter detects this by substring on
+	// the message.
+	bc := &mockBroadcaster{
+		failNext: 1,
+		failErr:  errors.New("broadcast error: code 65535: node is catching up, cannot process transactions right now"),
+	}
+	tc := &mockTxClient{ledgerNonce: 50}
+	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
+		contractsapi.WithMaxAttempts(3),
+		contractsapi.WithCatchupBackoff(1*time.Millisecond),
+	)
+	require.NoError(t, err)
+
+	hashes, err := bi.InsertAll(context.Background(), makeInputs(10))
+	require.NoError(t, err)
+	assert.Len(t, hashes, 1)
+
+	// Catching-up does NOT trigger nonce reset — only one ledger fetch
+	assert.Equal(t, 1, tc.getAccountCalls, "nonce should NOT be refetched on catching-up")
+	assert.Len(t, bc.snapshot(), 2, "should retry once")
+
+	// Both attempts should reuse the same nonce (51 = ledger+1)
+	calls := bc.snapshot()
+	assert.Equal(t, int64(51), calls[0].nonce)
+	assert.Equal(t, int64(51), calls[1].nonce, "retry should reuse nonce after catching-up")
+}
+
+func TestBulkInserter_CatchingUp_ContextCancellation(t *testing.T) {
+	bc := &mockBroadcaster{
+		failNext: 100,
+		failErr:  errors.New("broadcast error: node is catching up, cannot process transactions right now"),
+	}
+	tc := &mockTxClient{ledgerNonce: 50}
+	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
+		contractsapi.WithMaxAttempts(10),
+		contractsapi.WithCatchupBackoff(100*time.Millisecond),
+	)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	_, err = bi.InsertAll(ctx, makeInputs(10))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, context.DeadlineExceeded), "context cancellation should propagate during catchup backoff")
+
+	// The cancelled attempt reserved nonce 51 but never admitted it. The
+	// inserter must drop the cached nonce on the error exit so a follow-up
+	// InsertAll resyncs with the ledger and starts at nonce 51 again — not
+	// at 52, which would force an ErrInvalidNonce round-trip on the network.
+	bc.failNext = 0 // succeed on the next call
+	hashes, err := bi.InsertAll(context.Background(), makeInputs(10))
+	require.NoError(t, err, "follow-up InsertAll should succeed once broadcaster recovers")
+	require.Len(t, hashes, 1)
+
+	calls := bc.snapshot()
+	require.GreaterOrEqual(t, len(calls), 1, "follow-up call should have at least one broadcast")
+	successCall := calls[len(calls)-1]
+	assert.Equal(t, int64(51), successCall.nonce,
+		"follow-up call's first successful broadcast must reuse ledgerNonce+1, proving the cancelled attempt did not permanently advance pendingNonce")
+	// And we should have refetched from the ledger after the cancelled call.
+	assert.Equal(t, 2, tc.getAccountCalls,
+		"follow-up call should refetch from ledger after the prior error exit")
+}
+
 func TestBulkInserter_PersistentFailure_ReturnsBulkInsertError(t *testing.T) {
 	bc := &mockBroadcaster{
 		failNext: 100, // always fail
