@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -48,19 +49,21 @@ type BulkInsertTxClient interface {
 // one BulkInserter per signer key, single-threaded.
 //
 // Recovery: on ErrInvalidNonce the cache is cleared and re-fetched from the
-// ledger on the next call. On ErrMempoolFull we backoff but keep the cache
-// (the nonce is still valid, the network is just busy).
+// ledger on the next call. On ErrMempoolFull and "node is catching up" we
+// backoff but keep the cache (the nonce is still valid; the network or the
+// receiving backend is just busy).
 type BulkInserter struct {
 	broadcaster BulkInsertBroadcaster
 	txClient    BulkInsertTxClient
 	accountID   *kwiltypes.AccountID
 	logger      log.Logger
 
-	batchSize    int
-	maxInflight  int
-	maxAttempts  int
-	retryBackoff time.Duration
-	waitInterval time.Duration
+	batchSize      int
+	maxInflight    int
+	maxAttempts    int
+	retryBackoff   time.Duration
+	catchupBackoff time.Duration
+	waitInterval   time.Duration
 
 	mu               sync.Mutex
 	pendingNonce     int64
@@ -108,6 +111,18 @@ func WithRetryBackoff(d time.Duration) BulkInserterOption {
 	return func(b *BulkInserter) {
 		if d > 0 {
 			b.retryBackoff = d
+		}
+	}
+}
+
+// WithCatchupBackoff sets the base backoff used when the broadcast backend
+// rejects with "node is catching up". Catch-up events typically resolve on
+// the order of tens of seconds, so this defaults higher than WithRetryBackoff.
+// Actual delay is catchupBackoff * (attempt + 1). Default: 5s.
+func WithCatchupBackoff(d time.Duration) BulkInserterOption {
+	return func(b *BulkInserter) {
+		if d > 0 {
+			b.catchupBackoff = d
 		}
 	}
 }
@@ -161,15 +176,16 @@ func NewBulkInserter(
 	}
 
 	b := &BulkInserter{
-		broadcaster:  broadcaster,
-		txClient:     txClient,
-		accountID:    accountID,
-		logger:       log.DiscardLogger,
-		batchSize:    10,
-		maxInflight:  200,
-		maxAttempts:  5,
-		retryBackoff: 2 * time.Second,
-		waitInterval: 1 * time.Second,
+		broadcaster:    broadcaster,
+		txClient:       txClient,
+		accountID:      accountID,
+		logger:         log.DiscardLogger,
+		batchSize:      10,
+		maxInflight:    200,
+		maxAttempts:    5,
+		retryBackoff:   2 * time.Second,
+		catchupBackoff: 5 * time.Second,
+		waitInterval:   1 * time.Second,
 	}
 	for _, opt := range opts {
 		opt(b)
@@ -308,6 +324,14 @@ func (b *BulkInserter) broadcastWithRetry(
 			if waitErr := b.backoff(ctx, attempt); waitErr != nil {
 				return kwiltypes.Hash{}, waitErr
 			}
+		case isCatchingUpErr(err):
+			b.logger.Warn("bulk_inserter: backend catching up, backing off",
+				"attempt", attempt+1, "nonce", nonce, "err", err)
+			// Keep nonceLoaded=true — the backend never admitted the tx, our
+			// cached nonce is still correct.
+			if waitErr := b.backoffCatchup(ctx, attempt); waitErr != nil {
+				return kwiltypes.Hash{}, waitErr
+			}
 		default:
 			return kwiltypes.Hash{}, err
 		}
@@ -323,6 +347,34 @@ func (b *BulkInserter) backoff(ctx context.Context, attempt int) error {
 	case <-time.After(delay):
 		return nil
 	}
+}
+
+// backoffCatchup uses a longer base than backoff() because catch-up events
+// typically resolve in tens of seconds, not single seconds. Linear ramp.
+func (b *BulkInserter) backoffCatchup(ctx context.Context, attempt int) error {
+	delay := b.catchupBackoff * time.Duration(attempt+1)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(delay):
+		return nil
+	}
+}
+
+// isCatchingUpErr reports whether err is a kwild "node is catching up"
+// rejection. kwild emits this from node/node.go as a raw errors.New and the
+// RPC layer surfaces it as a BroadcastError with TxCode 65535
+// (CodeUnknownError). There is no exported sentinel in kwil-db today, so we
+// match by substring on the literal message kwild produces.
+//
+// TODO: replace with errors.Is(err, kwiltypes.ErrCatchingUp) once kwil-db
+// exports a typed sentinel + dedicated TxCode (P1 follow-up tracked in
+// 0MainnetPredictionMarket/6IncidentTriage-NodeCatchingUp-2026-04-21.md).
+func isCatchingUpErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "node is catching up")
 }
 
 func (b *BulkInserter) drain(ctx context.Context, hashes []kwiltypes.Hash) error {
