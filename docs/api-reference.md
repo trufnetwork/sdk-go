@@ -1211,12 +1211,17 @@ gateway client, and signer. Requires HTTP transport.
 ##### Options
 
 ```go
-contractsapi.WithBatchSize(n int)              // records per tx; default 10 (protocol cap)
-contractsapi.WithMaxInflight(n int)            // broadcasts queued before forced drain; default 200
-contractsapi.WithMaxAttempts(n int)            // initial + retries per chunk on transient errors; default 5
-contractsapi.WithRetryBackoff(d time.Duration) // base backoff; actual delay = backoff * (attempt + 1); default 2s
-contractsapi.WithWaitInterval(d time.Duration) // polling interval for WaitTx during drain; default 1s
-contractsapi.WithLogger(log.Logger)            // structured logger; default discard
+contractsapi.WithBatchSize(n int)                // records per tx; default 10 (protocol cap)
+contractsapi.WithMaxInflight(n int)              // broadcasts queued before forced drain; default 200
+contractsapi.WithMaxAttempts(n int)              // initial + retries per chunk on transient errors
+                                                 // (invalid nonce, mempool full, "node is catching up"); default 5
+contractsapi.WithRetryBackoff(d time.Duration)   // base backoff for invalid-nonce / mempool-full;
+                                                 // actual delay = backoff * (attempt + 1); default 2s
+contractsapi.WithCatchupBackoff(d time.Duration) // base backoff when the broadcast backend rejects with
+                                                 // "node is catching up" (typically resolves in tens of seconds);
+                                                 // actual delay = backoff * (attempt + 1); default 5s
+contractsapi.WithWaitInterval(d time.Duration)   // polling interval for WaitTx during drain; default 1s
+contractsapi.WithLogger(log.Logger)              // structured logger; default discard
 ```
 
 #### `InsertAll`
