@@ -278,12 +278,24 @@ func (b *BulkInserter) InsertAll(
 func (b *BulkInserter) broadcastWithRetry(
 	ctx context.Context,
 	chunk []sdktypes.InsertRecordInput,
-) (kwiltypes.Hash, error) {
+) (hash kwiltypes.Hash, retErr error) {
 	var (
 		lastErr     error
 		nonce       int64
 		nonceLoaded bool
 	)
+	// On any error exit (attempt exhaustion, context cancellation during
+	// backoff, or an unhandled error), drop the cached nonce. The reserved
+	// nonce was never admitted to the network, so a subsequent InsertAll
+	// would otherwise broadcast the next nonce first and only recover via
+	// ErrInvalidNonce — wasting one round-trip every time. Forcing a fresh
+	// GetAccount on the next call resyncs us with what the ledger actually
+	// admitted. Idempotent with the ErrInvalidNonce path's reset.
+	defer func() {
+		if retErr != nil && nonceLoaded {
+			b.resetNonce()
+		}
+	}()
 	for attempt := 0; attempt < b.maxAttempts; attempt++ {
 		// Pull a fresh nonce only on the first attempt OR after an
 		// ErrInvalidNonce reset. On ErrMempoolFull we keep the same nonce
