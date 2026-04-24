@@ -162,15 +162,20 @@ type IOrderBook interface {
 
 // CreateMarketInput contains parameters for creating a new market
 type CreateMarketInput struct {
-	Bridge          string // Bridge namespace for collateral (hoodi_tt2, sepolia_bridge, ethereum_bridge)
+	Bridge          string // Bridge namespace for collateral (eth_usdc / eth_truf on mainnet; hoodi_tt2 / sepolia_bridge / ethereum_bridge on testnet)
 	QueryComponents []byte // ABI-encoded tuple: (address data_provider, bytes32 stream_id, string action_id, bytes args)
 	SettleTime      int64  // Unix timestamp when market can be settled (must be future)
 	MaxSpread       int    // Maximum spread for LP rewards (1-50 cents)
 	MinOrderSize    int64  // Minimum order size for LP rewards (must be positive)
 }
 
-// ValidBridges defines the supported bridge namespaces
+// ValidBridges defines the supported bridge namespaces.
+// eth_usdc (USDC) and eth_truf (TRUF) are the production mainnet bridges;
+// the others are testnet / legacy aliases retained for local-node and
+// integration test use. ethereum_bridge was the legacy mainnet TRUF bridge.
 var ValidBridges = map[string]bool{
+	"eth_usdc":        true,
+	"eth_truf":        true,
 	"hoodi_tt2":       true,
 	"sepolia_bridge":  true,
 	"ethereum_bridge": true,
@@ -183,7 +188,7 @@ func (c *CreateMarketInput) Validate() error {
 		return fmt.Errorf("bridge is required")
 	}
 	if !ValidBridges[c.Bridge] {
-		return fmt.Errorf("bridge must be one of: hoodi_tt2, sepolia_bridge, ethereum_bridge, got %s", c.Bridge)
+		return fmt.Errorf("bridge must be one of: eth_usdc, eth_truf, hoodi_tt2, sepolia_bridge, ethereum_bridge, got %s", c.Bridge)
 	}
 
 	// Validate query components

@@ -2483,6 +2483,19 @@ if err != nil {
 
 The Bridge Actions Interface enables programmatic interaction with the TRUF.NETWORK bridge system. It allows bots and applications to manage token balances, initiate withdrawals to external chains (like Ethereum), and retrieve cryptographic proofs for claiming assets.
 
+#### Bridge identifiers — mainnet vs testnet
+
+| Identifier | Network | Token | Decimals | Notes |
+|---|---|---|---|---|
+| `eth_truf` | mainnet | TRUF | 18 | Used for protocol fees (stream write, attestation, market creation) |
+| `eth_usdc` | mainnet | USDC | 6 | Used for prediction-market collateral |
+| `ethereum_bridge` | mainnet | TRUF | 18 | Legacy — replaced by `eth_truf` |
+| `hoodi_tt` | testnet | TRUF (test) | 18 | Hoodi testnet |
+| `hoodi_tt2` | testnet | USDC (test) | 18 | Hoodi testnet — prediction-market collateral |
+| `sepolia_bridge` | testnet | TRUF (test) | 18 | Sepolia testnet, deprecated |
+
+Examples below use testnet identifiers; substitute the mainnet equivalent for production. Order-book actions (`create_market`, `place_buy_order`, etc.) accept `eth_usdc` or `eth_truf` as the `Bridge` parameter on mainnet.
+
 ### Core Methods
 
 These methods are available directly on the `Client` interface.
