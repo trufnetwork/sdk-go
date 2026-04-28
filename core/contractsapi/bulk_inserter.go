@@ -99,7 +99,7 @@ func WithMaxInflight(n int) BulkInserterOption {
 // WithMaxAttempts sets the maximum number of attempts per chunk (initial
 // attempt plus retries) on non-catchup transient errors (invalid nonce,
 // mempool full). Catch-up errors have their own budget — see
-// WithCatchupMaxAttempts. Default: 5.
+// WithCatchupMaxAttempts. Default: 15.
 func WithMaxAttempts(n int) BulkInserterOption {
 	return func(b *BulkInserter) {
 		if n > 0 {
@@ -219,7 +219,12 @@ func NewBulkInserter(
 		logger:             log.DiscardLogger,
 		batchSize:          10,
 		maxInflight:        200,
-		maxAttempts:        5,
+		// 15 transient attempts (invalid nonce / mempool full) is the lowest
+		// default that handles a thousand-chunk insert running through brief
+		// mempool congestion without bottlenecking on the adapter resume layer
+		// above (which only gets 5 partial-progress passes). With linear backoff
+		// of 2s, that's ~4 minutes of waiting per chunk before bubbling up.
+		maxAttempts:        15,
 		catchupMaxAttempts: 20,
 		retryBackoff:       2 * time.Second,
 		catchupBackoff:     15 * time.Second,
