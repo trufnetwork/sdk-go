@@ -62,6 +62,7 @@ type BulkInserter struct {
 	maxInflight        int
 	maxAttempts        int
 	catchupMaxAttempts int
+	infraMaxAttempts   int
 	retryBackoff       time.Duration
 	catchupBackoff     time.Duration
 	waitInterval       time.Duration
@@ -119,6 +120,25 @@ func WithCatchupMaxAttempts(n int) BulkInserterOption {
 	return func(b *BulkInserter) {
 		if n > 0 {
 			b.catchupMaxAttempts = n
+		}
+	}
+}
+
+// WithInfraMaxAttempts sets the maximum number of attempts per chunk on
+// transient infrastructure errors that are unambiguously pre-broadcast --
+// see isInfraErr for the matched patterns ("no available backend",
+// "connection refused", "no such host"). Pre-broadcast means the request
+// demonstrably never reached kwild, so retrying with the same nonce is
+// safe and cannot produce duplicate transactions. Errors that may fire
+// after the tx was admitted (EOF, connection reset, context deadline
+// exceeded) deliberately stay in the default-fall-through bucket and
+// bubble up to the caller's resume layer, which can recover via partial
+// progress without risking duplicate inserts. Reuses retryBackoff for
+// the inter-attempt sleep. Default: 10.
+func WithInfraMaxAttempts(n int) BulkInserterOption {
+	return func(b *BulkInserter) {
+		if n > 0 {
+			b.infraMaxAttempts = n
 		}
 	}
 }
@@ -227,6 +247,11 @@ func NewBulkInserter(
 		// of 2s, that's ~4 minutes of waiting per chunk before bubbling up.
 		maxAttempts:        15,
 		catchupMaxAttempts: 20,
+		// Pre-broadcast infra errors (KGW backend-unavailable, TCP refused, DNS):
+		// 10 attempts × 2s linear backoff = 9 sleeps summing to 90s wait per chunk.
+		// Sized to ride out a typical 1-2 minute KGW-no-backend window without
+		// bubbling up; longer outages still hit the adapter resume layer.
+		infraMaxAttempts:   10,
 		retryBackoff:       2 * time.Second,
 		catchupBackoff:     15 * time.Second,
 		waitInterval:       1 * time.Second,
@@ -373,6 +398,7 @@ func (b *BulkInserter) broadcastWithRetry(
 		nonceLoaded       bool
 		transientAttempts int // counts ErrInvalidNonce + ErrMempoolFull tries
 		catchupAttempts   int // counts "node is catching up" tries
+		infraAttempts     int // counts pre-broadcast infra errors (see isInfraErr)
 	)
 	// On any error exit (attempt exhaustion, context cancellation during
 	// backoff, or an unhandled error), drop the cached nonce. The reserved
@@ -451,6 +477,24 @@ func (b *BulkInserter) broadcastWithRetry(
 				return kwiltypes.Hash{}, waitErr
 			}
 			catchupAttempts++
+		case isInfraErr(err):
+			// Pre-broadcast infra failure: KGW had no backend, TCP refused,
+			// or DNS missed -- the request demonstrably never reached kwild,
+			// so retrying with the same cached nonce is safe and won't
+			// produce duplicate transactions. See WithInfraMaxAttempts and
+			// isInfraErr for the exact patterns.
+			if infraAttempts+1 >= b.infraMaxAttempts {
+				return kwiltypes.Hash{}, err
+			}
+			b.logger.Warn("bulk_inserter: pre-broadcast infra error, backing off",
+				"attempt", infraAttempts+1,
+				"max_attempts", b.infraMaxAttempts,
+				"nonce", nonce, "err", err)
+			// Keep nonceLoaded=true — the backend never saw the tx.
+			if waitErr := b.backoff(ctx, infraAttempts); waitErr != nil {
+				return kwiltypes.Hash{}, waitErr
+			}
+			infraAttempts++
 		default:
 			return kwiltypes.Hash{}, err
 		}
@@ -493,6 +537,41 @@ func isCatchingUpErr(err error) bool {
 		return false
 	}
 	return strings.Contains(err.Error(), "node is catching up")
+}
+
+// isInfraErr reports whether err is an unambiguously *pre-broadcast*
+// infrastructure failure -- the request never reached kwild, so retrying
+// with the same cached nonce is safe and cannot produce duplicate
+// transactions.
+//
+// Allowed patterns:
+//   - "no available backend"  -- KGW returns this 500 when its active health
+//     check has zero healthy upstreams. The request is rejected at the
+//     gateway before any backend connection is opened.
+//   - "connection refused"    -- TCP layer refused the connection. Nothing
+//     was sent on the wire.
+//   - "no such host"          -- DNS resolution failed. No connection
+//     attempted.
+//
+// Deliberately excluded (mid-request / post-broadcast ambiguity):
+//   - "EOF"                       -- can fire after kwild accepted the tx
+//     and started replying; retry would re-broadcast the same payload at a
+//     bumped nonce and duplicate the insert.
+//   - "connection reset by peer"  -- can fire mid-response, same risk as EOF.
+//   - "context deadline exceeded" -- the deadline can elapse while kwild
+//     is processing the broadcast; retry has the same duplication risk.
+//
+// These ambiguous errors fall through to the default branch and bubble up
+// to the caller's resume layer, which can recover via partial-progress
+// slicing without risking duplicate inserts.
+func isInfraErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "no available backend") ||
+		strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "no such host")
 }
 
 func (b *BulkInserter) drain(ctx context.Context, hashes []kwiltypes.Hash) error {

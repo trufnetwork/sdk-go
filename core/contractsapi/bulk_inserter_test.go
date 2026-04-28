@@ -525,6 +525,87 @@ func TestBulkInserter_CatchingUp_BudgetCap(t *testing.T) {
 	assert.Len(t, bc.snapshot(), 3, "should stop at catchupMaxAttempts attempts")
 }
 
+// TestBulkInserter_InfraErr_RetriesOnNoBackend verifies that a KGW-style
+// "no available backend" failure is recognized as pre-broadcast infra and
+// retried up to WithInfraMaxAttempts. Without this bucket the same error
+// would hit the default branch and abort with zero retries, even though the
+// request never reached kwild and is unambiguously safe to resubmit.
+func TestBulkInserter_InfraErr_RetriesOnNoBackend(t *testing.T) {
+	bc := &mockBroadcaster{
+		failNext: 4,
+		failErr:  errors.New("broadcast error: 500 Internal Server Error: no available backend"),
+	}
+	tc := &mockTxClient{ledgerNonce: 50}
+	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
+		contractsapi.WithMaxAttempts(2),                 // tiny — proves we don't share buckets
+		contractsapi.WithCatchupMaxAttempts(2),          // tiny — proves we don't share buckets
+		contractsapi.WithInfraMaxAttempts(10),           // explicit override of default 10
+		contractsapi.WithRetryBackoff(1*time.Millisecond),
+	)
+	require.NoError(t, err)
+
+	hashes, err := bi.InsertAll(context.Background(), makeInputs(10))
+	require.NoError(t, err, "4 no-backend failures should fit in infraMaxAttempts=10")
+	assert.Len(t, hashes, 1)
+	assert.Len(t, bc.snapshot(), 5, "should retry until success on the 5th attempt")
+}
+
+// TestBulkInserter_InfraErr_BudgetCap verifies the infra budget is honored:
+// once exceeded, the chunk fails with the infra error.
+func TestBulkInserter_InfraErr_BudgetCap(t *testing.T) {
+	bc := &mockBroadcaster{
+		failNext: 100,
+		failErr:  errors.New("Get \"http://kgw\": dial tcp 127.0.0.1:8484: connect: connection refused"),
+	}
+	tc := &mockTxClient{ledgerNonce: 50}
+	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
+		contractsapi.WithInfraMaxAttempts(3),
+		contractsapi.WithRetryBackoff(1*time.Millisecond),
+	)
+	require.NoError(t, err)
+
+	_, err = bi.InsertAll(context.Background(), makeInputs(10))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "connection refused")
+	assert.Len(t, bc.snapshot(), 3, "should stop at infraMaxAttempts attempts")
+}
+
+// TestBulkInserter_AmbiguousErr_StaysFatal pins the safety contract: errors
+// that may fire AFTER kwild accepted the tx (EOF, connection reset, context
+// deadline) must NOT be retried by sdk-go because retry would re-broadcast at
+// a bumped nonce and duplicate the insert. They must hit the default branch
+// and bubble up to the resume layer.
+func TestBulkInserter_AmbiguousErr_StaysFatal(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		errText string
+	}{
+		{"EOF", "Post \"http://kgw\": EOF"},
+		{"connection reset", "read tcp 1.2.3.4:443->5.6.7.8:8484: read: connection reset by peer"},
+		{"context deadline", "context deadline exceeded"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bc := &mockBroadcaster{
+				failNext: 100, // would never finish if classified as retryable
+				failErr:  errors.New(tc.errText),
+			}
+			txc := &mockTxClient{ledgerNonce: 50}
+			bi, err := contractsapi.NewBulkInserter(bc, txc, newTestSigner(t),
+				contractsapi.WithInfraMaxAttempts(50),
+				contractsapi.WithMaxAttempts(50),
+				contractsapi.WithCatchupMaxAttempts(50),
+				contractsapi.WithRetryBackoff(1*time.Millisecond),
+			)
+			require.NoError(t, err)
+
+			_, err = bi.InsertAll(context.Background(), makeInputs(10))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.errText)
+			assert.Len(t, bc.snapshot(), 1, "must NOT retry — ambiguous errors stay fatal at sdk-go layer")
+		})
+	}
+}
+
 // TestBulkInserter_ProgressLogging emits the periodic progress line at the
 // configured cadence and on the final iteration, so operators always see at
 // least one terminal log line for any non-empty load.

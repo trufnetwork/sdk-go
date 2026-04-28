@@ -1219,6 +1219,13 @@ contractsapi.WithCatchupMaxAttempts(n int)         // initial + retries per chun
                                                    // rejections (separate budget from above because catch-up
                                                    // events on a public RPC routinely run minutes long);
                                                    // default 20
+contractsapi.WithInfraMaxAttempts(n int)           // initial + retries per chunk on pre-broadcast infra errors
+                                                   // ("no available backend", "connection refused",
+                                                   // "no such host"); reuses retryBackoff for inter-attempt
+                                                   // sleep. Mid-request errors (EOF, connection reset, context
+                                                   // deadline) deliberately stay fatal — they may have fired
+                                                   // post-admit and retrying risks duplicate inserts.
+                                                   // Default: 10 (90s wait per chunk before bubbling up)
 contractsapi.WithRetryBackoff(d time.Duration)     // base backoff for invalid-nonce / mempool-full;
                                                    // actual delay = backoff * (attempt + 1); default 2s
 contractsapi.WithCatchupBackoff(d time.Duration)   // base backoff when the backend rejects with "node is
