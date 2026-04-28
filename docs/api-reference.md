@@ -1223,8 +1223,10 @@ contractsapi.WithRetryBackoff(d time.Duration)     // base backoff for invalid-n
                                                    // actual delay = backoff * (attempt + 1); default 2s
 contractsapi.WithCatchupBackoff(d time.Duration)   // base backoff when the backend rejects with "node is
                                                    // catching up"; actual delay = backoff * (attempt + 1).
-                                                   // With default 15s and CatchupMaxAttempts=20, worst-case
-                                                   // wait per chunk is 15+30+...+300s ≈ 52 min; default 15s
+                                                   // With default 15s and CatchupMaxAttempts=20, the loop
+                                                   // does 20 attempts with 19 backoffs (the last attempt
+                                                   // fails without sleeping), so worst-case wait per chunk
+                                                   // is 15+30+...+285s ≈ 47.5 min; default 15s
 contractsapi.WithProgressLogEveryN(n int)          // emit INFO progress line every N chunks (chunks done /
                                                    // total, rows done, elapsed, chunks/sec, ETA);
                                                    // 0 disables; default 0

@@ -152,10 +152,11 @@ func WithRetryBackoff(d time.Duration) BulkInserterOption {
 // tens of seconds (and occasionally minutes when a sentry is replaying
 // significant history), so this defaults much higher than WithRetryBackoff.
 // Actual delay is catchupBackoff * (attempt + 1). With the default of 15s
-// and WithCatchupMaxAttempts default 20, the worst-case wait per chunk is
-// 15+30+45+...+300s ≈ 52 minutes — comfortably long enough to ride out
-// every catch-up event seen in production so far without abandoning the
-// whole batch. Default: 15s.
+// and WithCatchupMaxAttempts default 20, the loop runs 20 attempts with 19
+// sleeps in between (the 20th attempt's failure exits before backing off),
+// so the worst-case wait per chunk is 15+30+45+...+285s = 2850s ≈ 47.5
+// minutes — comfortably long enough to ride out every catch-up event seen
+// in production so far without abandoning the whole batch. Default: 15s.
 func WithCatchupBackoff(d time.Duration) BulkInserterOption {
 	return func(b *BulkInserter) {
 		if d > 0 {

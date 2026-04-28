@@ -76,6 +76,17 @@ func NewServerFixture(t *testing.T) *ServerFixture {
 	}
 	t.Logf("Using TN-DB Docker image: %s", tndbImage)
 
+	// Get Postgres Docker image from environment, default to upstream latest.
+	// Set POSTGRES_IMAGE=kwildb/postgres:16.8-2 (or similar tag) to pin against
+	// upstream regressions for a CI run; the command-line settings overrides
+	// below are written so the container works against any kwildb/postgres
+	// version that ships PG16+.
+	postgresImage := os.Getenv("POSTGRES_IMAGE")
+	if postgresImage == "" {
+		postgresImage = "kwildb/postgres:latest"
+	}
+	t.Logf("Using Postgres Docker image: %s", postgresImage)
+
 	return &ServerFixture{
 		t:                 t,
 		docker:            d,
@@ -89,7 +100,7 @@ func NewServerFixture(t *testing.T) *ServerFixture {
 		}{
 			postgres: containerSpec{
 				name:      "test-kwil-postgres",
-				image:     "kwildb/postgres:latest",
+				image:     postgresImage,
 				tmpfsPath: "/var/lib/postgresql/data",
 				portsMap:  map[string]string{"5432": "5432"},
 				envVars:   []string{"POSTGRES_HOST_AUTH_METHOD=trust"},
