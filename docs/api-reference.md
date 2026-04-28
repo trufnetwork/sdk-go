@@ -1211,17 +1211,27 @@ gateway client, and signer. Requires HTTP transport.
 ##### Options
 
 ```go
-contractsapi.WithBatchSize(n int)                // records per tx; default 10 (protocol cap)
-contractsapi.WithMaxInflight(n int)              // broadcasts queued before forced drain; default 200
-contractsapi.WithMaxAttempts(n int)              // initial + retries per chunk on transient errors
-                                                 // (invalid nonce, mempool full, "node is catching up"); default 5
-contractsapi.WithRetryBackoff(d time.Duration)   // base backoff for invalid-nonce / mempool-full;
-                                                 // actual delay = backoff * (attempt + 1); default 2s
-contractsapi.WithCatchupBackoff(d time.Duration) // base backoff when the broadcast backend rejects with
-                                                 // "node is catching up" (typically resolves in tens of seconds);
-                                                 // actual delay = backoff * (attempt + 1); default 5s
-contractsapi.WithWaitInterval(d time.Duration)   // polling interval for WaitTx during drain; default 1s
-contractsapi.WithLogger(log.Logger)              // structured logger; default discard
+contractsapi.WithBatchSize(n int)                  // records per tx; default 10 (protocol cap)
+contractsapi.WithMaxInflight(n int)                // broadcasts queued before forced drain; default 200
+contractsapi.WithMaxAttempts(n int)                // initial + retries per chunk on non-catchup transient
+                                                   // errors (invalid nonce, mempool full); default 15
+contractsapi.WithCatchupMaxAttempts(n int)         // initial + retries per chunk on "node is catching up"
+                                                   // rejections (separate budget from above because catch-up
+                                                   // events on a public RPC routinely run minutes long);
+                                                   // default 20
+contractsapi.WithRetryBackoff(d time.Duration)     // base backoff for invalid-nonce / mempool-full;
+                                                   // actual delay = backoff * (attempt + 1); default 2s
+contractsapi.WithCatchupBackoff(d time.Duration)   // base backoff when the backend rejects with "node is
+                                                   // catching up"; actual delay = backoff * (attempt + 1).
+                                                   // With default 15s and CatchupMaxAttempts=20, the loop
+                                                   // does 20 attempts with 19 backoffs (the last attempt
+                                                   // fails without sleeping), so worst-case wait per chunk
+                                                   // is 15+30+...+285s ≈ 47.5 min; default 15s
+contractsapi.WithProgressLogEveryN(n int)          // emit INFO progress line every N chunks (chunks done /
+                                                   // total, rows done, elapsed, chunks/sec, ETA);
+                                                   // 0 disables; default 0
+contractsapi.WithWaitInterval(d time.Duration)     // polling interval for WaitTx during drain; default 1s
+contractsapi.WithLogger(log.Logger)                // structured logger; default discard
 ```
 
 #### `InsertAll`

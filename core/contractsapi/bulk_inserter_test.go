@@ -1,10 +1,12 @@
 package contractsapi_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -15,6 +17,7 @@ import (
 	kwilclient "github.com/trufnetwork/kwil-db/core/client/types"
 	"github.com/trufnetwork/kwil-db/core/crypto"
 	"github.com/trufnetwork/kwil-db/core/crypto/auth"
+	kwillog "github.com/trufnetwork/kwil-db/core/log"
 	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
 	"github.com/trufnetwork/sdk-go/core/contractsapi"
 	sdktypes "github.com/trufnetwork/sdk-go/core/types"
@@ -475,4 +478,169 @@ func TestBulkInserter_PassesNonceAndSyncBroadcastOpts(t *testing.T) {
 	require.Len(t, calls, 1)
 	assert.Equal(t, int64(201), calls[0].nonce)
 	assert.False(t, calls[0].syncBcast, "BulkInserter must always set SyncBroadcast=false")
+}
+
+// TestBulkInserter_CatchingUp_HasSeparateBudget pins the design split: a low
+// WithMaxAttempts must not abort during a long catch-up, because catch-up has
+// its own larger budget via WithCatchupMaxAttempts. Without the split, the
+// 2026-04-25 incident reproduces — catch-up sharing the 5-attempt transient
+// budget aborted multi-hour bulk loads after 75 seconds of waiting.
+func TestBulkInserter_CatchingUp_HasSeparateBudget(t *testing.T) {
+	bc := &mockBroadcaster{
+		failNext: 6, // > maxAttempts (3) but < catchupMaxAttempts (10)
+		failErr:  errors.New("broadcast error: code 65535: node is catching up, cannot process transactions right now"),
+	}
+	tc := &mockTxClient{ledgerNonce: 50}
+	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
+		contractsapi.WithMaxAttempts(3),                  // small generic budget
+		contractsapi.WithCatchupMaxAttempts(10),          // larger catch-up budget
+		contractsapi.WithCatchupBackoff(1*time.Millisecond),
+	)
+	require.NoError(t, err)
+
+	hashes, err := bi.InsertAll(context.Background(), makeInputs(10))
+	require.NoError(t, err, "should succeed: 6 catch-up failures fit in catchupMaxAttempts=10 even though > maxAttempts=3")
+	assert.Len(t, hashes, 1)
+	assert.Len(t, bc.snapshot(), 7, "should retry until success on the 7th attempt")
+}
+
+// TestBulkInserter_CatchingUp_BudgetCap verifies the catch-up budget is
+// honored — once exceeded, the chunk fails with the catch-up error.
+func TestBulkInserter_CatchingUp_BudgetCap(t *testing.T) {
+	bc := &mockBroadcaster{
+		failNext: 100,
+		failErr:  errors.New("broadcast error: node is catching up, cannot process transactions right now"),
+	}
+	tc := &mockTxClient{ledgerNonce: 50}
+	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
+		contractsapi.WithMaxAttempts(100),
+		contractsapi.WithCatchupMaxAttempts(3),
+		contractsapi.WithCatchupBackoff(1*time.Millisecond),
+	)
+	require.NoError(t, err)
+
+	_, err = bi.InsertAll(context.Background(), makeInputs(10))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "node is catching up")
+	assert.Len(t, bc.snapshot(), 3, "should stop at catchupMaxAttempts attempts")
+}
+
+// TestBulkInserter_ProgressLogging emits the periodic progress line at the
+// configured cadence and on the final iteration, so operators always see at
+// least one terminal log line for any non-empty load.
+func TestBulkInserter_ProgressLogging(t *testing.T) {
+	bc := &mockBroadcaster{}
+	tc := &mockTxClient{ledgerNonce: 0}
+	var buf threadSafeBuffer
+	logger := kwillog.New(kwillog.WithWriter(&buf), kwillog.WithLevel(kwillog.LevelInfo))
+	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
+		contractsapi.WithBatchSize(10),
+		contractsapi.WithProgressLogEveryN(2),
+		contractsapi.WithLogger(logger),
+	)
+	require.NoError(t, err)
+
+	// 50 inputs / batchSize 10 = 5 chunks. With everyN=2: ticks at chunks
+	// 2 and 4 from the in-loop check, plus one final tick at chunk 5 from
+	// the post-loop emit. Total 3 progress lines.
+	_, err = bi.InsertAll(context.Background(), makeInputs(50))
+	require.NoError(t, err)
+
+	progressLines := strings.Count(buf.String(), "bulk_inserter: progress")
+	assert.Equal(t, 3, progressLines, "expected 3 progress emits (chunks 2, 4, and final 5)")
+	assert.Contains(t, buf.String(), "rows_done=20", "should report rows_done")
+	assert.Contains(t, buf.String(), "chunks_total=5", "should report chunks_total")
+}
+
+// TestBulkInserter_ProgressLogging_DisabledByDefault confirms the default
+// configuration emits no progress lines (back-compat).
+func TestBulkInserter_ProgressLogging_DisabledByDefault(t *testing.T) {
+	bc := &mockBroadcaster{}
+	tc := &mockTxClient{ledgerNonce: 0}
+	var buf threadSafeBuffer
+	logger := kwillog.New(kwillog.WithWriter(&buf), kwillog.WithLevel(kwillog.LevelInfo))
+	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
+		contractsapi.WithLogger(logger),
+		// no WithProgressLogEveryN
+	)
+	require.NoError(t, err)
+
+	_, err = bi.InsertAll(context.Background(), makeInputs(50))
+	require.NoError(t, err)
+
+	assert.NotContains(t, buf.String(), "bulk_inserter: progress",
+		"no progress lines without WithProgressLogEveryN")
+}
+
+// TestBulkInserter_ProgressLogging_PartialLastChunk verifies that rows_done
+// counts the actual number of rows broadcast (not chunks*batchSize), so a
+// partial last chunk doesn't get inflated to a full batchSize. Regression
+// guard against the off-by-some count where 25 rows / 10 batch reported 30.
+func TestBulkInserter_ProgressLogging_PartialLastChunk(t *testing.T) {
+	bc := &mockBroadcaster{}
+	tc := &mockTxClient{ledgerNonce: 0}
+	var buf threadSafeBuffer
+	logger := kwillog.New(kwillog.WithWriter(&buf), kwillog.WithLevel(kwillog.LevelInfo))
+	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
+		contractsapi.WithBatchSize(10),
+		contractsapi.WithProgressLogEveryN(10), // never trips the in-loop tick
+		contractsapi.WithLogger(logger),
+	)
+	require.NoError(t, err)
+
+	// 25 inputs / batchSize 10 = 3 chunks (10, 10, 5). Only the final
+	// post-loop emit fires; it must report rows_done=25, not 30.
+	_, err = bi.InsertAll(context.Background(), makeInputs(25))
+	require.NoError(t, err)
+
+	out := buf.String()
+	assert.Equal(t, 1, strings.Count(out, "bulk_inserter: progress"),
+		"only the final post-loop emit should fire")
+	assert.Contains(t, out, "rows_done=25", "must report actual rows broadcast, not chunks*batchSize")
+	assert.NotContains(t, out, "rows_done=30", "must not overcount partial last chunk")
+}
+
+// TestBulkInserter_ProgressLogging_NoDuplicateFinal verifies the final
+// post-loop emit is suppressed when the last chunk index is already a
+// multiple of progressLogEveryN — otherwise the same line gets logged twice.
+func TestBulkInserter_ProgressLogging_NoDuplicateFinal(t *testing.T) {
+	bc := &mockBroadcaster{}
+	tc := &mockTxClient{ledgerNonce: 0}
+	var buf threadSafeBuffer
+	logger := kwillog.New(kwillog.WithWriter(&buf), kwillog.WithLevel(kwillog.LevelInfo))
+	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
+		contractsapi.WithBatchSize(10),
+		contractsapi.WithProgressLogEveryN(2),
+		contractsapi.WithLogger(logger),
+	)
+	require.NoError(t, err)
+
+	// 20 inputs / batchSize 10 = 2 chunks. With everyN=2, the in-loop
+	// tick fires at chunk 2; the post-loop emit must NOT fire (would
+	// duplicate). Expected total: 1 line.
+	_, err = bi.InsertAll(context.Background(), makeInputs(20))
+	require.NoError(t, err)
+
+	progressLines := strings.Count(buf.String(), "bulk_inserter: progress")
+	assert.Equal(t, 1, progressLines, "expected single emit (in-loop only); post-loop must skip when the last chunk was already logged")
+}
+
+// threadSafeBuffer wraps bytes.Buffer with a mutex — the kwil-db logger writes
+// from multiple goroutines if used concurrently, and bytes.Buffer is not safe
+// for concurrent writes.
+type threadSafeBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *threadSafeBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *threadSafeBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }

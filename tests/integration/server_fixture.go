@@ -76,6 +76,17 @@ func NewServerFixture(t *testing.T) *ServerFixture {
 	}
 	t.Logf("Using TN-DB Docker image: %s", tndbImage)
 
+	// Get Postgres Docker image from environment, default to upstream latest.
+	// Set POSTGRES_IMAGE=kwildb/postgres:16.8-2 (or similar tag) to pin against
+	// upstream regressions for a CI run; the command-line settings overrides
+	// below are written so the container works against any kwildb/postgres
+	// version that ships PG16+.
+	postgresImage := os.Getenv("POSTGRES_IMAGE")
+	if postgresImage == "" {
+		postgresImage = "kwildb/postgres:latest"
+	}
+	t.Logf("Using Postgres Docker image: %s", postgresImage)
+
 	return &ServerFixture{
 		t:                 t,
 		docker:            d,
@@ -89,10 +100,28 @@ func NewServerFixture(t *testing.T) *ServerFixture {
 		}{
 			postgres: containerSpec{
 				name:      "test-kwil-postgres",
-				image:     "kwildb/postgres:latest",
+				image:     postgresImage,
 				tmpfsPath: "/var/lib/postgresql/data",
 				portsMap:  map[string]string{"5432": "5432"},
 				envVars:   []string{"POSTGRES_HOST_AUTH_METHOD=trust"},
+				// kwild validates a set of postgres settings at startup
+				// (kwil-db/node/pg/system.go: settingValidations) and exits
+				// before the tn-db container becomes healthy if any are off.
+				// We override every non-default it requires here so we can keep
+				// the floating :latest tag instead of pinning around image
+				// regressions. Defensive: max_wal_senders/max_replication_slots
+				// are PG16 defaults (10) but pinned in case a future image
+				// lowers them. Other validated settings (synchronous_commit,
+				// fsync, array_nulls, idle_in_transaction_timeout=0, server
+				// encoding, etc.) are postgres defaults already.
+				command: []string{
+					"postgres",
+					"-c", "wal_level=logical",
+					"-c", "max_wal_senders=10",
+					"-c", "max_replication_slots=10",
+					"-c", "max_prepared_transactions=200",
+					"-c", "wal_sender_timeout=0",
+				},
 				healthCheck: func(d *docker) error {
 					_, err := d.exec("test-kwil-postgres", "pg_isready", "-U", "postgres")
 					return err
