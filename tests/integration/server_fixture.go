@@ -93,6 +93,11 @@ func NewServerFixture(t *testing.T) *ServerFixture {
 				tmpfsPath: "/var/lib/postgresql/data",
 				portsMap:  map[string]string{"5432": "5432"},
 				envVars:   []string{"POSTGRES_HOST_AUTH_METHOD=trust"},
+				// kwild's postgres validator now requires max_prepared_transactions >= 200.
+				// kwildb/postgres:latest defaults to 2, so the kwild process exits before
+				// the tn-db container becomes healthy. Override at the command line so we
+				// can keep the floating tag and pick up future image updates automatically.
+				command: []string{"postgres", "-c", "max_prepared_transactions=200"},
 				healthCheck: func(d *docker) error {
 					_, err := d.exec("test-kwil-postgres", "pg_isready", "-U", "postgres")
 					return err
