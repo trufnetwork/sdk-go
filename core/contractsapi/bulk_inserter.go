@@ -58,12 +58,14 @@ type BulkInserter struct {
 	accountID   *kwiltypes.AccountID
 	logger      log.Logger
 
-	batchSize      int
-	maxInflight    int
-	maxAttempts    int
-	retryBackoff   time.Duration
-	catchupBackoff time.Duration
-	waitInterval   time.Duration
+	batchSize          int
+	maxInflight        int
+	maxAttempts        int
+	catchupMaxAttempts int
+	retryBackoff       time.Duration
+	catchupBackoff     time.Duration
+	waitInterval       time.Duration
+	progressLogEveryN  int
 
 	mu               sync.Mutex
 	pendingNonce     int64
@@ -95,12 +97,42 @@ func WithMaxInflight(n int) BulkInserterOption {
 }
 
 // WithMaxAttempts sets the maximum number of attempts per chunk (initial
-// attempt plus retries) on transient errors (invalid nonce, mempool full).
-// Default: 5.
+// attempt plus retries) on non-catchup transient errors (invalid nonce,
+// mempool full). Catch-up errors have their own budget — see
+// WithCatchupMaxAttempts. Default: 5.
 func WithMaxAttempts(n int) BulkInserterOption {
 	return func(b *BulkInserter) {
 		if n > 0 {
 			b.maxAttempts = n
+		}
+	}
+}
+
+// WithCatchupMaxAttempts sets the maximum number of attempts per chunk on
+// "node is catching up" rejections. Separate from WithMaxAttempts because
+// real catch-up events on the public RPC backend can run minutes long
+// (sentry replaying blocks after a peer flap or restart) while invalid-nonce
+// and mempool-full are typically resolved within seconds. Sharing one
+// budget would either fail too quickly on a real catch-up or waste
+// retries on a hopeless nonce. Default: 20.
+func WithCatchupMaxAttempts(n int) BulkInserterOption {
+	return func(b *BulkInserter) {
+		if n > 0 {
+			b.catchupMaxAttempts = n
+		}
+	}
+}
+
+// WithProgressLogEveryN enables INFO-level progress logging from InsertAll
+// every N chunks. Useful for long-running bulk loads where the operator
+// otherwise has no visibility between the "submitting" and "submitted"
+// log lines (which can be hours apart). Logs include chunks done / total,
+// rows done, elapsed time, current chunks/sec rate, and an ETA.
+// 0 disables progress logging. Default: 0.
+func WithProgressLogEveryN(n int) BulkInserterOption {
+	return func(b *BulkInserter) {
+		if n > 0 {
+			b.progressLogEveryN = n
 		}
 	}
 }
@@ -116,9 +148,14 @@ func WithRetryBackoff(d time.Duration) BulkInserterOption {
 }
 
 // WithCatchupBackoff sets the base backoff used when the broadcast backend
-// rejects with "node is catching up". Catch-up events typically resolve on
-// the order of tens of seconds, so this defaults higher than WithRetryBackoff.
-// Actual delay is catchupBackoff * (attempt + 1). Default: 5s.
+// rejects with "node is catching up". Catch-up events typically resolve in
+// tens of seconds (and occasionally minutes when a sentry is replaying
+// significant history), so this defaults much higher than WithRetryBackoff.
+// Actual delay is catchupBackoff * (attempt + 1). With the default of 15s
+// and WithCatchupMaxAttempts default 20, the worst-case wait per chunk is
+// 15+30+45+...+300s ≈ 52 minutes — comfortably long enough to ride out
+// every catch-up event seen in production so far without abandoning the
+// whole batch. Default: 15s.
 func WithCatchupBackoff(d time.Duration) BulkInserterOption {
 	return func(b *BulkInserter) {
 		if d > 0 {
@@ -176,16 +213,18 @@ func NewBulkInserter(
 	}
 
 	b := &BulkInserter{
-		broadcaster:    broadcaster,
-		txClient:       txClient,
-		accountID:      accountID,
-		logger:         log.DiscardLogger,
-		batchSize:      10,
-		maxInflight:    200,
-		maxAttempts:    5,
-		retryBackoff:   2 * time.Second,
-		catchupBackoff: 5 * time.Second,
-		waitInterval:   1 * time.Second,
+		broadcaster:        broadcaster,
+		txClient:           txClient,
+		accountID:          accountID,
+		logger:             log.DiscardLogger,
+		batchSize:          10,
+		maxInflight:        200,
+		maxAttempts:        5,
+		catchupMaxAttempts: 20,
+		retryBackoff:       2 * time.Second,
+		catchupBackoff:     15 * time.Second,
+		waitInterval:       1 * time.Second,
+		progressLogEveryN:  0,
 	}
 	for _, opt := range opts {
 		opt(b)
@@ -230,6 +269,12 @@ func (e *BulkInsertError) Unwrap() error {
 // Returns the tx hashes in submission order. On a chunk failure after
 // retries, returns the hashes broadcast so far plus a *BulkInsertError
 // indicating where to resume.
+//
+// When WithProgressLogEveryN(n>0) is set, emits an INFO log every n chunks
+// with chunks done / total / rate / ETA so operators have visibility into
+// long-running loads. Without it, the only logs are the WARN lines on
+// retry events (invalid nonce, mempool full, catching up) — which means
+// silence between start and finish, which may be hours apart.
 func (b *BulkInserter) InsertAll(
 	ctx context.Context,
 	inputs []sdktypes.InsertRecordInput,
@@ -241,6 +286,7 @@ func (b *BulkInserter) InsertAll(
 	chunks := chunkInputs(inputs, b.batchSize)
 	allHashes := make([]kwiltypes.Hash, 0, len(chunks))
 	inflight := make([]kwiltypes.Hash, 0, b.maxInflight)
+	start := time.Now()
 
 	for i, chunk := range chunks {
 		hash, err := b.broadcastWithRetry(ctx, chunk)
@@ -249,6 +295,10 @@ func (b *BulkInserter) InsertAll(
 		}
 		allHashes = append(allHashes, hash)
 		inflight = append(inflight, hash)
+
+		if b.progressLogEveryN > 0 && (i+1)%b.progressLogEveryN == 0 {
+			b.logProgress(i+1, len(chunks), start)
+		}
 
 		if len(inflight) >= b.maxInflight {
 			if err := b.drain(ctx, inflight); err != nil {
@@ -272,7 +322,33 @@ func (b *BulkInserter) InsertAll(
 		}
 	}
 
+	if b.progressLogEveryN > 0 {
+		b.logProgress(len(chunks), len(chunks), start)
+	}
+
 	return allHashes, nil
+}
+
+// logProgress emits a structured progress line. Best effort — the logger may
+// be DiscardLogger (the default) in which case this is a no-op besides the
+// time math, which is cheap.
+func (b *BulkInserter) logProgress(done, total int, start time.Time) {
+	elapsed := time.Since(start)
+	var chunksPerSec, etaSec float64
+	if elapsed.Seconds() > 0 {
+		chunksPerSec = float64(done) / elapsed.Seconds()
+	}
+	if chunksPerSec > 0 {
+		etaSec = float64(total-done) / chunksPerSec
+	}
+	b.logger.Info("bulk_inserter: progress",
+		"chunks_done", done,
+		"chunks_total", total,
+		"rows_done", done*b.batchSize,
+		"elapsed_sec", int(elapsed.Seconds()),
+		"chunks_per_sec", chunksPerSec,
+		"eta_sec", int(etaSec),
+	)
 }
 
 func (b *BulkInserter) broadcastWithRetry(
@@ -280,9 +356,10 @@ func (b *BulkInserter) broadcastWithRetry(
 	chunk []sdktypes.InsertRecordInput,
 ) (hash kwiltypes.Hash, retErr error) {
 	var (
-		lastErr     error
-		nonce       int64
-		nonceLoaded bool
+		nonce             int64
+		nonceLoaded       bool
+		transientAttempts int // counts ErrInvalidNonce + ErrMempoolFull tries
+		catchupAttempts   int // counts "node is catching up" tries
 	)
 	// On any error exit (attempt exhaustion, context cancellation during
 	// backoff, or an unhandled error), drop the cached nonce. The reserved
@@ -296,7 +373,7 @@ func (b *BulkInserter) broadcastWithRetry(
 			b.resetNonce()
 		}
 	}()
-	for attempt := 0; attempt < b.maxAttempts; attempt++ {
+	for {
 		// Pull a fresh nonce only on the first attempt OR after an
 		// ErrInvalidNonce reset. On ErrMempoolFull we keep the same nonce
 		// because the tx was rejected at admission — the mempool's
@@ -318,37 +395,53 @@ func (b *BulkInserter) broadcastWithRetry(
 			return hash, nil
 		}
 
-		lastErr = err
-
 		switch {
 		case errors.Is(err, kwiltypes.ErrInvalidNonce):
+			if transientAttempts+1 >= b.maxAttempts {
+				return kwiltypes.Hash{}, err
+			}
 			b.logger.Warn("bulk_inserter: invalid nonce, resetting cache",
-				"attempt", attempt+1, "nonce", nonce, "err", err)
+				"attempt", transientAttempts+1, "nonce", nonce, "err", err)
 			b.resetNonce()
 			nonceLoaded = false // force re-fetch on next attempt
-			if waitErr := b.backoff(ctx, attempt); waitErr != nil {
+			if waitErr := b.backoff(ctx, transientAttempts); waitErr != nil {
 				return kwiltypes.Hash{}, waitErr
 			}
+			transientAttempts++
 		case errors.Is(err, kwiltypes.ErrMempoolFull):
+			if transientAttempts+1 >= b.maxAttempts {
+				return kwiltypes.Hash{}, err
+			}
 			b.logger.Warn("bulk_inserter: mempool full, backing off",
-				"attempt", attempt+1, "nonce", nonce, "err", err)
+				"attempt", transientAttempts+1, "nonce", nonce, "err", err)
 			// Keep nonceLoaded=true so we retry with the same nonce.
-			if waitErr := b.backoff(ctx, attempt); waitErr != nil {
+			if waitErr := b.backoff(ctx, transientAttempts); waitErr != nil {
 				return kwiltypes.Hash{}, waitErr
 			}
+			transientAttempts++
 		case isCatchingUpErr(err):
+			// Catch-up gets its own larger budget — see WithCatchupMaxAttempts
+			// rationale. Real catch-up events on a public RPC backend (sentry
+			// replaying blocks after a peer flap) routinely run minutes long;
+			// sharing the transient budget here is what previously aborted
+			// 4-hour BulkInserter runs after just 75 seconds of waiting.
+			if catchupAttempts+1 >= b.catchupMaxAttempts {
+				return kwiltypes.Hash{}, err
+			}
 			b.logger.Warn("bulk_inserter: backend catching up, backing off",
-				"attempt", attempt+1, "nonce", nonce, "err", err)
+				"attempt", catchupAttempts+1,
+				"max_attempts", b.catchupMaxAttempts,
+				"nonce", nonce, "err", err)
 			// Keep nonceLoaded=true — the backend never admitted the tx, our
 			// cached nonce is still correct.
-			if waitErr := b.backoffCatchup(ctx, attempt); waitErr != nil {
+			if waitErr := b.backoffCatchup(ctx, catchupAttempts); waitErr != nil {
 				return kwiltypes.Hash{}, waitErr
 			}
+			catchupAttempts++
 		default:
 			return kwiltypes.Hash{}, err
 		}
 	}
-	return kwiltypes.Hash{}, lastErr
 }
 
 func (b *BulkInserter) backoff(ctx context.Context, attempt int) error {
