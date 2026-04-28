@@ -287,6 +287,7 @@ func (b *BulkInserter) InsertAll(
 	allHashes := make([]kwiltypes.Hash, 0, len(chunks))
 	inflight := make([]kwiltypes.Hash, 0, b.maxInflight)
 	start := time.Now()
+	rowsDone := 0
 
 	for i, chunk := range chunks {
 		hash, err := b.broadcastWithRetry(ctx, chunk)
@@ -295,9 +296,10 @@ func (b *BulkInserter) InsertAll(
 		}
 		allHashes = append(allHashes, hash)
 		inflight = append(inflight, hash)
+		rowsDone += len(chunk)
 
 		if b.progressLogEveryN > 0 && (i+1)%b.progressLogEveryN == 0 {
-			b.logProgress(i+1, len(chunks), start)
+			b.logProgress(i+1, len(chunks), rowsDone, start)
 		}
 
 		if len(inflight) >= b.maxInflight {
@@ -322,8 +324,11 @@ func (b *BulkInserter) InsertAll(
 		}
 	}
 
-	if b.progressLogEveryN > 0 {
-		b.logProgress(len(chunks), len(chunks), start)
+	// Skip the terminal log if the in-loop tick already covered the last
+	// chunk (i.e., len(chunks) is a multiple of progressLogEveryN); otherwise
+	// emit so operators always see one final line for the load.
+	if b.progressLogEveryN > 0 && len(chunks)%b.progressLogEveryN != 0 {
+		b.logProgress(len(chunks), len(chunks), rowsDone, start)
 	}
 
 	return allHashes, nil
@@ -331,8 +336,10 @@ func (b *BulkInserter) InsertAll(
 
 // logProgress emits a structured progress line. Best effort — the logger may
 // be DiscardLogger (the default) in which case this is a no-op besides the
-// time math, which is cheap.
-func (b *BulkInserter) logProgress(done, total int, start time.Time) {
+// time math, which is cheap. rowsDone is the cumulative count of input rows
+// actually broadcast so far (sum of len(chunk) over completed chunks), so a
+// partial final chunk doesn't get inflated to a full batchSize.
+func (b *BulkInserter) logProgress(done, total, rowsDone int, start time.Time) {
 	elapsed := time.Since(start)
 	var chunksPerSec, etaSec float64
 	if elapsed.Seconds() > 0 {
@@ -344,7 +351,7 @@ func (b *BulkInserter) logProgress(done, total int, start time.Time) {
 	b.logger.Info("bulk_inserter: progress",
 		"chunks_done", done,
 		"chunks_total", total,
-		"rows_done", done*b.batchSize,
+		"rows_done", rowsDone,
 		"elapsed_sec", int(elapsed.Seconds()),
 		"chunks_per_sec", chunksPerSec,
 		"eta_sec", int(etaSec),

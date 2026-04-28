@@ -572,6 +572,59 @@ func TestBulkInserter_ProgressLogging_DisabledByDefault(t *testing.T) {
 		"no progress lines without WithProgressLogEveryN")
 }
 
+// TestBulkInserter_ProgressLogging_PartialLastChunk verifies that rows_done
+// counts the actual number of rows broadcast (not chunks*batchSize), so a
+// partial last chunk doesn't get inflated to a full batchSize. Regression
+// guard against the off-by-some count where 25 rows / 10 batch reported 30.
+func TestBulkInserter_ProgressLogging_PartialLastChunk(t *testing.T) {
+	bc := &mockBroadcaster{}
+	tc := &mockTxClient{ledgerNonce: 0}
+	var buf threadSafeBuffer
+	logger := kwillog.New(kwillog.WithWriter(&buf), kwillog.WithLevel(kwillog.LevelInfo))
+	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
+		contractsapi.WithBatchSize(10),
+		contractsapi.WithProgressLogEveryN(10), // never trips the in-loop tick
+		contractsapi.WithLogger(logger),
+	)
+	require.NoError(t, err)
+
+	// 25 inputs / batchSize 10 = 3 chunks (10, 10, 5). Only the final
+	// post-loop emit fires; it must report rows_done=25, not 30.
+	_, err = bi.InsertAll(context.Background(), makeInputs(25))
+	require.NoError(t, err)
+
+	out := buf.String()
+	assert.Equal(t, 1, strings.Count(out, "bulk_inserter: progress"),
+		"only the final post-loop emit should fire")
+	assert.Contains(t, out, "rows_done=25", "must report actual rows broadcast, not chunks*batchSize")
+	assert.NotContains(t, out, "rows_done=30", "must not overcount partial last chunk")
+}
+
+// TestBulkInserter_ProgressLogging_NoDuplicateFinal verifies the final
+// post-loop emit is suppressed when the last chunk index is already a
+// multiple of progressLogEveryN — otherwise the same line gets logged twice.
+func TestBulkInserter_ProgressLogging_NoDuplicateFinal(t *testing.T) {
+	bc := &mockBroadcaster{}
+	tc := &mockTxClient{ledgerNonce: 0}
+	var buf threadSafeBuffer
+	logger := kwillog.New(kwillog.WithWriter(&buf), kwillog.WithLevel(kwillog.LevelInfo))
+	bi, err := contractsapi.NewBulkInserter(bc, tc, newTestSigner(t),
+		contractsapi.WithBatchSize(10),
+		contractsapi.WithProgressLogEveryN(2),
+		contractsapi.WithLogger(logger),
+	)
+	require.NoError(t, err)
+
+	// 20 inputs / batchSize 10 = 2 chunks. With everyN=2, the in-loop
+	// tick fires at chunk 2; the post-loop emit must NOT fire (would
+	// duplicate). Expected total: 1 line.
+	_, err = bi.InsertAll(context.Background(), makeInputs(20))
+	require.NoError(t, err)
+
+	progressLines := strings.Count(buf.String(), "bulk_inserter: progress")
+	assert.Equal(t, 1, progressLines, "expected single emit (in-loop only); post-loop must skip when the last chunk was already logged")
+}
+
 // threadSafeBuffer wraps bytes.Buffer with a mutex — the kwil-db logger writes
 // from multiple goroutines if used concurrently, and bytes.Buffer is not safe
 // for concurrent writes.
