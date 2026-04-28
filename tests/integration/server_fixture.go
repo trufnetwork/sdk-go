@@ -93,11 +93,24 @@ func NewServerFixture(t *testing.T) *ServerFixture {
 				tmpfsPath: "/var/lib/postgresql/data",
 				portsMap:  map[string]string{"5432": "5432"},
 				envVars:   []string{"POSTGRES_HOST_AUTH_METHOD=trust"},
-				// kwild's postgres validator now requires max_prepared_transactions >= 200.
-				// kwildb/postgres:latest defaults to 2, so the kwild process exits before
-				// the tn-db container becomes healthy. Override at the command line so we
-				// can keep the floating tag and pick up future image updates automatically.
-				command: []string{"postgres", "-c", "max_prepared_transactions=200"},
+				// kwild validates a set of postgres settings at startup
+				// (kwil-db/node/pg/system.go: settingValidations) and exits
+				// before the tn-db container becomes healthy if any are off.
+				// We override every non-default it requires here so we can keep
+				// the floating :latest tag instead of pinning around image
+				// regressions. Defensive: max_wal_senders/max_replication_slots
+				// are PG16 defaults (10) but pinned in case a future image
+				// lowers them. Other validated settings (synchronous_commit,
+				// fsync, array_nulls, idle_in_transaction_timeout=0, server
+				// encoding, etc.) are postgres defaults already.
+				command: []string{
+					"postgres",
+					"-c", "wal_level=logical",
+					"-c", "max_wal_senders=10",
+					"-c", "max_replication_slots=10",
+					"-c", "max_prepared_transactions=200",
+					"-c", "wal_sender_timeout=0",
+				},
 				healthCheck: func(d *docker) error {
 					_, err := d.exec("test-kwil-postgres", "pg_isready", "-U", "postgres")
 					return err
