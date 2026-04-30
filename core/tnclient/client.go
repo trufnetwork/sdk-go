@@ -219,7 +219,23 @@ func (c *Client) GetKwilClient() *gatewayclient.GatewayClient {
 	return nil
 }
 
+// DeployStreamOptions configures stream deployment behavior.
+// Zero-valued fields reproduce the historical defaults exactly, so
+// existing callers can continue to use DeployStream without change.
+type DeployStreamOptions struct {
+	// AllowZeros toggles persistence of value=0 inserts on the new stream.
+	// Default false: zeros are dropped on insert, today's behavior.
+	AllowZeros bool
+}
+
 func (c *Client) DeployStream(ctx context.Context, streamId util.StreamId, streamType clientType.StreamType) (types.Hash, error) {
+	return c.DeployStreamWithOptions(ctx, streamId, streamType, DeployStreamOptions{})
+}
+
+// DeployStreamWithOptions deploys a stream and applies the supplied
+// DeployStreamOptions. Use this instead of DeployStream when you need
+// non-default behavior (e.g. AllowZeros=true).
+func (c *Client) DeployStreamWithOptions(ctx context.Context, streamId util.StreamId, streamType clientType.StreamType, opts DeployStreamOptions) (types.Hash, error) {
 	// For HTTP transport, use the existing implementation (backwards compatible)
 	// For custom transports (CRE, etc.), use transport.Execute directly
 	if httpTransport, ok := c.transport.(*HTTPTransport); ok {
@@ -227,12 +243,14 @@ func (c *Client) DeployStream(ctx context.Context, streamId util.StreamId, strea
 			StreamId:   streamId,
 			StreamType: streamType,
 			KwilClient: httpTransport.gatewayClient,
+			AllowZeros: opts.AllowZeros,
 		})
 	}
 	// Use transport.Execute directly for custom transports
 	return c.transport.Execute(ctx, "", "create_stream", [][]any{{
 		streamId.String(),
 		streamType.String(),
+		opts.AllowZeros,
 	}})
 }
 

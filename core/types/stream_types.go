@@ -29,4 +29,9 @@ type ListStreamsOutput struct {
 type StreamDefinition struct {
 	StreamId   util.StreamId // User-defined identifier for the stream
 	StreamType StreamType    // Type of the stream (Primitive, Composed, etc.)
+	// AllowZeros toggles persistence of value=0 inserts on this stream.
+	// Default false (zero value) preserves the historical behavior:
+	// zeros are silently dropped on insert. Set true for streams where
+	// zero is a meaningful measurement.
+	AllowZeros bool
 }

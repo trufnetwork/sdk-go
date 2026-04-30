@@ -115,6 +115,17 @@ type IAction interface {
 	// SetDefaultBaseTime insert a metadata row with `default_base_time` key
 	SetDefaultBaseTime(ctx context.Context, input DefaultBaseTimeInput) (types.Hash, error)
 
+	// SetAllowZeros toggles whether value=0 inserts are persisted on the
+	// stream. Default behavior is FALSE (zeros are dropped on insert).
+	// Owner-gated. The toggle is forward-only — historical state is not
+	// rewritten by flipping the flag.
+	SetAllowZeros(ctx context.Context, locator StreamLocator, value bool) (types.Hash, error)
+
+	// GetAllowZeros returns the current allow_zeros setting for the stream.
+	// Returns false if the stream has no explicit metadata row (the
+	// implicit default).
+	GetAllowZeros(ctx context.Context, locator StreamLocator) (bool, error)
+
 	// GetStreamOwner gets the owner of the stream
 	GetStreamOwner(ctx context.Context, locator StreamLocator) ([]byte, error)
 

@@ -95,7 +95,21 @@ type InsertMetadataInput struct {
 	Value  types.MetadataValue
 }
 
+// ErrReservedMetadataKey is returned when a caller tries to route a
+// reserved metadata key (currently only AllowZerosKey) through the
+// generic insert/disable helpers. Reserved keys have dedicated mutators
+// (e.g. SetAllowZeros) that own the disable-then-insert sequence; the
+// generic path would let two parallel rows coexist and break the
+// "latest non-disabled wins" semantics that the node-side actions rely
+// on. The node enforces this too — this is a friendlier client-side
+// error for SDK developers.
+var ErrReservedMetadataKey = errors.New("reserved metadata key: use the dedicated mutator (e.g. SetAllowZeros)")
+
 func (s *Action) insertMetadata(ctx context.Context, input InsertMetadataInput) (kwiltypes.Hash, error) {
+	if input.Key == types.AllowZerosKey {
+		return kwiltypes.Hash{}, errors.Wrapf(ErrReservedMetadataKey, "%s", input.Key.String())
+	}
+
 	valType := input.Key.GetType()
 	valStr, err := valType.StringFromValue(input.Value)
 	if err != nil {

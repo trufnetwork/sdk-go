@@ -444,6 +444,42 @@ txHash, err := tnClient.DeployStream(
 )
 ```
 
+##### `DeployStreamWithOptions`
+
+Deploy a new stream and apply per-stream options. Use this instead of
+`DeployStream` when you need non-default behavior — currently the
+`AllowZeros` toggle for streams where `value=0` is a meaningful measurement.
+
+```go
+txHash, err := tnClient.DeployStreamWithOptions(
+	ctx,
+	streamId,
+	types.StreamTypePrimitive,
+	tnclient.DeployStreamOptions{AllowZeros: true},
+)
+```
+
+`AllowZeros` defaults to `false` — zeros are dropped at insert time and
+excluded from `get_record` results, matching the historical behavior. The
+toggle can be flipped post-deployment via `IAction.SetAllowZeros`.
+
+##### `IAction.SetAllowZeros` / `IAction.GetAllowZeros`
+
+Owner-gated mutator and public reader for the per-stream `allow_zeros`
+flag. The flip is forward-only — historical inserts are not rewritten.
+
+```go
+action, _ := tnClient.LoadActions()
+_, _ = action.SetAllowZeros(ctx, tnClient.OwnStreamLocator(streamId), true)
+
+current, _ := action.GetAllowZeros(ctx, tnClient.OwnStreamLocator(streamId))
+// current == true
+```
+
+`StreamDefinition` (used with `BatchDeployStreams`) also exposes
+`AllowZeros` per definition; the zero-value field defaults to `false` so
+pre-existing batch callers continue to deploy zero-filtered streams.
+
 ##### `DestroyStream`
 
 Remove an existing stream:
