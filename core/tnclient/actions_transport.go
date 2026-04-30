@@ -162,6 +162,14 @@ func (a *TransportAction) SetDefaultBaseTime(ctx context.Context, input clientTy
 	return types.Hash{}, fmt.Errorf("SetDefaultBaseTime not implemented for custom transports - use HTTP transport or implement if needed")
 }
 
+func (a *TransportAction) SetAllowZeros(ctx context.Context, locator clientType.StreamLocator, value bool) (types.Hash, error) {
+	return types.Hash{}, fmt.Errorf("SetAllowZeros not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
+func (a *TransportAction) GetAllowZeros(ctx context.Context, locator clientType.StreamLocator) (bool, error) {
+	return false, fmt.Errorf("GetAllowZeros not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
 func (a *TransportAction) BatchStreamExists(ctx context.Context, streams []clientType.StreamLocator) ([]clientType.StreamExistsResult, error) {
 	return nil, fmt.Errorf("BatchStreamExists not implemented for custom transports - use HTTP transport or implement if needed")
 }

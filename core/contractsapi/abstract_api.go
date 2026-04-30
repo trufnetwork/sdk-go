@@ -202,6 +202,41 @@ func (s *Action) SetDefaultBaseTime(ctx context.Context, input types.DefaultBase
 	})
 }
 
+// SetAllowZeros toggles the per-stream allow_zeros flag via the
+// dedicated set_allow_zeros action (which atomically disables any prior
+// row and writes a fresh one when value=true). Owner-gated on the node.
+func (s *Action) SetAllowZeros(ctx context.Context, locator types.StreamLocator, value bool) (kwiltypes.Hash, error) {
+	return s.execute(ctx, "set_allow_zeros", [][]any{{
+		locator.DataProvider.Address(),
+		locator.StreamId.String(),
+		value,
+	}})
+}
+
+// GetAllowZeros returns the latest allow_zeros setting for the stream.
+// Returns false when the stream has no explicit metadata row, matching
+// the implicit default applied at insert time.
+func (s *Action) GetAllowZeros(ctx context.Context, locator types.StreamLocator) (bool, error) {
+	result, err := s.call(ctx, "get_allow_zeros", []any{
+		locator.DataProvider.Address(),
+		locator.StreamId.String(),
+	})
+	if err != nil {
+		return false, errors.WithStack(err)
+	}
+	if len(result.Values) == 0 || len(result.Values[0]) == 0 {
+		return false, nil
+	}
+	switch v := result.Values[0][0].(type) {
+	case bool:
+		return v, nil
+	case nil:
+		return false, nil
+	default:
+		return false, errors.Errorf("get_allow_zeros: unexpected value type %T", v)
+	}
+}
+
 var MetadataValueNotFound = errors.New("metadata value not found")
 
 type DisableMetadataByRefInput struct {
@@ -211,6 +246,10 @@ type DisableMetadataByRefInput struct {
 }
 
 func (s *Action) disableMetadataByRef(ctx context.Context, input DisableMetadataByRefInput) (kwiltypes.Hash, error) {
+	if input.Key == types.AllowZerosKey {
+		return kwiltypes.Hash{}, errors.Wrapf(ErrReservedMetadataKey, "%s", input.Key.String())
+	}
+
 	metadataList, err := s.getMetadata(ctx, getMetadataParams{
 		Stream:  input.Stream,
 		Key:     input.Key,
