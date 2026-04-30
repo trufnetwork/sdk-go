@@ -63,18 +63,52 @@ func TestDisableMetadataByRef_RejectsAllowZerosKey(t *testing.T) {
 // TestInsertMetadata_AllowsOtherKeys is a guardrail for the guard
 // itself: a regression that broadens the rejection to any metadata key
 // would brick the existing typed wrappers (SetReadVisibility, etc.).
-// We don't actually execute the call (no live node here) — we just
-// confirm the guard doesn't trip for non-reserved keys before the
-// helper attempts its execute.
+// For each non-reserved key we actually invoke the helper and require
+// that it gets PAST the guard. The follow-on s.execute call has a nil
+// _client and panics — that panic is the proof the guard let us through.
+// What matters is no ErrReservedMetadataKey is returned for a non-reserved key.
 func TestInsertMetadata_AllowsOtherKeys(t *testing.T) {
-	for _, key := range []types.MetadataKey{
-		types.ReadVisibilityKey,
-		types.ComposeVisibilityKey,
-		types.AllowReadWalletKey,
-	} {
-		t.Run(string(key), func(t *testing.T) {
-			require.NotEqual(t, types.AllowZerosKey, key,
-				"non-reserved keys must not trip the AllowZerosKey guard")
+	streamId, err := util.NewStreamId("st00000000000000000000000000aabb")
+	require.NoError(t, err)
+	dp, err := util.NewEthereumAddressFromString("0x000000000000000000000000000000000000a110")
+	require.NoError(t, err)
+
+	cases := []struct {
+		key types.MetadataKey
+		val types.MetadataValue
+	}{
+		{types.ReadVisibilityKey, types.NewMetadataValue(0)},
+		{types.ComposeVisibilityKey, types.NewMetadataValue(0)},
+		{types.AllowReadWalletKey, types.NewMetadataValue("0x0000000000000000000000000000000000000001")},
+	}
+
+	for _, tc := range cases {
+		t.Run(string(tc.key), func(t *testing.T) {
+			action := &Action{}
+			tripped := callInsertMetadataChecked(t, action, types.StreamLocator{
+				StreamId: *streamId, DataProvider: dp,
+			}, tc.key, tc.val)
+			require.False(t, tripped, "guard must not trip for non-reserved key %s", tc.key)
 		})
 	}
+}
+
+// callInsertMetadataChecked invokes insertMetadata against an Action with
+// no client and returns whether ErrReservedMetadataKey was raised. The
+// nil-client panic past the guard is treated as "guard passed" since
+// the test's only concern is which keys the guard rejects.
+func callInsertMetadataChecked(t *testing.T, action *Action, stream types.StreamLocator, key types.MetadataKey, val types.MetadataValue) (tripped bool) {
+	t.Helper()
+	defer func() {
+		_ = recover() // nil _client deref past the guard — expected
+	}()
+	_, err := action.insertMetadata(context.Background(), InsertMetadataInput{
+		Stream: stream,
+		Key:    key,
+		Value:  val,
+	})
+	if err != nil && errors.Is(err, ErrReservedMetadataKey) {
+		tripped = true
+	}
+	return tripped
 }

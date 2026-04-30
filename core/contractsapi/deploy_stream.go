@@ -21,10 +21,19 @@ type DeployStreamInput struct {
 }
 
 // DeployStream deploys a stream to TN.
+//
+// When AllowZeros is false (the default), only the legacy two arguments
+// are sent so the call shape matches pre-feature nodes that haven't
+// learned about $allow_zeros. The third argument is appended only when
+// the caller opts in, in which case the node must be on the migration
+// that added the parameter.
 func DeployStream(ctx context.Context, input DeployStreamInput) (kwilTypes.Hash, error) {
-	return input.KwilClient.Execute(ctx, "", "create_stream", [][]any{{
+	args := []any{
 		input.StreamId.String(),
 		input.StreamType.String(),
-		input.AllowZeros,
-	}})
+	}
+	if input.AllowZeros {
+		args = append(args, input.AllowZeros)
+	}
+	return input.KwilClient.Execute(ctx, "", "create_stream", [][]any{args})
 }

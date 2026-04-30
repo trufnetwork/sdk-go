@@ -47,18 +47,16 @@ func BatchDeployStreams(ctx context.Context, input BatchDeployStreamsInput) (kwi
 		}
 	}
 
-	// Always pass the allow_zeros array so the action signature stays
-	// stable for callers; if no stream opted in, the action's IS NOT NULL
-	// branch still skips the metadata write because every entry is FALSE.
-	var args [][]any
+	// Omit the allow_zeros argument entirely when no stream opted in so
+	// the on-the-wire payload stays compatible with pre-feature nodes
+	// that haven't been upgraded. Only append the third array when at
+	// least one stream needs it, in which case the node must be on the
+	// migration that added $allow_zeros.
+	inner := []any{streamIds, streamTypes}
 	if anyAllowZeros {
-		args = [][]any{{streamIds, streamTypes, allowZeros}}
-	} else {
-		// Pass nil for the third arg so create_streams takes the
-		// DEFAULT NULL path and writes zero metadata rows. Equivalent
-		// to omitting the arg, but keeps the call shape uniform.
-		args = [][]any{{streamIds, streamTypes, nil}}
+		inner = append(inner, allowZeros)
 	}
+	args := [][]any{inner}
 
 	txHash, err := input.KwilClient.Execute(ctx, input.SchemaName, "create_streams", args, kwilClientType.WithNonce(0))
 	if err != nil {
