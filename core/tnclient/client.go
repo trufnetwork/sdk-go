@@ -481,6 +481,16 @@ func (c *Client) Withdraw(ctx context.Context, bridgeIdentifier string, amount s
 	return actions.Withdraw(ctx, bridgeIdentifier, amount, recipient)
 }
 
+// Transfer sends tokens from the caller to another in-network wallet via the
+// bridge's public transfer action. Costs a 1-token fee in the same token as the bridge.
+func (c *Client) Transfer(ctx context.Context, bridgeIdentifier string, recipient string, amount string) (string, error) {
+	actions, err := c.LoadActions()
+	if err != nil {
+		return "", errors.Wrap(err, "failed to load actions for Transfer")
+	}
+	return actions.Transfer(ctx, bridgeIdentifier, recipient, amount)
+}
+
 // GetWithdrawalProof retrieves the proofs and signatures needed to claim a withdrawal on EVM.
 func (c *Client) GetWithdrawalProof(ctx context.Context, input clientType.GetWithdrawalProofInput) ([]clientType.WithdrawalProof, error) {
 	actions, err := c.LoadActions()

@@ -2611,6 +2611,40 @@ fmt.Printf("Burn TX Hash: %s\n", txHash)
 
 ---
 
+#### `Transfer`
+
+Sends tokens from the caller to another in-network wallet via the bridge's public transfer action.
+
+The caller pays a **1-token action fee** on top of `amount`, denominated in the same token as the bridge (1 TRUF for `eth_truf`, 1 USDC for `eth_usdc`). The action reverts if the caller balance is below `amount + 1 token`.
+
+**Signature:**
+```go
+func (c *Client) Transfer(ctx context.Context, bridgeIdentifier string, recipient string, amount string) (string, error)
+```
+
+> **Note:** Callers must pass a supported `bridgeIdentifier` — `"eth_truf"` or `"eth_usdc"` on mainnet, `"sepolia"` on dev/test. `Client.Transfer` is **not implemented for custom transports** (e.g. CRE); when used through a non-HTTP transport it returns a runtime error. Use the default HTTP transport, or implement `Transfer` on your custom transport.
+
+**Parameters:**
+- `bridgeIdentifier` (string): Supported bridge namespace — `"eth_truf"`, `"eth_usdc"` (mainnet) or `"sepolia"` (dev/test).
+- `recipient` (string): Destination wallet address (0x-prefixed 40-char hex). Validated client-side.
+- `amount` (string): Transfer amount in wei. Must parse as a positive decimal.
+
+**Returns:**
+- `string`: Transaction hash of the transfer.
+- `error`: Error if validation fails (empty / invalid recipient, non-positive or non-numeric amount), the custom transport doesn't implement `Transfer`, or the transaction is rejected.
+
+**Example — Refill bot pattern:**
+```go
+// Top up an adapter wallet to its threshold; budget +1 TRUF for the action fee.
+txHash, err := client.Transfer(ctx, "eth_truf", adapterWallet, "100000000000000000000")
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("Refill TX Hash: %s\n", txHash)
+```
+
+---
+
 #### `GetWithdrawalProof`
 
 Retrieves the cryptographic proofs required to claim a withdrawal on the destination chain (e.g., via the `withdraw` function on the bridge contract).
