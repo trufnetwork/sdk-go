@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/cockroachdb/apd/v3"
+	"github.com/trufnetwork/sdk-go/core/util"
 )
 
 // GetWalletBalance retrieves the wallet balance for a specific bridge instance
@@ -81,11 +82,20 @@ func (s *Action) Transfer(ctx context.Context, bridgeIdentifier string, recipien
 	if recipient == "" {
 		return "", errors.New("recipient address is required")
 	}
+	if _, err := util.NewEthereumAddressFromString(recipient); err != nil {
+		return "", fmt.Errorf("invalid recipient address format: %w", err)
+	}
 	if amount == "" {
 		return "", errors.New("amount is required")
 	}
-	if _, _, err := apd.NewFromString(amount); err != nil {
+	parsed, _, err := apd.NewFromString(amount)
+	if err != nil {
 		return "", fmt.Errorf("invalid amount format: %w", err)
+	}
+	// On-chain action enforces amount > 0; mirror it here to fail fast and
+	// avoid spending a tx submission round-trip on guaranteed reverts.
+	if parsed.Sign() <= 0 {
+		return "", fmt.Errorf("amount must be > 0, got %s", amount)
 	}
 
 	actionName := bridgeIdentifier + "_transfer"

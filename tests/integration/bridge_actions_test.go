@@ -110,8 +110,11 @@ func TestBridgeActions(t *testing.T) {
 		require.Error(t, err)
 		// Error might come from the node or SDK decimal parsing
 
+		// A valid 0x-prefixed address used for cases that test amount validation.
+		validRecipient := "0x9160BBD07295b77BB168FF6295D66C74E575B5BE"
+
 		// Transfer Empty Bridge
-		_, err = tnClient.Transfer(ctx, "", "0x123", "100")
+		_, err = tnClient.Transfer(ctx, "", validRecipient, "100")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "bridge identifier is required")
 
@@ -120,15 +123,30 @@ func TestBridgeActions(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "recipient address is required")
 
+		// Transfer Invalid Recipient (wrong length / not hex)
+		_, err = tnClient.Transfer(ctx, "bridge", "0x123", "100")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid recipient address format")
+
 		// Transfer Empty Amount
-		_, err = tnClient.Transfer(ctx, "bridge", "0x123", "")
+		_, err = tnClient.Transfer(ctx, "bridge", validRecipient, "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "amount is required")
 
 		// Transfer Invalid Amount
-		_, err = tnClient.Transfer(ctx, "bridge", "0x123", "not_a_number")
+		_, err = tnClient.Transfer(ctx, "bridge", validRecipient, "not_a_number")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid amount format")
+
+		// Transfer Zero Amount
+		_, err = tnClient.Transfer(ctx, "bridge", validRecipient, "0")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "amount must be > 0")
+
+		// Transfer Negative Amount
+		_, err = tnClient.Transfer(ctx, "bridge", validRecipient, "-5")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "amount must be > 0")
 
 		// GetWithdrawalProof Empty Bridge
 		_, err = tnClient.GetWithdrawalProof(ctx, types.GetWithdrawalProofInput{

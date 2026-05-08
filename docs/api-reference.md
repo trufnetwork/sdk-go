@@ -2613,7 +2613,7 @@ fmt.Printf("Burn TX Hash: %s\n", txHash)
 
 #### `Transfer`
 
-Sends tokens from the caller to another in-network wallet via the bridge's public transfer action. Binds to the on-chain action `<bridgeIdentifier>_transfer` — `eth_truf_transfer` / `eth_usdc_transfer` on mainnet, `ethereum_transfer` / `sepolia_transfer` on dev/test.
+Sends tokens from the caller to another in-network wallet via the bridge's public transfer action.
 
 The caller pays a **1-token action fee** on top of `amount`, denominated in the same token as the bridge (1 TRUF for `eth_truf`, 1 USDC for `eth_usdc`). The action reverts if the caller balance is below `amount + 1 token`.
 
@@ -2622,14 +2622,16 @@ The caller pays a **1-token action fee** on top of `amount`, denominated in the 
 func (c *Client) Transfer(ctx context.Context, bridgeIdentifier string, recipient string, amount string) (string, error)
 ```
 
+> **Note:** Callers must pass a supported `bridgeIdentifier` — `"eth_truf"` or `"eth_usdc"` on mainnet, `"sepolia"` on dev/test. `Client.Transfer` is **not implemented for custom transports** (e.g. CRE); when used through a non-HTTP transport it returns a runtime error. Use the default HTTP transport, or implement `Transfer` on your custom transport.
+
 **Parameters:**
-- `bridgeIdentifier` (string): Bridge / action namespace prefix (e.g. `"eth_truf"`, `"eth_usdc"`, `"sepolia"`).
-- `recipient` (string): Destination wallet address (Ethereum 0x… format).
-- `amount` (string): Transfer amount in wei. Must be a valid numeric string.
+- `bridgeIdentifier` (string): Supported bridge namespace — `"eth_truf"`, `"eth_usdc"` (mainnet) or `"sepolia"` (dev/test).
+- `recipient` (string): Destination wallet address (0x-prefixed 40-char hex). Validated client-side.
+- `amount` (string): Transfer amount in wei. Must parse as a positive decimal.
 
 **Returns:**
 - `string`: Transaction hash of the transfer.
-- `error`: Error if validation fails or the transaction is rejected.
+- `error`: Error if validation fails (empty / invalid recipient, non-positive or non-numeric amount), the custom transport doesn't implement `Transfer`, or the transaction is rejected.
 
 **Example — Refill bot pattern:**
 ```go
