@@ -2611,6 +2611,38 @@ fmt.Printf("Burn TX Hash: %s\n", txHash)
 
 ---
 
+#### `Transfer`
+
+Sends tokens from the caller to another in-network wallet via the bridge's public transfer action. Binds to the on-chain action `<bridgeIdentifier>_transfer` — `eth_truf_transfer` / `eth_usdc_transfer` on mainnet, `ethereum_transfer` / `sepolia_transfer` on dev/test.
+
+The caller pays a **1-token action fee** on top of `amount`, denominated in the same token as the bridge (1 TRUF for `eth_truf`, 1 USDC for `eth_usdc`). The action reverts if the caller balance is below `amount + 1 token`.
+
+**Signature:**
+```go
+func (c *Client) Transfer(ctx context.Context, bridgeIdentifier string, recipient string, amount string) (string, error)
+```
+
+**Parameters:**
+- `bridgeIdentifier` (string): Bridge / action namespace prefix (e.g. `"eth_truf"`, `"eth_usdc"`, `"sepolia"`).
+- `recipient` (string): Destination wallet address (Ethereum 0x… format).
+- `amount` (string): Transfer amount in wei. Must be a valid numeric string.
+
+**Returns:**
+- `string`: Transaction hash of the transfer.
+- `error`: Error if validation fails or the transaction is rejected.
+
+**Example — Refill bot pattern:**
+```go
+// Top up an adapter wallet to its threshold; budget +1 TRUF for the action fee.
+txHash, err := client.Transfer(ctx, "eth_truf", adapterWallet, "100000000000000000000")
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("Refill TX Hash: %s\n", txHash)
+```
+
+---
+
 #### `GetWithdrawalProof`
 
 Retrieves the cryptographic proofs required to claim a withdrawal on the destination chain (e.g., via the `withdraw` function on the bridge contract).

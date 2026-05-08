@@ -53,6 +53,9 @@ type Client interface {
 	GetWalletBalance(ctx context.Context, bridgeIdentifier string, walletAddress string) (string, error)
 	// Withdraw performs a withdrawal operation by bridging tokens from TN to a destination chain
 	Withdraw(ctx context.Context, bridgeIdentifier string, amount string, recipient string) (string, error)
+	// Transfer sends tokens from the caller to another in-network wallet via the
+	// bridge's public transfer action. Costs a 1-token fee in the same token as the bridge.
+	Transfer(ctx context.Context, bridgeIdentifier string, recipient string, amount string) (string, error)
 	// GetWithdrawalProof retrieves the proofs and signatures needed to claim a withdrawal on EVM.
 	GetWithdrawalProof(ctx context.Context, input GetWithdrawalProofInput) ([]WithdrawalProof, error)
 }

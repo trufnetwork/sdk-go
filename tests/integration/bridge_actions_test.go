@@ -79,7 +79,26 @@ func TestBridgeActions(t *testing.T) {
 		t.Logf("GetWithdrawalProof Response: %v", err)
 	})
 
-	// Test 4: Input Validation
+	// Test 4: Transfer
+	// Like Withdraw, Transfer is an async write — node may accept the tx into the
+	// mempool and surface validation errors at block time. So we accept either
+	// an immediate error or a non-empty hash.
+	t.Run("Transfer", func(t *testing.T) {
+		bridgeID := "non_existent_bridge"
+		recipient := "0x1234567890123456789012345678901234567890"
+		amount := "1000000000000000000" // 1 token
+
+		hash, err := tnClient.Transfer(ctx, bridgeID, recipient, amount)
+
+		if err != nil {
+			t.Logf("Transfer returned error (acceptable): %v", err)
+		} else {
+			require.NotEmpty(t, hash, "must return a non-empty transaction hash when no error")
+			t.Logf("Transfer returned hash (acceptable): %v", hash)
+		}
+	})
+
+	// Test 5: Input Validation
 	t.Run("InputValidation", func(t *testing.T) {
 		// Withdraw Empty Bridge
 		_, err := tnClient.Withdraw(ctx, "", "100", "0x123")
@@ -90,7 +109,27 @@ func TestBridgeActions(t *testing.T) {
 		_, err = tnClient.Withdraw(ctx, "bridge", "invalid_amount", "0x123")
 		require.Error(t, err)
 		// Error might come from the node or SDK decimal parsing
-		
+
+		// Transfer Empty Bridge
+		_, err = tnClient.Transfer(ctx, "", "0x123", "100")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "bridge identifier is required")
+
+		// Transfer Empty Recipient
+		_, err = tnClient.Transfer(ctx, "bridge", "", "100")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "recipient address is required")
+
+		// Transfer Empty Amount
+		_, err = tnClient.Transfer(ctx, "bridge", "0x123", "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "amount is required")
+
+		// Transfer Invalid Amount
+		_, err = tnClient.Transfer(ctx, "bridge", "0x123", "not_a_number")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid amount format")
+
 		// GetWithdrawalProof Empty Bridge
 		_, err = tnClient.GetWithdrawalProof(ctx, types.GetWithdrawalProofInput{
 			BridgeIdentifier: "",

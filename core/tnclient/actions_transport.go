@@ -190,6 +190,10 @@ func (a *TransportAction) Withdraw(ctx context.Context, bridgeIdentifier string,
 	return "", fmt.Errorf("Withdraw not implemented for custom transports - use HTTP transport or implement if needed")
 }
 
+func (a *TransportAction) Transfer(ctx context.Context, bridgeIdentifier string, recipient string, amount string) (string, error) {
+	return "", fmt.Errorf("Transfer not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
 func (a *TransportAction) GetWithdrawalProof(ctx context.Context, input clientType.GetWithdrawalProofInput) ([]clientType.WithdrawalProof, error) {
 	return nil, fmt.Errorf("GetWithdrawalProof not implemented for custom transports - use HTTP transport or implement if needed")
 }
