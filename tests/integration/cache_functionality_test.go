@@ -18,6 +18,7 @@ import (
 // TestCacheParameterSupport tests that all SDK methods support the UseCache parameter
 // and maintain backward compatibility when the parameter is omitted
 func TestCacheParameterSupport(t *testing.T) {
+	skipUntilStreamCreationFeeFunded(t)
 	ctx := context.Background()
 	fixture := NewServerFixture(t)
 	err := fixture.Setup()
@@ -135,6 +136,7 @@ func TestCacheParameterSupport(t *testing.T) {
 
 // TestCacheMetadataExtraction tests the cache metadata extraction functionality
 func TestCacheMetadataExtraction(t *testing.T) {
+	skipUntilStreamCreationFeeFunded(t)
 	ctx := context.Background()
 	fixture := NewServerFixture(t)
 	err := fixture.Setup()
@@ -383,6 +385,7 @@ func TestCacheMetadataAggregation(t *testing.T) {
 
 // TestBackwardCompatibility ensures existing code continues to work without UseCache
 func TestBackwardCompatibility(t *testing.T) {
+	skipUntilStreamCreationFeeFunded(t)
 	ctx := context.Background()
 	fixture := NewServerFixture(t)
 	err := fixture.Setup()

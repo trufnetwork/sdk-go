@@ -16,6 +16,7 @@ import (
 )
 
 func TestDeployComposedStreamsWithTaxonomy(t *testing.T) {
+	skipUntilStreamCreationFeeFunded(t)
 	ctx := context.Background()
 	fixture := NewServerFixture(t)
 	err := fixture.Setup()

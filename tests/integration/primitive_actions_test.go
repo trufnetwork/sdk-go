@@ -17,6 +17,7 @@ import (
 // TestPrimitiveActions demonstrates the process of deploying, initializing, writing to,
 // and reading from a primitive action in TN using the TN SDK.
 func TestPrimitiveActions(t *testing.T) {
+	skipUntilStreamCreationFeeFunded(t)
 	ctx := context.Background()
 	fixture := NewServerFixture(t)
 	err := fixture.Setup()

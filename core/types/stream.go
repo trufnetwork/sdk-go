@@ -152,4 +152,38 @@ type IAction interface {
 
 	// GetWithdrawalProof retrieves the proofs and signatures needed to claim a withdrawal on EVM.
 	GetWithdrawalProof(ctx context.Context, input GetWithdrawalProofInput) ([]WithdrawalProof, error)
+
+	// --- Modular Agent Addresses (agent wallets) ---
+
+	// CreateAgentRule registers an agent-wallet rule (the caller becomes the restricted agent) and
+	// returns the locally-derived rule_id together with the submission transaction hash.
+	CreateAgentRule(ctx context.Context, input MAACreateRuleInput) (ruleID []byte, txHash string, err error)
+
+	// JoinAgentAddress joins an existing rule as the unrestricted owner/funder and returns the
+	// locally-derived MAA address (the wallet to fund) together with the submission transaction hash.
+	JoinAgentAddress(ctx context.Context, ruleID []byte) (maaAddress []byte, txHash string, err error)
+
+	// GetAgentRule returns a rule's terms (fee + commitment), or nil if no such rule exists.
+	GetAgentRule(ctx context.Context, ruleID []byte) (*MAARule, error)
+
+	// GetAgentRuleAllowedActions returns a rule's allow-list in canonical order.
+	GetAgentRuleAllowedActions(ctx context.Context, ruleID []byte) ([]MAAAllowedAction, error)
+
+	// GetAgentWallet returns an agent wallet and its two component keys, or nil if unknown.
+	GetAgentWallet(ctx context.Context, maaAddress []byte) (*MAAInstance, error)
+
+	// ListAgentRulesByRestricted lists the rules an agent created.
+	ListAgentRulesByRestricted(ctx context.Context, agent string, limit, offset int) ([]MAARuleRef, error)
+
+	// ListAgentWalletsByOwner lists the wallets an owner funded.
+	ListAgentWalletsByOwner(ctx context.Context, owner string, limit, offset int) ([]MAAOwnedWallet, error)
+
+	// ListAgentWalletsByRule lists every wallet funded under a rule.
+	ListAgentWalletsByRule(ctx context.Context, ruleID []byte, limit, offset int) ([]MAARuleWallet, error)
+
+	// GetAgentRuleEvents returns a rule's append-only audit log.
+	GetAgentRuleEvents(ctx context.Context, ruleID []byte, limit, offset int) ([]MAAEvent, error)
+
+	// IsAgentWallet reports whether an address is a known (joined) agent wallet.
+	IsAgentWallet(ctx context.Context, maaAddress []byte) (bool, error)
 }

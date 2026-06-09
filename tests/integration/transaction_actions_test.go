@@ -15,6 +15,7 @@ import (
 )
 
 func TestTransactionActions(t *testing.T) {
+	skipUntilStreamCreationFeeFunded(t)
 	ctx := context.Background()
 
 	// Setup test environment

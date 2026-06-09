@@ -16,6 +16,7 @@ import (
 
 // TestGetIndexChange demonstrates the GetIndexChange functionality with a primitive stream
 func TestGetIndexChange(t *testing.T) {
+	skipUntilStreamCreationFeeFunded(t)
 	ctx := context.Background()
 	fixture := NewServerFixture(t)
 	err := fixture.Setup()

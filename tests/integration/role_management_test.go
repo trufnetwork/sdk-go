@@ -15,6 +15,7 @@ import (
 
 // TestRoleManagement verifies granting and revoking the `system:network_writer` role.
 func TestRoleManagement(t *testing.T) {
+	skipUntilStreamCreationFeeFunded(t)
 	fixture := NewServerFixture(t)
 	err := fixture.Setup()
 	t.Cleanup(func() {
