@@ -105,10 +105,13 @@ func (s *Action) GetAgentRule(ctx context.Context, ruleID []byte) (*types.MAARul
 	if err != nil {
 		return nil, err
 	}
-	if len(res.Values) == 0 || len(res.Values[0]) < 7 {
-		return nil, nil
+	if len(res.Values) == 0 {
+		return nil, nil // no such rule
 	}
 	r := res.Values[0]
+	if len(r) < 7 {
+		return nil, fmt.Errorf("malformed maa_get_rule row: expected >=7 columns, got %d", len(r))
+	}
 	return &types.MAARule{
 		RuleID:         maaStr(r[0]),
 		RestrictedAddr: maaStr(r[1]),
@@ -129,7 +132,7 @@ func (s *Action) GetAgentRuleAllowedActions(ctx context.Context, ruleID []byte) 
 	out := make([]types.MAAAllowedAction, 0, len(res.Values))
 	for _, r := range res.Values {
 		if len(r) < 3 {
-			continue
+			return nil, fmt.Errorf("malformed maa_get_allowed_actions row: expected >=3 columns, got %d", len(r))
 		}
 		out = append(out, types.MAAAllowedAction{
 			Namespace: maaStr(r[0]),
@@ -147,10 +150,13 @@ func (s *Action) GetAgentWallet(ctx context.Context, maaAddress []byte) (*types.
 	if err != nil {
 		return nil, err
 	}
-	if len(res.Values) == 0 || len(res.Values[0]) < 5 {
-		return nil, nil
+	if len(res.Values) == 0 {
+		return nil, nil // not a known wallet
 	}
 	r := res.Values[0]
+	if len(r) < 5 {
+		return nil, fmt.Errorf("malformed maa_get_instance row: expected >=5 columns, got %d", len(r))
+	}
 	return &types.MAAInstance{
 		MAAAddress:       maaStr(r[0]),
 		RuleID:           maaStr(r[1]),
@@ -170,7 +176,7 @@ func (s *Action) ListAgentRulesByRestricted(ctx context.Context, agent string, l
 	out := make([]types.MAARuleRef, 0, len(res.Values))
 	for _, r := range res.Values {
 		if len(r) < 2 {
-			continue
+			return nil, fmt.Errorf("malformed maa_list_by_restricted row: expected >=2 columns, got %d", len(r))
 		}
 		out = append(out, types.MAARuleRef{RuleID: maaStr(r[0]), CreatedAt: maaInt64(r[1])})
 	}
@@ -187,7 +193,7 @@ func (s *Action) ListAgentWalletsByOwner(ctx context.Context, owner string, limi
 	out := make([]types.MAAOwnedWallet, 0, len(res.Values))
 	for _, r := range res.Values {
 		if len(r) < 3 {
-			continue
+			return nil, fmt.Errorf("malformed maa_list_by_unrestricted row: expected >=3 columns, got %d", len(r))
 		}
 		out = append(out, types.MAAOwnedWallet{
 			MAAAddress: maaStr(r[0]),
@@ -207,7 +213,7 @@ func (s *Action) ListAgentWalletsByRule(ctx context.Context, ruleID []byte, limi
 	out := make([]types.MAARuleWallet, 0, len(res.Values))
 	for _, r := range res.Values {
 		if len(r) < 3 {
-			continue
+			return nil, fmt.Errorf("malformed maa_list_instances_by_rule row: expected >=3 columns, got %d", len(r))
 		}
 		out = append(out, types.MAARuleWallet{
 			MAAAddress:       maaStr(r[0]),
@@ -227,7 +233,7 @@ func (s *Action) GetAgentRuleEvents(ctx context.Context, ruleID []byte, limit, o
 	out := make([]types.MAAEvent, 0, len(res.Values))
 	for _, r := range res.Values {
 		if len(r) < 11 {
-			continue
+			return nil, fmt.Errorf("malformed maa_get_events row: expected >=11 columns, got %d", len(r))
 		}
 		out = append(out, types.MAAEvent{
 			ID:             maaInt64(r[0]),
@@ -252,8 +258,11 @@ func (s *Action) IsAgentWallet(ctx context.Context, maaAddress []byte) (bool, er
 	if err != nil {
 		return false, err
 	}
-	if len(res.Values) == 0 || len(res.Values[0]) == 0 {
-		return false, nil
+	if len(res.Values) == 0 {
+		return false, nil // not a known wallet
+	}
+	if len(res.Values[0]) == 0 {
+		return false, fmt.Errorf("malformed maa_is_known row: expected >=1 column, got 0")
 	}
 	return maaBool(res.Values[0][0]), nil
 }
