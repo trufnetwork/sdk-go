@@ -198,6 +198,48 @@ func (a *TransportAction) GetWithdrawalProof(ctx context.Context, input clientTy
 	return nil, fmt.Errorf("GetWithdrawalProof not implemented for custom transports - use HTTP transport or implement if needed")
 }
 
+// --- Modular Agent Addresses (agent wallets) --- minimal transport stubs (use HTTP transport).
+
+func (a *TransportAction) CreateAgentRule(ctx context.Context, input clientType.MAACreateRuleInput) ([]byte, string, error) {
+	return nil, "", fmt.Errorf("CreateAgentRule not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
+func (a *TransportAction) JoinAgentAddress(ctx context.Context, ruleID []byte) ([]byte, string, error) {
+	return nil, "", fmt.Errorf("JoinAgentAddress not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
+func (a *TransportAction) GetAgentRule(ctx context.Context, ruleID []byte) (*clientType.MAARule, error) {
+	return nil, fmt.Errorf("GetAgentRule not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
+func (a *TransportAction) GetAgentRuleAllowedActions(ctx context.Context, ruleID []byte) ([]clientType.MAAAllowedAction, error) {
+	return nil, fmt.Errorf("GetAgentRuleAllowedActions not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
+func (a *TransportAction) GetAgentWallet(ctx context.Context, maaAddress []byte) (*clientType.MAAInstance, error) {
+	return nil, fmt.Errorf("GetAgentWallet not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
+func (a *TransportAction) ListAgentRulesByRestricted(ctx context.Context, agent string, limit, offset int) ([]clientType.MAARuleRef, error) {
+	return nil, fmt.Errorf("ListAgentRulesByRestricted not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
+func (a *TransportAction) ListAgentWalletsByOwner(ctx context.Context, owner string, limit, offset int) ([]clientType.MAAOwnedWallet, error) {
+	return nil, fmt.Errorf("ListAgentWalletsByOwner not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
+func (a *TransportAction) ListAgentWalletsByRule(ctx context.Context, ruleID []byte, limit, offset int) ([]clientType.MAARuleWallet, error) {
+	return nil, fmt.Errorf("ListAgentWalletsByRule not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
+func (a *TransportAction) GetAgentRuleEvents(ctx context.Context, ruleID []byte, limit, offset int) ([]clientType.MAAEvent, error) {
+	return nil, fmt.Errorf("GetAgentRuleEvents not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
+func (a *TransportAction) IsAgentWallet(ctx context.Context, maaAddress []byte) (bool, error) {
+	return false, fmt.Errorf("IsAgentWallet not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
 // TransportPrimitiveAction implements IPrimitiveAction interface using the Transport abstraction.
 // This allows primitive stream actions to work with any transport (HTTP, CRE, etc.).
 //
