@@ -20,6 +20,7 @@ import (
 // TestComposedStream demonstrates the process of deploying, initializing, and querying
 // a composed stream that aggregates data from multiple primitive streams in the TN using the TN SDK.
 func TestComposedActions(t *testing.T) {
+	skipUntilStreamCreationFeeFunded(t)
 	ctx := context.Background()
 	fixture := NewServerFixture(t)
 	err := fixture.Setup()

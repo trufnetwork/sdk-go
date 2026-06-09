@@ -18,6 +18,7 @@ import (
 )
 
 func TestBatchDeployAndExistenceOperations(t *testing.T) {
+	skipUntilStreamCreationFeeFunded(t)
 	fixture := NewServerFixture(t)
 	err := fixture.Setup()
 	t.Cleanup(func() {
