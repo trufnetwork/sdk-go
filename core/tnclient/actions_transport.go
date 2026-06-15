@@ -208,6 +208,10 @@ func (a *TransportAction) JoinAgentAddress(ctx context.Context, ruleID []byte) (
 	return nil, "", fmt.Errorf("JoinAgentAddress not implemented for custom transports - use HTTP transport or implement if needed")
 }
 
+func (a *TransportAction) ExecuteAgentAction(ctx context.Context, input clientType.MAAExecuteInput, opts ...kwilClientType.TxOpt) (string, error) {
+	return "", fmt.Errorf("ExecuteAgentAction not implemented for custom transports - use HTTP transport or implement if needed")
+}
+
 func (a *TransportAction) GetAgentRule(ctx context.Context, ruleID []byte) (*clientType.MAARule, error) {
 	return nil, fmt.Errorf("GetAgentRule not implemented for custom transports - use HTTP transport or implement if needed")
 }

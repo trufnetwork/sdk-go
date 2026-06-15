@@ -7,7 +7,10 @@ import (
 
 	"github.com/cockroachdb/apd/v3"
 	"github.com/pkg/errors"
+	kwilclient "github.com/trufnetwork/kwil-db/core/client"
+	kwilClientType "github.com/trufnetwork/kwil-db/core/client/types"
 	"github.com/trufnetwork/kwil-db/core/crypto/auth"
+	kwilTypes "github.com/trufnetwork/kwil-db/core/types"
 	"github.com/trufnetwork/sdk-go/core/types"
 	"github.com/trufnetwork/sdk-go/core/util"
 )
@@ -97,6 +100,50 @@ func (s *Action) JoinAgentAddress(ctx context.Context, ruleID []byte) (maaAddres
 		return nil, "", err
 	}
 	return maaAddress, hash.String(), nil
+}
+
+// buildMAAExec validates the input and constructs the maa_exec payload. It is factored out of
+// ExecuteAgentAction so the wire construction (address length, namespace normalization, argument
+// encoding) can be unit-tested without a network client. Arguments are encoded with the same helper
+// the client uses for ordinary action calls, so they match the node's expected EncodedValue layout.
+func buildMAAExec(input types.MAAExecuteInput) (*kwilTypes.MAAExec, error) {
+	if len(input.MAAAddress) != 20 {
+		return nil, errors.Errorf("maa_address must be 20 bytes, got %d", len(input.MAAAddress))
+	}
+	if input.Action == "" {
+		return nil, errors.New("action must not be empty")
+	}
+	namespace := input.Namespace
+	if namespace == "" {
+		namespace = "main" // mirror the route's empty-namespace normalization
+	}
+	args, err := kwilclient.EncodeInputs(input.Args)
+	if err != nil {
+		return nil, errors.Wrap(err, "encode maa_exec arguments")
+	}
+	return &kwilTypes.MAAExec{
+		MAAAddress: input.MAAAddress,
+		Namespace:  namespace,
+		Action:     input.Action,
+		Arguments:  args,
+	}, nil
+}
+
+// ExecuteAgentAction runs one allow-listed action AS the agent wallet (a maa_exec transaction). The
+// caller (signer) acts as its component key — restricted agent or unrestricted owner — and the node
+// rewrites @caller to the wallet after checking the rule's role and allow-list. The owner-exit
+// actions (maa_withdraw / maa_bridge_out) are reachable here for the unrestricted owner. Returns the
+// submission transaction hash.
+func (s *Action) ExecuteAgentAction(ctx context.Context, input types.MAAExecuteInput, opts ...kwilClientType.TxOpt) (txHash string, err error) {
+	payload, err := buildMAAExec(input)
+	if err != nil {
+		return "", err
+	}
+	hash, err := s._client.ExecutePayload(ctx, payload, opts...)
+	if err != nil {
+		return "", err
+	}
+	return hash.String(), nil
 }
 
 // GetAgentRule returns a rule's terms (maa_get_rule), or nil if no such rule exists.

@@ -19,6 +19,17 @@ type MAACreateRuleInput struct {
 	BodyHashes [][]byte // optional per-entry body-hash pins; nil (or a nil element) = unpinned.
 }
 
+// MAAExecuteInput holds the parameters for ExecuteAgentAction (a maa_exec transaction): run one
+// allow-listed action AS the agent wallet. The caller signs as its component key (restricted agent
+// or unrestricted owner); the node rewrites @caller to the wallet after checking the rule. The
+// owner-exit actions (maa_withdraw / maa_bridge_out) are reachable here for the unrestricted owner.
+type MAAExecuteInput struct {
+	MAAAddress []byte // the 20-byte agent-wallet address whose identity the action assumes.
+	Namespace  string // inner action namespace; "" is treated as "main".
+	Action     string // inner action name (must be allow-listed for the caller's role).
+	Args       []any  // inner action arguments (a single call).
+}
+
 // MAARule is a rule's terms (maa_get_rule).
 type MAARule struct {
 	RuleID         string // 32-byte content-hash identifier
