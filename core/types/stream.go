@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/cockroachdb/apd/v3"
+	kwilClientType "github.com/trufnetwork/kwil-db/core/client/types"
 	kwilType "github.com/trufnetwork/kwil-db/core/types"
 	"github.com/trufnetwork/kwil-db/node/types"
 	"github.com/trufnetwork/sdk-go/core/util"
@@ -162,6 +163,12 @@ type IAction interface {
 	// JoinAgentAddress joins an existing rule as the unrestricted owner/funder and returns the
 	// locally-derived MAA address (the wallet to fund) together with the submission transaction hash.
 	JoinAgentAddress(ctx context.Context, ruleID []byte) (maaAddress []byte, txHash string, err error)
+
+	// ExecuteAgentAction runs one allow-listed action AS the agent wallet (a maa_exec transaction).
+	// The caller signs as its component key (restricted agent or unrestricted owner); the node
+	// rewrites @caller to the wallet after checking the rule. Returns the submission transaction hash.
+	// Options can pin a nonce or wait for commit — useful for a bot submitting many actions.
+	ExecuteAgentAction(ctx context.Context, input MAAExecuteInput, opts ...kwilClientType.TxOpt) (txHash string, err error)
 
 	// GetAgentRule returns a rule's terms (fee + commitment), or nil if no such rule exists.
 	GetAgentRule(ctx context.Context, ruleID []byte) (*MAARule, error)
