@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/cockroachdb/apd/v3"
 	"github.com/pkg/errors"
 	kwilclient "github.com/trufnetwork/kwil-db/core/client"
 	kwilClientType "github.com/trufnetwork/kwil-db/core/client/types"
@@ -37,8 +36,12 @@ func (s *Action) CreateAgentRule(ctx context.Context, input types.MAACreateRuleI
 	if feeFlat == "" {
 		feeFlat = "0"
 	}
-	if _, _, derr := apd.NewFromString(feeFlat); derr != nil {
-		return nil, "", errors.Wrapf(derr, "invalid fee_flat %q", feeFlat)
+	// maa_create_rule declares $fee_flat NUMERIC(78,0); the engine type-checks action arguments against
+	// the declared type and does not coerce text to NUMERIC, so the fee is submitted as a decimal of
+	// exactly that precision/scale.
+	feeFlatNumeric, err := kwilTypes.ParseDecimalExplicit(feeFlat, 78, 0)
+	if err != nil {
+		return nil, "", errors.Wrapf(err, "fee_flat %q as NUMERIC(78,0)", feeFlat)
 	}
 
 	// Derive the rule_id locally from the same inputs the chain hashes (caller = restricted agent).
@@ -57,7 +60,7 @@ func (s *Action) CreateAgentRule(ctx context.Context, input types.MAACreateRuleI
 	}
 
 	// Args must match maa_create_rule($salt, $fee_mode, $fee_bps, $fee_flat, $namespaces, $actions, $body_hashes).
-	args := []any{input.Salt, input.FeeMode, input.FeeBps, feeFlat, input.Namespaces, input.Actions, input.BodyHashes}
+	args := []any{input.Salt, input.FeeMode, input.FeeBps, feeFlatNumeric, input.Namespaces, input.Actions, input.BodyHashes}
 	hash, err := s.execute(ctx, "maa_create_rule", [][]any{args})
 	if err != nil {
 		return nil, "", err
