@@ -120,6 +120,16 @@ type IOrderBook interface {
 	// Migration: 038-order-book-queries.sql:279-359
 	GetUserCollateral(ctx context.Context) (*UserCollateral, error)
 
+	// GetPositionsByWallet retrieves a wallet's portfolio by address (not @caller)
+	// Maps to: get_positions_by_wallet($wallet_address)
+	// Migration: 051-order-book-portfolio-by-wallet.sql
+	GetPositionsByWallet(ctx context.Context, input GetPositionsByWalletInput) ([]UserPosition, error)
+
+	// GetCollateralByWallet returns a wallet's locked collateral by address (not @caller)
+	// Maps to: get_collateral_by_wallet($wallet_address, $bridge)
+	// Migration: 051-order-book-portfolio-by-wallet.sql
+	GetCollateralByWallet(ctx context.Context, input GetCollateralByWalletInput) (*UserCollateral, error)
+
 	// ═══════════════════════════════════════════════════════════════
 	// SETTLEMENT & REWARDS
 	// ═══════════════════════════════════════════════════════════════
@@ -581,6 +591,54 @@ func (g *GetParticipantRewardHistoryInput) Validate() error {
 	_, err := hex.DecodeString(g.WalletHex[2:])
 	if err != nil {
 		return fmt.Errorf("wallet_hex contains invalid hex characters: %w", err)
+	}
+	return nil
+}
+
+// validateWalletHexArg validates a wallet-address argument for the
+// address-parameterized portfolio getters: 40 hex characters, with or without a
+// "0x"/"0X" prefix (the node action normalizes either form, so callers may pass
+// whichever they hold).
+func validateWalletHexArg(wallet string) error {
+	if wallet == "" {
+		return fmt.Errorf("wallet address is required")
+	}
+	h := wallet
+	if len(h) >= 2 && h[0] == '0' && (h[1] == 'x' || h[1] == 'X') {
+		h = h[2:]
+	}
+	if len(h) != 40 {
+		return fmt.Errorf("wallet address must be 40 hex characters (optionally 0x-prefixed), got %q", wallet)
+	}
+	if _, err := hex.DecodeString(h); err != nil {
+		return fmt.Errorf("wallet address contains invalid hex characters: %w", err)
+	}
+	return nil
+}
+
+// GetPositionsByWalletInput contains parameters for reading a wallet's positions by address.
+type GetPositionsByWalletInput struct {
+	WalletHex string // Ethereum address, with or without a 0x prefix
+}
+
+// Validate checks if GetPositionsByWalletInput is valid
+func (g *GetPositionsByWalletInput) Validate() error {
+	return validateWalletHexArg(g.WalletHex)
+}
+
+// GetCollateralByWalletInput contains parameters for reading a wallet's locked collateral by address.
+type GetCollateralByWalletInput struct {
+	WalletHex string // Ethereum address, with or without a 0x prefix
+	Bridge    string // Bridge namespace (e.g. eth_truf / hoodi_tt); required (per-bridge decimals)
+}
+
+// Validate checks if GetCollateralByWalletInput is valid
+func (g *GetCollateralByWalletInput) Validate() error {
+	if err := validateWalletHexArg(g.WalletHex); err != nil {
+		return err
+	}
+	if g.Bridge == "" {
+		return fmt.Errorf("bridge is required")
 	}
 	return nil
 }

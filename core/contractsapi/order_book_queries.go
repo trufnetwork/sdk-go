@@ -162,6 +162,70 @@ func (o *OrderBook) GetUserCollateral(ctx context.Context) (*types.UserCollatera
 	return collateral, nil
 }
 
+// GetPositionsByWallet retrieves a wallet's portfolio by address
+// Maps to: get_positions_by_wallet($wallet_address)
+// Migration: 051-order-book-portfolio-by-wallet.sql
+//
+// Unlike GetUserPositions (which reads @caller), this reads the wallet passed in,
+// so an owner can read an agent wallet's (MAA) positions without holding its key.
+func (o *OrderBook) GetPositionsByWallet(ctx context.Context, input types.GetPositionsByWalletInput) ([]types.UserPosition, error) {
+	if err := input.Validate(); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	args := []any{input.WalletHex}
+	result, err := o.call(ctx, "get_positions_by_wallet", args)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	var positions []types.UserPosition
+	for _, row := range result.Values {
+		position, err := parseUserPositionRow(row)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		positions = append(positions, position)
+	}
+
+	return positions, nil
+}
+
+// GetCollateralByWallet returns a wallet's total locked collateral by address
+// Maps to: get_collateral_by_wallet($wallet_address, $bridge)
+// Migration: 051-order-book-portfolio-by-wallet.sql
+//
+// Unlike GetUserCollateral (which reads @caller), this reads the wallet passed in.
+// bridge is required (per-bridge decimals).
+func (o *OrderBook) GetCollateralByWallet(ctx context.Context, input types.GetCollateralByWalletInput) (*types.UserCollateral, error) {
+	if err := input.Validate(); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	args := []any{input.WalletHex, input.Bridge}
+	result, err := o.call(ctx, "get_collateral_by_wallet", args)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	if len(result.Values) == 0 {
+		// No positions, return zeros
+		return &types.UserCollateral{
+			TotalLocked:     "0",
+			BuyOrdersLocked: "0",
+			SharesValue:     "0",
+		}, nil
+	}
+
+	row := result.Values[0]
+	collateral, err := parseUserCollateralRow(row)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return collateral, nil
+}
+
 // ═══════════════════════════════════════════════════════════════
 // PARSING HELPERS
 // ═══════════════════════════════════════════════════════════════
