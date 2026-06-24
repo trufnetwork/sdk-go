@@ -37,7 +37,7 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/binary"
+	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -92,6 +92,10 @@ func run(ctx context.Context) error {
 	feeBps, err := strconv.Atoi(getenv("MAA_FEE_BPS", "250")) // owner-withdraw commission to the agent
 	if err != nil {
 		return fmt.Errorf("MAA_FEE_BPS must be an integer: %w", err)
+	}
+	if feeBps < 0 || feeBps > 10000 {
+		// Fail fast: the same range CreateAgentRule enforces, but before we construct clients.
+		return fmt.Errorf("MAA_FEE_BPS must be between 0 and 10000 (10000 = 100%%), got %d", feeBps)
 	}
 	// Order-book collateral bridge for get_collateral_by_wallet (migration 051). This is the bridge the
 	// order-book MARKETS settle in (hoodi_tt2 / sepolia_bridge / ethereum_bridge on dev/testnet), NOT
@@ -477,8 +481,8 @@ func waitOK(ctx context.Context, client *tnclient.Client, txHash, label string) 
 }
 
 // buildSalt returns the 32-byte rule salt. With saltHex set (64 hex chars, optional 0x) it is pinned
-// for a reproducible rule_id; otherwise a fresh, nanosecond-derived salt makes each run register a new
-// rule/MAA so re-running never collides with an already-registered rule.
+// for a reproducible rule_id; otherwise a fresh, random salt makes each run register a new rule/MAA so
+// re-running never collides with an already-registered rule.
 func buildSalt(saltHex string) ([]byte, error) {
 	if saltHex != "" {
 		b, err := hex.DecodeString(strings.TrimPrefix(saltHex, "0x"))
@@ -490,9 +494,13 @@ func buildSalt(saltHex string) ([]byte, error) {
 		}
 		return b, nil
 	}
+	// Fill the 29 bytes after the "MAA" tag with cryptographic randomness, so each run gets a unique
+	// rule_id with no chance of a time-based collision between nearby runs.
 	salt := make([]byte, 32)
 	copy(salt, "MAA")
-	binary.BigEndian.PutUint64(salt[3:11], uint64(time.Now().UnixNano()))
+	if _, err := rand.Read(salt[3:]); err != nil {
+		return nil, fmt.Errorf("generate salt: %w", err)
+	}
 	return salt, nil
 }
 
@@ -516,6 +524,12 @@ func loadDotenv(path string) {
 		if _, ok := os.LookupEnv(key); !ok {
 			_ = os.Setenv(key, val)
 		}
+	}
+	// Surface a truncated/over-long read instead of silently dropping config (a missing var would
+	// otherwise resurface later as a confusing "must be set"). A read-only Close has no meaningful
+	// error, so the deferred close stays best-effort.
+	if err := sc.Err(); err != nil {
+		log.Printf("warning: reading %s stopped early: %v", path, err)
 	}
 }
 
