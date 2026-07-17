@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
+	kwilTypes "github.com/trufnetwork/kwil-db/core/types"
 	"github.com/trufnetwork/sdk-go/core/types"
 )
 
@@ -226,6 +227,53 @@ func (o *OrderBook) GetCollateralByWallet(ctx context.Context, input types.GetCo
 	return collateral, nil
 }
 
+// GetOrderedBalances returns a token's wallets ordered by balance — a richlist.
+// Maps to: get_ordered_balances($token, $ascending, $limit, $min_balance)
+// Migration: 053-order-book-richlist.sql
+//
+// token is 'TRUF' or 'USDC' (case-insensitive). ascending false returns the
+// largest holders first. A zero Limit uses the node default (20); the node caps
+// it at 50. An empty MinBalance means no threshold (0). Balances are token base
+// units (18 decimals TRUF, 6 decimals USDC); addresses are '0x'-lowercase hex.
+func (o *OrderBook) GetOrderedBalances(ctx context.Context, input types.GetOrderedBalancesInput) ([]types.WalletBalance, error) {
+	if err := input.Validate(); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	limit := input.Limit
+	if limit == 0 {
+		limit = 20
+	}
+
+	// $min_balance is NUMERIC(78,0). "" (no threshold) maps to 0, which the action
+	// treats identically to NULL (balances are always >= 0).
+	minBalance := input.MinBalance
+	if minBalance == "" {
+		minBalance = "0"
+	}
+	threshold, err := kwilTypes.ParseDecimalExplicit(minBalance, 78, 0)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	args := []any{input.Token, input.Ascending, limit, threshold}
+	result, err := o.call(ctx, "get_ordered_balances", args)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	var balances []types.WalletBalance
+	for _, row := range result.Values {
+		balance, err := parseWalletBalanceRow(row)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		balances = append(balances, balance)
+	}
+
+	return balances, nil
+}
+
 // ═══════════════════════════════════════════════════════════════
 // PARSING HELPERS
 // ═══════════════════════════════════════════════════════════════
@@ -397,4 +445,26 @@ func parseUserCollateralRow(row []any) (*types.UserCollateral, error) {
 	}
 
 	return collateral, nil
+}
+
+// parseWalletBalanceRow parses a row from get_ordered_balances
+// Row format: address, balance
+func parseWalletBalanceRow(row []any) (types.WalletBalance, error) {
+	if len(row) < 2 {
+		return types.WalletBalance{}, fmt.Errorf("invalid row: expected 2 columns, got %d", len(row))
+	}
+
+	balance := types.WalletBalance{}
+
+	// Column 0: address (TEXT, '0x'-prefixed hex)
+	if err := extractStringColumn(row[0], &balance.Address, 0, "address"); err != nil {
+		return balance, err
+	}
+
+	// Column 1: balance (NUMERIC(78,0) as string)
+	if err := extractStringColumn(row[1], &balance.Balance, 1, "balance"); err != nil {
+		return balance, err
+	}
+
+	return balance, nil
 }

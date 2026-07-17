@@ -53,3 +53,33 @@ func TestGetCollateralByWalletInput_Validate(t *testing.T) {
 		})
 	}
 }
+
+// The richlist getter accepts TRUF/USDC case-insensitively, a non-negative limit,
+// and an optional numeric threshold.
+func TestGetOrderedBalancesInput_Validate(t *testing.T) {
+	cases := []struct {
+		name    string
+		input   GetOrderedBalancesInput
+		wantErr bool
+	}{
+		{"TRUF default", GetOrderedBalancesInput{Token: "TRUF"}, false},
+		{"usdc lowercase", GetOrderedBalancesInput{Token: "usdc"}, false},
+		{"token with whitespace", GetOrderedBalancesInput{Token: " TRUF "}, false},
+		{"with limit and threshold", GetOrderedBalancesInput{Token: "USDC", Limit: 50, MinBalance: "1000000000000000000"}, false},
+		{"unknown token", GetOrderedBalancesInput{Token: "DOGE"}, true},
+		{"empty token", GetOrderedBalancesInput{Token: ""}, true},
+		{"negative limit", GetOrderedBalancesInput{Token: "TRUF", Limit: -1}, true},
+		{"non-numeric threshold", GetOrderedBalancesInput{Token: "TRUF", MinBalance: "abc"}, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := c.input.Validate()
+			if c.wantErr && err == nil {
+				t.Fatalf("Validate(%+v) = nil, want error", c.input)
+			}
+			if !c.wantErr && err != nil {
+				t.Fatalf("Validate(%+v) = %v, want nil", c.input, err)
+			}
+		})
+	}
+}

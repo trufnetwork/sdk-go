@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
-	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
+	"github.com/cockroachdb/apd/v3"
 	kwilClientType "github.com/trufnetwork/kwil-db/core/client/types"
+	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
 )
 
 // ═══════════════════════════════════════════════════════════════
@@ -129,6 +131,11 @@ type IOrderBook interface {
 	// Maps to: get_collateral_by_wallet($wallet_address, $bridge)
 	// Migration: 051-order-book-portfolio-by-wallet.sql
 	GetCollateralByWallet(ctx context.Context, input GetCollateralByWalletInput) (*UserCollateral, error)
+
+	// GetOrderedBalances returns a token's wallets ordered by balance (a richlist)
+	// Maps to: get_ordered_balances($token, $ascending, $limit, $min_balance)
+	// Migration: 053-order-book-richlist.sql
+	GetOrderedBalances(ctx context.Context, input GetOrderedBalancesInput) ([]WalletBalance, error)
 
 	// ═══════════════════════════════════════════════════════════════
 	// SETTLEMENT & REWARDS
@@ -643,6 +650,32 @@ func (g *GetCollateralByWalletInput) Validate() error {
 	return nil
 }
 
+// GetOrderedBalancesInput contains parameters for reading a token's wallets ordered by balance.
+type GetOrderedBalancesInput struct {
+	Token      string // 'TRUF' or 'USDC' (case-insensitive)
+	Ascending  bool   // false = largest first (richlist); true = smallest first
+	Limit      int    // rows to return; 0 = default 20; hard-capped at 50 by the node
+	MinBalance string // optional threshold in token base units (NUMERIC string); "" = no threshold
+}
+
+// Validate checks if GetOrderedBalancesInput is valid.
+func (g *GetOrderedBalancesInput) Validate() error {
+	switch strings.ToUpper(strings.TrimSpace(g.Token)) {
+	case "TRUF", "USDC":
+	default:
+		return fmt.Errorf("token must be TRUF or USDC, got %q", g.Token)
+	}
+	if g.Limit < 0 {
+		return fmt.Errorf("limit must not be negative, got %d", g.Limit)
+	}
+	if g.MinBalance != "" {
+		if _, _, err := apd.NewFromString(g.MinBalance); err != nil {
+			return fmt.Errorf("min_balance must be a numeric string: %w", err)
+		}
+	}
+	return nil
+}
+
 // ═══════════════════════════════════════════════════════════════
 // OUTPUT TYPES - MARKET OPERATIONS
 // ═══════════════════════════════════════════════════════════════
@@ -727,6 +760,12 @@ type UserCollateral struct {
 	TotalLocked     string // NUMERIC(78,0) as string - total locked collateral in wei
 	BuyOrdersLocked string // NUMERIC(78,0) as string - collateral locked in buy orders
 	SharesValue     string // NUMERIC(78,0) as string - value of shares at $1.00 per share
+}
+
+// WalletBalance is one row of a token's ordered balances (richlist).
+type WalletBalance struct {
+	Address string // '0x'-prefixed lowercase hex address (TEXT)
+	Balance string // NUMERIC(78,0) as string - token base units
 }
 
 // ═══════════════════════════════════════════════════════════════
