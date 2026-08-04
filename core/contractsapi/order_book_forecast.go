@@ -41,7 +41,8 @@ func (o *OrderBook) GetMarketForecast(ctx context.Context, input types.GetMarket
 	}
 
 	books := make([]forecast.BucketDepth, 0, len(input.QueryIDs))
-	for _, queryID := range input.QueryIDs {
+	identity := ""
+	for i, queryID := range input.QueryIDs {
 		info, err := o.GetMarketInfo(ctx, types.GetMarketInfoInput{QueryID: queryID})
 		if err != nil {
 			return nil, errors.WithStack(err)
@@ -55,6 +56,23 @@ func (o *OrderBook) GetMarketForecast(ctx context.Context, input types.GetMarket
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to decode market %d", queryID)
 		}
+
+		// Buckets of one market differ only in their strike: they share a data
+		// provider, a stream and a settlement time. Forecasting across two
+		// events would normalise unrelated probabilities into one distribution
+		// and return a confident number about nothing, so it is rejected rather
+		// than warned about.
+		thisIdentity := marketIdentity(market, info.SettleTime)
+		if i == 0 {
+			identity = thisIdentity
+		} else if thisIdentity != identity {
+			return nil, errors.Errorf(
+				"market %d belongs to a different event than the first bucket: "+
+					"(data_provider, stream_id, settle_time) is %s against %s. "+
+					"One forecast covers the buckets of ONE market.",
+				queryID, thisIdentity, identity)
+		}
+
 		lower, upper, err := BucketBoundsFromMarketData(market)
 		if err != nil {
 			return nil, errors.Wrapf(err, "market %d", queryID)
@@ -129,6 +147,15 @@ func forecastFromBooks(books []forecast.BucketDepth) *forecast.MarketForecast {
 	}
 	result.Warnings = append(layout, result.Warnings...)
 	return result
+}
+
+// marketIdentity is the part of a market's definition that every bucket of one
+// market shares. Buckets differ only in their strike, so anything outside the
+// strike identifies the event itself.
+//
+// Kept as a pure function so the comparison can be tested without a node.
+func marketIdentity(market *MarketData, settleTime int64) string {
+	return fmt.Sprintf("%s|%s|%d", market.DataProvider, market.StreamID, settleTime)
 }
 
 // sameBound reports whether two optional bounds describe the same edge. Two

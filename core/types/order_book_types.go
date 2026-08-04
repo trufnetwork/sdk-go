@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"time"
 
 	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
@@ -535,10 +536,24 @@ func (g *GetMarketForecastInput) Validate() error {
 		return fmt.Errorf(
 			"a market forecast needs at least 2 bucket query_ids, got %d", len(g.QueryIDs))
 	}
+	counts := make(map[int]int, len(g.QueryIDs))
 	for _, queryID := range g.QueryIDs {
 		if queryID < 1 {
 			return fmt.Errorf("query_id must be positive, got %d", queryID)
 		}
+		counts[queryID]++
+	}
+	var repeated []int
+	for queryID, n := range counts {
+		if n > 1 {
+			repeated = append(repeated, queryID)
+		}
+	}
+	if len(repeated) > 0 {
+		sort.Ints(repeated)
+		return fmt.Errorf(
+			"duplicate bucket query_ids %v; a repeated bucket would have its "+
+				"probability counted twice", repeated)
 	}
 	return nil
 }

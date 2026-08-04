@@ -316,6 +316,64 @@ func TestGetMarketForecastInput_SingleBucketIsRejected(t *testing.T) {
 	assert.Contains(t, err.Error(), "at least 2")
 }
 
+func TestGetMarketForecastInput_DuplicateQueryIDsAreRejected(t *testing.T) {
+	// A repeated bucket would have its probability counted twice, quietly
+	// reshaping the distribution rather than failing.
+	input := types.GetMarketForecastInput{QueryIDs: []int{101, 102, 103, 103}}
+	err := input.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate")
+	assert.Contains(t, err.Error(), "103")
+}
+
+func TestGetMarketForecastInput_RepeatsAreReportedOnceAndSorted(t *testing.T) {
+	input := types.GetMarketForecastInput{QueryIDs: []int{105, 103, 105, 103, 105}}
+	err := input.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "[103 105]")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MARKET IDENTITY
+// ═══════════════════════════════════════════════════════════════
+
+func TestMarketIdentity_BucketsOfOneMarketShareAnIdentity(t *testing.T) {
+	// Buckets differ only in their strike, so every bucket of one market must
+	// produce the same identity.
+	const settleTime = int64(1756771200)
+	base := MarketData{DataProvider: "0xabc", StreamID: "stmsft"}
+
+	below := base
+	below.Type, below.Thresholds = "below", []string{"4.04"}
+	between := base
+	between.Type, between.Thresholds = "between", []string{"4.04", "4.33"}
+	above := base
+	above.Type, above.Thresholds = "above", []string{"4.92"}
+
+	want := marketIdentity(&below, settleTime)
+	assert.Equal(t, want, marketIdentity(&between, settleTime))
+	assert.Equal(t, want, marketIdentity(&above, settleTime))
+}
+
+func TestMarketIdentity_DiffersOnEveryEventField(t *testing.T) {
+	// Each field that changes describes a different event, so mixing those
+	// buckets into one distribution would normalise unrelated probabilities.
+	const settleTime = int64(1756771200)
+	base := MarketData{DataProvider: "0xabc", StreamID: "stmsft", Type: "below",
+		Thresholds: []string{"4.04"}}
+	want := marketIdentity(&base, settleTime)
+
+	otherProvider := base
+	otherProvider.DataProvider = "0xdef"
+	assert.NotEqual(t, want, marketIdentity(&otherProvider, settleTime))
+
+	otherStream := base
+	otherStream.StreamID = "stnvda"
+	assert.NotEqual(t, want, marketIdentity(&otherStream, settleTime))
+
+	assert.NotEqual(t, want, marketIdentity(&base, settleTime+1))
+}
+
 func TestGetMarketForecastInput_NonPositiveQueryIDIsRejected(t *testing.T) {
 	input := types.GetMarketForecastInput{QueryIDs: []int{101, 0}}
 	require.Error(t, input.Validate())
