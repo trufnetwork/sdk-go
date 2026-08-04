@@ -1903,6 +1903,8 @@ type MarketData struct {
     ActionID     string   `json:"action_id"`
     Type         string   `json:"type"`       // "above", "below", "between", "equals" or "unknown"
     Thresholds   []string `json:"thresholds"` // Formatted numeric values as strings
+    Timestamp    *int64   `json:"timestamp"`  // Query observation time, unix seconds
+    FrozenAt     *int64   `json:"frozen_at"`  // Pinned block height; nil means latest
 }
 ```
 
@@ -1953,7 +1955,9 @@ One forecast covers the buckets of **one** market. A repeated query ID would
 have its bucket counted twice, and mixing two markets would normalise unrelated
 probabilities into a single distribution — both are rejected rather than
 warned about. Buckets of one market differ only in their strike, so the identity
-compared is `(data_provider, stream_id, settle_time)`.
+compared is `(data_provider, stream_id, settle_time, timestamp, frozen_at)` —
+the query's own time is included because two markets can settle at the same
+moment while observing the stream at different points.
 
 **Cost:** two order-book reads plus one market-info read per bucket. Both the
 YES and NO books are fetched, because on this venue a resting BUY NO at *p* is

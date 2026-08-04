@@ -359,8 +359,9 @@ func TestMarketIdentity_DiffersOnEveryEventField(t *testing.T) {
 	// Each field that changes describes a different event, so mixing those
 	// buckets into one distribution would normalise unrelated probabilities.
 	const settleTime = int64(1756771200)
+	queryTime := int64(1756771200)
 	base := MarketData{DataProvider: "0xabc", StreamID: "stmsft", Type: "below",
-		Thresholds: []string{"4.04"}}
+		Thresholds: []string{"4.04"}, Timestamp: &queryTime}
 	want := marketIdentity(&base, settleTime)
 
 	otherProvider := base
@@ -372,6 +373,60 @@ func TestMarketIdentity_DiffersOnEveryEventField(t *testing.T) {
 	assert.NotEqual(t, want, marketIdentity(&otherStream, settleTime))
 
 	assert.NotEqual(t, want, marketIdentity(&base, settleTime+1))
+
+	// The case settle_time alone cannot see: same provider, same stream, same
+	// settlement, but observing the stream at a different point.
+	laterQuery := queryTime + 86400
+	otherQueryTime := base
+	otherQueryTime.Timestamp = &laterQuery
+	assert.NotEqual(t, want, marketIdentity(&otherQueryTime, settleTime))
+
+	frozen := int64(12345)
+	otherFrozen := base
+	otherFrozen.FrozenAt = &frozen
+	assert.NotEqual(t, want, marketIdentity(&otherFrozen, settleTime),
+		"a pinned block height is a different query than 'latest'")
+}
+
+func TestDecodeMarketData_CarriesTheQueryTime(t *testing.T) {
+	// Timestamp is argument 2 for every binary action; frozen_at is last, and
+	// NULL there means "latest" rather than a decode failure.
+	const dataProvider = "0x4710a8d8f0d845da110086812a32de6d90d7ff5c"
+	const streamID = "stmsft00000000000000000000000000"
+	const queryTime = int64(1700000000)
+
+	args, err := EncodeActionArgs([]any{dataProvider, streamID, queryTime, "4.04", nil})
+	require.NoError(t, err)
+	encoded, err := EncodeQueryComponents(dataProvider, streamID, "price_below_threshold", args)
+	require.NoError(t, err)
+
+	market, err := DecodeMarketData(encoded)
+	require.NoError(t, err)
+	require.NotNil(t, market.Timestamp)
+	assert.Equal(t, queryTime, *market.Timestamp)
+	assert.Nil(t, market.FrozenAt, "NULL frozen_at means latest")
+}
+
+func TestDecodeMarketData_CarriesTheQueryTimeForRangeMarkets(t *testing.T) {
+	// Range markets carry two thresholds, so frozen_at sits one index later.
+	const dataProvider = "0x4710a8d8f0d845da110086812a32de6d90d7ff5c"
+	const streamID = "stmsft00000000000000000000000000"
+	const queryTime = int64(1700000000)
+	const frozenAt = int64(987654)
+
+	args, err := EncodeActionArgs(
+		[]any{dataProvider, streamID, queryTime, "4.04", "4.33", frozenAt})
+	require.NoError(t, err)
+	encoded, err := EncodeQueryComponents(dataProvider, streamID, "value_in_range", args)
+	require.NoError(t, err)
+
+	market, err := DecodeMarketData(encoded)
+	require.NoError(t, err)
+	assert.Equal(t, "between", market.Type)
+	require.NotNil(t, market.Timestamp)
+	assert.Equal(t, queryTime, *market.Timestamp)
+	require.NotNil(t, market.FrozenAt)
+	assert.Equal(t, frozenAt, *market.FrozenAt)
 }
 
 func TestGetMarketForecastInput_NonPositiveQueryIDIsRejected(t *testing.T) {

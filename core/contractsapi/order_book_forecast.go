@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 
 	"github.com/pkg/errors"
 	"github.com/trufnetwork/sdk-go/core/forecast"
@@ -58,17 +59,17 @@ func (o *OrderBook) GetMarketForecast(ctx context.Context, input types.GetMarket
 		}
 
 		// Buckets of one market differ only in their strike: they share a data
-		// provider, a stream and a settlement time. Forecasting across two
-		// events would normalise unrelated probabilities into one distribution
-		// and return a confident number about nothing, so it is rejected rather
-		// than warned about.
+		// provider, a stream, a settlement time and the query time they observe.
+		// Forecasting across two events would normalise unrelated probabilities
+		// into one distribution and return a confident number about nothing, so
+		// it is rejected rather than warned about.
 		thisIdentity := marketIdentity(market, info.SettleTime)
 		if i == 0 {
 			identity = thisIdentity
 		} else if thisIdentity != identity {
 			return nil, errors.Errorf(
 				"market %d belongs to a different event than the first bucket: "+
-					"(data_provider, stream_id, settle_time) is %s against %s. "+
+					"(data_provider, stream_id, settle_time, timestamp, frozen_at) is %s against %s. "+
 					"One forecast covers the buckets of ONE market.",
 				queryID, thisIdentity, identity)
 		}
@@ -153,9 +154,26 @@ func forecastFromBooks(books []forecast.BucketDepth) *forecast.MarketForecast {
 // market shares. Buckets differ only in their strike, so anything outside the
 // strike identifies the event itself.
 //
+// The query's own timestamp and frozen_at are included, not just the settlement
+// time: two markets can settle at the same moment while observing the stream at
+// different points, and merging those would be exactly the mistake this guards
+// against. On mainnet today the settle time and the query timestamp happen to
+// coincide, which is why this costs nothing in practice.
+//
 // Kept as a pure function so the comparison can be tested without a node.
 func marketIdentity(market *MarketData, settleTime int64) string {
-	return fmt.Sprintf("%s|%s|%d", market.DataProvider, market.StreamID, settleTime)
+	return fmt.Sprintf("%s|%s|%d|%s|%s",
+		market.DataProvider, market.StreamID, settleTime,
+		formatOptionalInt64(market.Timestamp), formatOptionalInt64(market.FrozenAt))
+}
+
+// formatOptionalInt64 renders a nullable INT8 for the identity string. "null"
+// is a distinct value: frozen_at uses it to mean "latest".
+func formatOptionalInt64(v *int64) string {
+	if v == nil {
+		return "null"
+	}
+	return strconv.FormatInt(*v, 10)
 }
 
 // sameBound reports whether two optional bounds describe the same edge. Two
