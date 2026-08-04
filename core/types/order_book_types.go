@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"time"
 
 	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
 	kwilClientType "github.com/trufnetwork/kwil-db/core/client/types"
+	"github.com/trufnetwork/sdk-go/core/forecast"
 )
 
 // ═══════════════════════════════════════════════════════════════
@@ -114,6 +116,17 @@ type IOrderBook interface {
 	// Maps to: get_best_prices($query_id, $outcome)
 	// Migration: 038-order-book-queries.sql:219-268
 	GetBestPrices(ctx context.Context, input GetBestPricesInput) (*BestPrices, error)
+
+	// GetMarketForecast collapses a market's bucket books into the single value
+	// they imply: the median of the implied distribution, plus the band around it.
+	//
+	// Composed of get_market_info and get_order_book calls rather than mapping to
+	// one action. Both the YES and NO books are read, because on this venue a
+	// resting BUY NO at p is hittable by a BUY YES at 100-p (mint match), so NO
+	// liquidity is executable YES liquidity.
+	//
+	// Returns a nil forecast, and no error, when no bucket has a usable quote.
+	GetMarketForecast(ctx context.Context, input GetMarketForecastInput) (*forecast.MarketForecast, error)
 
 	// GetUserCollateral returns caller's total locked collateral value
 	// Maps to: get_user_collateral()
@@ -506,6 +519,41 @@ type GetBestPricesInput struct {
 func (g *GetBestPricesInput) Validate() error {
 	if g.QueryID < 1 {
 		return fmt.Errorf("query_id must be positive, got %d", g.QueryID)
+	}
+	return nil
+}
+
+// GetMarketForecastInput contains parameters for forecasting a market
+type GetMarketForecastInput struct {
+	// QueryIDs are the bucket market IDs of ONE market. Order does not matter;
+	// they are sorted by bound internally.
+	QueryIDs []int
+}
+
+// Validate checks if GetMarketForecastInput is valid
+func (g *GetMarketForecastInput) Validate() error {
+	if len(g.QueryIDs) < 2 {
+		return fmt.Errorf(
+			"a market forecast needs at least 2 bucket query_ids, got %d", len(g.QueryIDs))
+	}
+	counts := make(map[int]int, len(g.QueryIDs))
+	for _, queryID := range g.QueryIDs {
+		if queryID < 1 {
+			return fmt.Errorf("query_id must be positive, got %d", queryID)
+		}
+		counts[queryID]++
+	}
+	var repeated []int
+	for queryID, n := range counts {
+		if n > 1 {
+			repeated = append(repeated, queryID)
+		}
+	}
+	if len(repeated) > 0 {
+		sort.Ints(repeated)
+		return fmt.Errorf(
+			"duplicate bucket query_ids %v; a repeated bucket would have its "+
+				"probability counted twice", repeated)
 	}
 	return nil
 }
