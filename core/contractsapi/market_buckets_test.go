@@ -350,9 +350,9 @@ func TestMarketIdentity_BucketsOfOneMarketShareAnIdentity(t *testing.T) {
 	above := base
 	above.Type, above.Thresholds = "above", []string{"4.92"}
 
-	want := marketIdentity(&below, settleTime)
-	assert.Equal(t, want, marketIdentity(&between, settleTime))
-	assert.Equal(t, want, marketIdentity(&above, settleTime))
+	want := marketIdentity(&below, "eth_usdc", settleTime)
+	assert.Equal(t, want, marketIdentity(&between, "eth_usdc", settleTime))
+	assert.Equal(t, want, marketIdentity(&above, "eth_usdc", settleTime))
 }
 
 func TestMarketIdentity_DiffersOnEveryEventField(t *testing.T) {
@@ -362,30 +362,98 @@ func TestMarketIdentity_DiffersOnEveryEventField(t *testing.T) {
 	queryTime := int64(1756771200)
 	base := MarketData{DataProvider: "0xabc", StreamID: "stmsft", Type: "below",
 		Thresholds: []string{"4.04"}, Timestamp: &queryTime}
-	want := marketIdentity(&base, settleTime)
+	want := marketIdentity(&base, "eth_usdc", settleTime)
 
 	otherProvider := base
 	otherProvider.DataProvider = "0xdef"
-	assert.NotEqual(t, want, marketIdentity(&otherProvider, settleTime))
+	assert.NotEqual(t, want, marketIdentity(&otherProvider, "eth_usdc", settleTime))
 
 	otherStream := base
 	otherStream.StreamID = "stnvda"
-	assert.NotEqual(t, want, marketIdentity(&otherStream, settleTime))
+	assert.NotEqual(t, want, marketIdentity(&otherStream, "eth_usdc", settleTime))
 
-	assert.NotEqual(t, want, marketIdentity(&base, settleTime+1))
+	assert.NotEqual(t, want, marketIdentity(&base, "eth_usdc", settleTime+1))
 
 	// The case settle_time alone cannot see: same provider, same stream, same
 	// settlement, but observing the stream at a different point.
 	laterQuery := queryTime + 86400
 	otherQueryTime := base
 	otherQueryTime.Timestamp = &laterQuery
-	assert.NotEqual(t, want, marketIdentity(&otherQueryTime, settleTime))
+	assert.NotEqual(t, want, marketIdentity(&otherQueryTime, "eth_usdc", settleTime))
 
 	frozen := int64(12345)
 	otherFrozen := base
 	otherFrozen.FrozenAt = &frozen
-	assert.NotEqual(t, want, marketIdentity(&otherFrozen, settleTime),
+	assert.NotEqual(t, want, marketIdentity(&otherFrozen, "eth_usdc", settleTime),
 		"a pinned block height is a different query than 'latest'")
+
+	// The bridge is the one identity field that lives outside the query
+	// components, so an identical question can be collateralised two ways.
+	assert.NotEqual(t, want, marketIdentity(&base, "eth_truf", settleTime),
+		"the same question on a different bridge is a separate market")
+}
+
+func TestRequireQueryTime_UnreadableTimestampIsRejected(t *testing.T) {
+	// The identity renders a nil timestamp as "null", so two malformed markets
+	// would collide there and merge. Refusing them is the point.
+	err := requireQueryTime(101, &MarketData{Type: "below", Thresholds: []string{"4.04"}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no readable query timestamp")
+
+	queryTime := int64(1700000000)
+	assert.NoError(t, requireQueryTime(101,
+		&MarketData{Type: "below", Thresholds: []string{"4.04"}, Timestamp: &queryTime}))
+
+	// frozen_at stays legitimately nil: NULL there means "latest".
+	assert.NoError(t, requireQueryTime(101, &MarketData{
+		Type: "below", Thresholds: []string{"4.04"},
+		Timestamp: &queryTime, FrozenAt: nil,
+	}))
+
+	// An unknown action has an unknown layout, so argument 2 need not be a
+	// timestamp; the bounds derivation rejects it with a better message.
+	assert.NoError(t, requireQueryTime(101, &MarketData{Type: "unknown"}))
+}
+
+func TestRequireQueryTime_TwoUnreadableMarketsWouldHaveCollided(t *testing.T) {
+	// Demonstrates what the guard prevents: without it these two distinct
+	// markets share an identity, because both timestamps render as "null".
+	a := MarketData{DataProvider: "0xabc", StreamID: "stmsft", Type: "below"}
+	b := MarketData{DataProvider: "0xabc", StreamID: "stmsft", Type: "below"}
+	assert.Equal(t, marketIdentity(&a, "eth_usdc", 1), marketIdentity(&b, "eth_usdc", 1),
+		"identity cannot tell them apart, which is why they must be refused")
+	require.Error(t, requireQueryTime(101, &a))
+}
+
+func TestBucketBounds_NonFiniteThresholdsAreRejected(t *testing.T) {
+	// ParseFloat accepts these without complaint; left alone they surface as a
+	// NaN forecast rather than as an unreadable market.
+	for _, threshold := range []string{"NaN", "Inf", "+Inf", "-Inf"} {
+		_, _, err := BucketBoundsFromMarketData(
+			&MarketData{Type: "below", Thresholds: []string{threshold}})
+		require.Error(t, err, "threshold %q", threshold)
+		assert.Contains(t, err.Error(), "not finite")
+	}
+}
+
+func TestBucketBounds_InvertedBetweenBucketIsRejected(t *testing.T) {
+	// Bounds are half-open [lower, upper): equal bounds are empty and inverted
+	// ones can never hold an outcome.
+	for _, thresholds := range [][]string{{"4.62", "4.33"}, {"4.33", "4.33"}} {
+		_, _, err := BucketBoundsFromMarketData(
+			&MarketData{Type: "between", Thresholds: thresholds})
+		require.Error(t, err, "thresholds %v", thresholds)
+		assert.Contains(t, err.Error(), "lower < upper")
+	}
+}
+
+func TestBucketBounds_NonPositiveEqualsToleranceIsRejected(t *testing.T) {
+	for _, tolerance := range []string{"0", "-0.10"} {
+		_, _, err := BucketBoundsFromMarketData(
+			&MarketData{Type: "equals", Thresholds: []string{"5.25", tolerance}})
+		require.Error(t, err, "tolerance %q", tolerance)
+		assert.Contains(t, err.Error(), "positive tolerance")
+	}
 }
 
 func TestDecodeMarketData_CarriesTheQueryTime(t *testing.T) {

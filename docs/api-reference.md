@@ -1918,7 +1918,7 @@ $2.14". The `core/forecast` package inverts that, collapsing the order books
 across every bucket of one market into the single number they collectively
 imply.
 
-```
+```text
 market says                     ->  forecast says
 "34% between 2.06 and 2.21"         "2.14, p10..p90 1.91..2.38"
 ```
@@ -1987,8 +1987,14 @@ if f == nil {
     return
 }
 
-fmt.Printf("%.4f\n", f.Value)               // 2.1361
-fmt.Printf("%.4f..%.4f\n", *f.P10, *f.P90)  // 1.9055..2.3789
+fmt.Printf("%.4f\n", f.Value) // 2.1361
+
+// P10/P90 are nil when the market has too few strikes to place them.
+if f.P10 != nil && f.P90 != nil {
+    fmt.Printf("%.4f..%.4f\n", *f.P10, *f.P90) // 1.9055..2.3789
+} else {
+    fmt.Println("band unresolved")
+}
 
 for _, b := range f.Buckets {
     fmt.Printf("  %.1f%%\n", b.Probability*100)
@@ -2079,10 +2085,23 @@ for _, summary := range markets {
     groups[key] = append(groups[key], summary.ID)
 }
 
-// A complete market tiles the line: one "below" bucket, one "above", ranges between.
+// A complete market tiles the line: one "below" bucket, one "above", ranges
+// between. A stream can also carry a market that is not part of a bucket set at
+// all, so skip anything too small to forecast rather than letting it error.
 for _, queryIDs := range groups {
+    if len(queryIDs) < 2 {
+        continue
+    }
     f, err := orderBook.GetMarketForecast(ctx, types.GetMarketForecastInput{QueryIDs: queryIDs})
-    _, _ = f, err
+    if err != nil {
+        log.Printf("skipping market: %v", err)
+        continue
+    }
+    if f == nil {
+        continue // nothing quoted
+    }
+    // An incomplete layout still forecasts; the problem is in f.Warnings.
+    fmt.Printf("%.4f %v\n", f.Value, f.Warnings)
 }
 ```
 

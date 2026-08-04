@@ -26,8 +26,11 @@ package integration
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
+	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,6 +62,11 @@ const (
 	// liveReadOnlyPK signs view actions only. It holds nothing and controls
 	// nothing; declared here so this file stays self-contained.
 	liveReadOnlyPK = "0000000000000000000000000000000000000000000000000000000000000abc"
+
+	// liveTestTimeout bounds the whole run. Discovery is one call per open
+	// market, so this is generous; it exists to fail on a wedged node rather
+	// than to pace anything.
+	liveTestTimeout = 10 * time.Minute
 )
 
 // liveBucket is one candidate bucket found during discovery.
@@ -165,7 +173,11 @@ func TestMarketForecastLive(t *testing.T) {
 		t.Skip("live network not configured; set TN_LIVE_ENDPOINT to run")
 	}
 
-	ctx := context.Background()
+	// Discovery walks every open market, so the whole sequence gets one bounded
+	// deadline rather than relying on the package test timeout to notice a node
+	// that has stopped answering.
+	ctx, cancel := context.WithTimeout(context.Background(), liveTestTimeout)
+	defer cancel()
 
 	key, err := kwilcrypto.Secp256k1PrivateKeyFromHex(liveReadOnlyPK)
 	require.NoError(t, err, "failed to parse the read-only key")
@@ -215,13 +227,9 @@ func TestMarketForecastLive(t *testing.T) {
 	// Most quoted first. Settled markets are already excluded, and on mainnet the
 	// newest markets are routinely the ones with no orders yet, so recency is a
 	// poor signal to rank on.
-	for i := 0; i < len(usable); i++ {
-		for j := i + 1; j < len(usable); j++ {
-			if usable[j].quoted > usable[i].quoted {
-				usable[i], usable[j] = usable[j], usable[i]
-			}
-		}
-	}
+	sort.SliceStable(usable, func(i, j int) bool {
+		return usable[i].quoted > usable[j].quoted
+	})
 
 	var queryIDs []int
 	var f *forecast.MarketForecast
@@ -240,7 +248,7 @@ func TestMarketForecastLive(t *testing.T) {
 
 	t.Run("a real market produces a forecast", func(t *testing.T) {
 		assert.GreaterOrEqual(t, len(queryIDs), 3)
-		assert.False(t, f.Value != f.Value, "value is NaN")
+		assert.False(t, math.IsNaN(f.Value), "value is NaN")
 		assert.Contains(t, []string{forecast.MethodRank, forecast.MethodDiscrete}, f.Method)
 		assert.Contains(t,
 			[]string{forecast.BasisInterior, forecast.BasisTail, forecast.BasisUnresolved},

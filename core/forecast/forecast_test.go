@@ -300,6 +300,66 @@ func TestFromBuckets_AsMapIsSerialisable(t *testing.T) {
 	assert.NotEmpty(t, encoded)
 }
 
+func TestFromBuckets_DustQuoteIsTreatedAsAbsent(t *testing.T) {
+	// A quote below MinQuoteNotionalCentShares is too small to mean anything:
+	// one 90c bid on a dead tail moved the old estimator by 8 units for 90c of
+	// risk. Supplying the sizes turns the floor on.
+	dusted := BucketBook{
+		Lower: Ptr(4.33), Upper: Ptr(4.62),
+		BestBid: Ptr(44.0), BestAsk: Ptr(56.0),
+		BidSize: Ptr(1.0), AskSize: Ptr(1.0), // 44 and 56 cent-shares, under 100
+	}
+	assert.Nil(t, dusted.UsableBid())
+	assert.Nil(t, dusted.UsableAsk())
+
+	funded := dusted
+	funded.BidSize, funded.AskSize = Ptr(100.0), Ptr(100.0)
+	require.NotNil(t, funded.UsableBid())
+	require.NotNil(t, funded.UsableAsk())
+
+	// Unset sizes mean "no floor", which is how the quote-only path behaves.
+	unsized := BucketBook{Lower: Ptr(4.33), Upper: Ptr(4.62), BestBid: Ptr(44.0)}
+	require.NotNil(t, unsized.UsableBid())
+}
+
+func TestFromBuckets_DustedBucketTakesTheResidual(t *testing.T) {
+	// Filtered out at the top of book, the bucket must read as unquoted rather
+	// than as a bucket priced at the dust.
+	books := msft(5, 20, 50, 20, 5)
+	books[4].BidSize, books[4].AskSize = Ptr(1.0), Ptr(1.0)
+
+	f := mustForecast(t, books)
+	assert.True(t, hasWarning(f, "unquoted"))
+	assert.False(t, f.Buckets[4].Quoted)
+}
+
+func TestFromBuckets_DutchBookOnTheAsksIsReported(t *testing.T) {
+	// Buying YES in every bucket settles at exactly 1, so asks summing to less
+	// is risk-free money against us.
+	f := mustForecast(t, []BucketBook{
+		{Lower: nil, Upper: Ptr(4.04), BestBid: Ptr(1.0), BestAsk: Ptr(2.0)},
+		{Lower: Ptr(4.04), Upper: Ptr(4.33), BestBid: Ptr(5.0), BestAsk: Ptr(6.0)},
+		{Lower: Ptr(4.33), Upper: Ptr(4.62), BestBid: Ptr(10.0), BestAsk: Ptr(11.0)},
+		{Lower: Ptr(4.62), Upper: Ptr(4.92), BestBid: Ptr(5.0), BestAsk: Ptr(6.0)},
+		{Lower: Ptr(4.92), Upper: nil, BestBid: Ptr(1.0), BestAsk: Ptr(2.0)},
+	})
+	assert.True(t, hasWarning(f, "DUTCH BOOK: asks sum to"))
+	assert.True(t, hasWarning(f, "risk-free"))
+}
+
+func TestFromBuckets_DutchBookOnTheBidsIsReported(t *testing.T) {
+	// Minting a pair in every bucket and selling the YES also settles at 1, so
+	// bids summing to more is the mirror case.
+	f := mustForecast(t, []BucketBook{
+		{Lower: nil, Upper: Ptr(4.04), BestBid: Ptr(30.0), BestAsk: Ptr(90.0)},
+		{Lower: Ptr(4.04), Upper: Ptr(4.33), BestBid: Ptr(30.0), BestAsk: Ptr(90.0)},
+		{Lower: Ptr(4.33), Upper: Ptr(4.62), BestBid: Ptr(30.0), BestAsk: Ptr(90.0)},
+		{Lower: Ptr(4.62), Upper: Ptr(4.92), BestBid: Ptr(30.0), BestAsk: Ptr(90.0)},
+		{Lower: Ptr(4.92), Upper: nil, BestBid: Ptr(30.0), BestAsk: Ptr(90.0)},
+	})
+	assert.True(t, hasWarning(f, "DUTCH BOOK: bids sum to"))
+}
+
 func TestFromBuckets_MonotonicCDFIsEnforced(t *testing.T) {
 	// Noisy quotes can imply a tiny negative probability step; the CDF walk must
 	// not trip over it.

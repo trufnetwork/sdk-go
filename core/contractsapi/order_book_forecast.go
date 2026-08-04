@@ -58,18 +58,22 @@ func (o *OrderBook) GetMarketForecast(ctx context.Context, input types.GetMarket
 			return nil, errors.Wrapf(err, "failed to decode market %d", queryID)
 		}
 
+		if err := requireQueryTime(queryID, market); err != nil {
+			return nil, errors.WithStack(err)
+		}
+
 		// Buckets of one market differ only in their strike: they share a data
-		// provider, a stream, a settlement time and the query time they observe.
-		// Forecasting across two events would normalise unrelated probabilities
-		// into one distribution and return a confident number about nothing, so
-		// it is rejected rather than warned about.
-		thisIdentity := marketIdentity(market, info.SettleTime)
+		// provider, a stream, a bridge, a settlement time and the query time
+		// they observe. Forecasting across two events would normalise unrelated
+		// probabilities into one distribution and return a confident number
+		// about nothing, so it is rejected rather than warned about.
+		thisIdentity := marketIdentity(market, info.Bridge, info.SettleTime)
 		if i == 0 {
 			identity = thisIdentity
 		} else if thisIdentity != identity {
 			return nil, errors.Errorf(
 				"market %d belongs to a different event than the first bucket: "+
-					"(data_provider, stream_id, settle_time, timestamp, frozen_at) is %s against %s. "+
+					"(data_provider, stream_id, bridge, settle_time, timestamp, frozen_at) is %s against %s. "+
 					"One forecast covers the buckets of ONE market.",
 				queryID, thisIdentity, identity)
 		}
@@ -160,11 +164,36 @@ func forecastFromBooks(books []forecast.BucketDepth) *forecast.MarketForecast {
 // against. On mainnet today the settle time and the query timestamp happen to
 // coincide, which is why this costs nothing in practice.
 //
+// The bridge is in here too, and it is the one field that lives outside the
+// query components: it is a create_market argument, so two markets can ask an
+// identical question while collateralising it differently. Those are separate
+// markets with separate books, and averaging them would be meaningless.
+//
 // Kept as a pure function so the comparison can be tested without a node.
-func marketIdentity(market *MarketData, settleTime int64) string {
-	return fmt.Sprintf("%s|%s|%d|%s|%s",
-		market.DataProvider, market.StreamID, settleTime,
+func marketIdentity(market *MarketData, bridge string, settleTime int64) string {
+	return fmt.Sprintf("%s|%s|%s|%d|%s|%s",
+		market.DataProvider, market.StreamID, bridge, settleTime,
 		formatOptionalInt64(market.Timestamp), formatOptionalInt64(market.FrozenAt))
+}
+
+// requireQueryTime rejects a market whose query timestamp could not be read.
+//
+// Every binary action carries one at argument 2; only frozen_at is nullable. A
+// nil timestamp renders as "null" in the identity, so two malformed markets
+// would COLLIDE on that component and merge silently -- the identity check
+// failing open in exactly the case it exists to catch. Better to refuse a market
+// we cannot pin down than to match it by accident.
+//
+// Unknown action types are left alone: their layout is unknown, so argument 2
+// need not be a timestamp at all, and BucketBoundsFromMarketData already turns
+// them away with a clearer message.
+func requireQueryTime(queryID int, market *MarketData) error {
+	if market.Type != "unknown" && market.Timestamp == nil {
+		return errors.Errorf(
+			"market %d carries no readable query timestamp, so it cannot be "+
+				"matched against the other buckets of its market", queryID)
+	}
+	return nil
 }
 
 // formatOptionalInt64 renders a nullable INT8 for the identity string. "null"

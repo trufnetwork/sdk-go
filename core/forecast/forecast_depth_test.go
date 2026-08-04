@@ -346,6 +346,37 @@ func TestFromDepth_AllEmptyReturnsNil(t *testing.T) {
 	assert.Nil(t, FromDepth(empty))
 }
 
+func TestFromDepth_ThinMarketIsDisclosed(t *testing.T) {
+	// Relative standardisation compares each bucket to its own market's median
+	// depth, so it cannot see a market that is poor EVERYWHERE. That gets a
+	// warning instead, which is also the only exercise grouped0 gets.
+	// Threading a narrow window: six consolidated sides each need to clear the
+	// $5 side floor to stay quoted, which puts the floor of a fully quoted
+	// market at $30, and the total has to land under the $50 warning line.
+	// These sizes give $37.50 spread as 5.45/5.81, 5.27/5.99, 5.10/9.90.
+	thin := buildDepth(cents(62.5, 31.25, 6.25), []float64{1.5, 3, 20}, threeBounds)
+	f := FromDepth(thin)
+	require.NotNil(t, f)
+	assert.True(t, hasWarning(f, "total resting notional only $"),
+		"a market under LowTotalNotionalWarnUSD must say so: %v", f.Warnings)
+
+	// A market comfortably above the threshold says nothing.
+	rich := buildDepth(cents(62.5, 31.25, 6.25), []float64{5000, 5000, 5000}, threeBounds)
+	fr := FromDepth(rich)
+	require.NotNil(t, fr)
+	assert.False(t, hasWarning(fr, "total resting notional only $"))
+}
+
+func TestGrouped0_SeparatesThousands(t *testing.T) {
+	// Go's fmt has no grouping verb, so this is hand-rolled and worth pinning.
+	assert.Equal(t, "0", grouped0(0))
+	assert.Equal(t, "999", grouped0(999))
+	assert.Equal(t, "1,000", grouped0(1000))
+	assert.Equal(t, "12,345", grouped0(12345.4))
+	assert.Equal(t, "1,234,567", grouped0(1234567))
+	assert.Equal(t, "-1,234", grouped0(-1234))
+}
+
 func TestFromDepth_OneSidedBucketSurvives(t *testing.T) {
 	buckets := buildDepth(cents(62.5, 31.25, nil), nil, threeBounds)
 	// ask-only after inversion

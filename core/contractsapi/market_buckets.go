@@ -2,6 +2,7 @@ package contractsapi
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/trufnetwork/sdk-go/core/forecast"
@@ -38,6 +39,14 @@ func BucketBoundsFromMarketData(market *MarketData) (lower, upper *float64, err 
 				"threshold %d of a %q market is not a number: %q",
 				index, market.Type, market.Thresholds[index])
 		}
+		// ParseFloat accepts "NaN", "Inf" and "+Inf" without complaint. Those
+		// would flow all the way into the forecast and surface as a NaN value
+		// rather than as this market being unreadable.
+		if math.IsNaN(value) || math.IsInf(value, 0) {
+			return 0, fmt.Errorf(
+				"threshold %d of a %q market is not finite: %q",
+				index, market.Type, market.Thresholds[index])
+		}
 		return value, nil
 	}
 
@@ -65,6 +74,14 @@ func BucketBoundsFromMarketData(market *MarketData) (lower, upper *float64, err 
 		if tErr != nil {
 			return nil, nil, tErr
 		}
+		// Bounds are half-open [lower, upper), so lower == upper is an empty
+		// bucket and lower > upper is an inverted one. Neither can hold an
+		// outcome, and both would quietly distort the tiling.
+		if lowerBound >= upperBound {
+			return nil, nil, fmt.Errorf(
+				"a %q market needs lower < upper, got [%v, %v)",
+				market.Type, lowerBound, upperBound)
+		}
 		return forecast.Ptr(lowerBound), forecast.Ptr(upperBound), nil
 
 	case "equals":
@@ -79,7 +96,20 @@ func BucketBoundsFromMarketData(market *MarketData) (lower, upper *float64, err 
 		if tErr != nil {
 			return nil, nil, tErr
 		}
-		return forecast.Ptr(target - tolerance), forecast.Ptr(target + tolerance), nil
+		if tolerance <= 0 {
+			return nil, nil, fmt.Errorf(
+				"an %q market needs a positive tolerance, got %v",
+				market.Type, tolerance)
+		}
+		lowerBound, upperBound := target-tolerance, target+tolerance
+		// Both operands are finite, but the sum or difference can still overflow
+		// near the float limits.
+		if math.IsInf(lowerBound, 0) || math.IsInf(upperBound, 0) {
+			return nil, nil, fmt.Errorf(
+				"an %q market with target %v and tolerance %v overflows its bounds",
+				market.Type, target, tolerance)
+		}
+		return forecast.Ptr(lowerBound), forecast.Ptr(upperBound), nil
 	}
 
 	return nil, nil, fmt.Errorf("cannot derive bucket bounds from a %q market", market.Type)
