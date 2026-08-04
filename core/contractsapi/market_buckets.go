@@ -102,12 +102,16 @@ func BucketBoundsFromMarketData(market *MarketData) (lower, upper *float64, err 
 				market.Type, tolerance)
 		}
 		lowerBound, upperBound := target-tolerance, target+tolerance
-		// Both operands are finite, but the sum or difference can still overflow
-		// near the float limits.
-		if math.IsInf(lowerBound, 0) || math.IsInf(upperBound, 0) {
+		// A positive tolerance does not guarantee a non-empty bucket. Near the
+		// float limits the sum can overflow to Inf, and a tolerance small enough
+		// relative to the target is absorbed entirely, collapsing both edges
+		// onto the same value: 1e300 +/- 1e-300 is 1e300 twice.
+		if math.IsInf(lowerBound, 0) || math.IsInf(upperBound, 0) ||
+			lowerBound >= upperBound {
 			return nil, nil, fmt.Errorf(
-				"an %q market with target %v and tolerance %v overflows its bounds",
-				market.Type, target, tolerance)
+				"an %q market with target %v and tolerance %v does not describe "+
+					"a usable bucket: [%v, %v)",
+				market.Type, target, tolerance, lowerBound, upperBound)
 		}
 		return forecast.Ptr(lowerBound), forecast.Ptr(upperBound), nil
 	}

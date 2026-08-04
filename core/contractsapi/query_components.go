@@ -157,6 +157,23 @@ type MarketData struct {
 	FrozenAt *int64 `json:"frozen_at"`
 }
 
+// readQueryTime fills in a market's query time, but only when the whole
+// argument list is present.
+//
+// Both slots have to exist for either to mean anything. A truncated argument
+// list would otherwise leave FrozenAt nil, which is indistinguishable from the
+// explicit ABI NULL that every well-formed market carries to mean "latest" --
+// so a malformed market would match a healthy one on that component of its
+// identity. Leaving Timestamp nil instead hands the whole market to the
+// caller's readability check.
+func readQueryTime(market *MarketData, args []any, frozenAtIndex int) {
+	if len(args) <= frozenAtIndex {
+		return
+	}
+	market.Timestamp = argInt64(args, 2)
+	market.FrozenAt = argInt64(args, frozenAtIndex)
+}
+
 // argInt64 pulls an INT8 argument out of the decoded args.
 //
 // Kwil hands these back as *int64, and a nil argument is meaningful rather than
@@ -205,7 +222,7 @@ func DecodeMarketData(encoded []byte) (*MarketData, error) {
 		if arg == nil {
 			return ""
 		}
-		
+
 		// Handle *string directly (common in decoded results)
 		if s, ok := arg.(*string); ok {
 			if s == nil {
@@ -239,29 +256,25 @@ func DecodeMarketData(encoded []byte) (*MarketData, error) {
 		if len(args) >= 4 {
 			market.Thresholds = append(market.Thresholds, formatArg(args[3]))
 		}
-		market.Timestamp = argInt64(args, 2)
-		market.FrozenAt = argInt64(args, 4)
+		readQueryTime(market, args, 4)
 	case "price_below_threshold":
 		market.Type = "below"
 		if len(args) >= 4 {
 			market.Thresholds = append(market.Thresholds, formatArg(args[3]))
 		}
-		market.Timestamp = argInt64(args, 2)
-		market.FrozenAt = argInt64(args, 4)
+		readQueryTime(market, args, 4)
 	case "value_in_range":
 		market.Type = "between"
 		if len(args) >= 5 {
 			market.Thresholds = append(market.Thresholds, formatArg(args[3]), formatArg(args[4]))
 		}
-		market.Timestamp = argInt64(args, 2)
-		market.FrozenAt = argInt64(args, 5)
+		readQueryTime(market, args, 5)
 	case "value_equals":
 		market.Type = "equals"
 		if len(args) >= 5 {
 			market.Thresholds = append(market.Thresholds, formatArg(args[3]), formatArg(args[4]))
 		}
-		market.Timestamp = argInt64(args, 2)
-		market.FrozenAt = argInt64(args, 5)
+		readQueryTime(market, args, 5)
 	default:
 		market.Type = "unknown"
 	}

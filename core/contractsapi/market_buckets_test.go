@@ -447,6 +447,44 @@ func TestBucketBounds_InvertedBetweenBucketIsRejected(t *testing.T) {
 	}
 }
 
+func TestBucketBounds_CollapsedOrOverflowingEqualsBoundsAreRejected(t *testing.T) {
+	// A positive tolerance is not enough. Absorbed by a large target it leaves
+	// both edges on the same value, and near the float limits the sum overflows.
+	require.Equal(t, 1e300-1e-300, 1e300+1e-300, "the collapse, demonstrated")
+	for _, thresholds := range [][]string{
+		{"1e300", "1e-300"},
+		{"1.7e308", "1.7e308"},
+	} {
+		_, _, err := BucketBoundsFromMarketData(
+			&MarketData{Type: "equals", Thresholds: thresholds})
+		require.Error(t, err, "thresholds %v", thresholds)
+		assert.Contains(t, err.Error(), "usable bucket")
+	}
+}
+
+func TestDecodeMarketData_TruncatedArgsLeaveTheTimestampUnread(t *testing.T) {
+	// A missing final INT8 would otherwise decode to nil, indistinguishable from
+	// the explicit ABI NULL every well-formed market carries to mean "latest" --
+	// so a malformed market would match a healthy one on that component of its
+	// identity. Dropping the timestamp routes it to requireQueryTime instead.
+	const dataProvider = "0x4710a8d8f0d845da110086812a32de6d90d7ff5c"
+	const streamID = "stmsft00000000000000000000000000"
+
+	truncated, err := EncodeActionArgs(
+		[]any{dataProvider, streamID, int64(1700000000), "4.04"})
+	require.NoError(t, err)
+	encoded, err := EncodeQueryComponents(
+		dataProvider, streamID, "price_below_threshold", truncated)
+	require.NoError(t, err)
+
+	market, err := DecodeMarketData(encoded)
+	require.NoError(t, err)
+	assert.Equal(t, "below", market.Type)
+	assert.Len(t, market.Thresholds, 1)
+	assert.Nil(t, market.Timestamp)
+	require.Error(t, requireQueryTime(101, market))
+}
+
 func TestBucketBounds_NonPositiveEqualsToleranceIsRejected(t *testing.T) {
 	for _, tolerance := range []string{"0", "-0.10"} {
 		_, _, err := BucketBoundsFromMarketData(
