@@ -24,6 +24,7 @@ package integration
 import (
 	"context"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,9 +36,15 @@ import (
 	"github.com/trufnetwork/sdk-go/core/types"
 )
 
-// maxMarketsProbed bounds discovery, which costs two calls per active market.
-// Mainnet carried ~130 active markets when this was written.
-const maxMarketsProbed = 200
+const (
+	// maxMarketsProbed bounds discovery, which costs two calls per active
+	// market. Mainnet carried ~130 active markets when this was written.
+	maxMarketsProbed = 200
+
+	// stableReadAttempts is how many times to re-read a market that moved
+	// underneath the comparison before giving up and skipping.
+	stableReadAttempts = 3
+)
 
 func TestConsolidatedOrderBookLive(t *testing.T) {
 	endpoint := os.Getenv("TN_LIVE_ENDPOINT")
@@ -63,15 +70,12 @@ func TestConsolidatedOrderBookLive(t *testing.T) {
 	}
 	t.Logf("reading market %d", queryID)
 
-	yesDepth, err := ob.GetMarketDepth(ctx, types.GetMarketDepthInput{QueryID: queryID, Outcome: true})
-	require.NoError(t, err)
-	noDepth, err := ob.GetMarketDepth(ctx, types.GetMarketDepthInput{QueryID: queryID, Outcome: false})
-	require.NoError(t, err)
+	yesDepth, noDepth, book, noBook, ok := readStableBooks(ctx, t, ob, queryID)
+	if !ok {
+		t.Skipf("market %d kept moving across %d attempts; nothing to compare against",
+			queryID, stableReadAttempts)
+	}
 
-	book, err := ob.GetConsolidatedOrderBook(ctx, types.GetConsolidatedOrderBookInput{
-		QueryID: queryID, Outcome: true,
-	})
-	require.NoError(t, err)
 	require.NotNil(t, book)
 	assert.Equal(t, queryID, book.QueryID)
 	assert.True(t, book.Outcome)
@@ -92,14 +96,56 @@ func TestConsolidatedOrderBookLive(t *testing.T) {
 
 	// The NO-framed book is the YES-framed book reflected: price q becomes
 	// 100-q, bids become asks, and native volume becomes inverse volume.
-	noBook, err := ob.GetConsolidatedOrderBook(ctx, types.GetConsolidatedOrderBookInput{
-		QueryID: queryID, Outcome: false,
-	})
-	require.NoError(t, err)
 	require.NotNil(t, noBook)
 	assert.False(t, noBook.Outcome)
 	assertReflects(t, book.Bids, noBook.Asks)
 	assertReflects(t, book.Asks, noBook.Bids)
+}
+
+// readStableBooks reads the raw depth and both framed books, and reports whether
+// the market held still while it did so.
+//
+// Every read here is a separate view call, and get_market_depth takes no block
+// height, so there is no snapshot to pin them to. On a live market an order can
+// land between two of them and the comparison would fail on drift rather than on
+// a real defect. Re-reading the raw depth afterwards and requiring it to match
+// closes that: if the book is unchanged either side of the sequence, the reads in
+// between saw the same state.
+func readStableBooks(ctx context.Context, t *testing.T, ob types.IOrderBook, queryID int) (
+	yesDepth, noDepth []types.DepthLevel,
+	book, noBook *forecast.ConsolidatedOrderBook,
+	ok bool,
+) {
+	t.Helper()
+
+	for attempt := 1; attempt <= stableReadAttempts; attempt++ {
+		var err error
+		yesDepth, err = ob.GetMarketDepth(ctx, types.GetMarketDepthInput{QueryID: queryID, Outcome: true})
+		require.NoError(t, err)
+		noDepth, err = ob.GetMarketDepth(ctx, types.GetMarketDepthInput{QueryID: queryID, Outcome: false})
+		require.NoError(t, err)
+
+		book, err = ob.GetConsolidatedOrderBook(ctx, types.GetConsolidatedOrderBookInput{
+			QueryID: queryID, Outcome: true,
+		})
+		require.NoError(t, err)
+		noBook, err = ob.GetConsolidatedOrderBook(ctx, types.GetConsolidatedOrderBookInput{
+			QueryID: queryID, Outcome: false,
+		})
+		require.NoError(t, err)
+
+		yesAfter, err := ob.GetMarketDepth(ctx, types.GetMarketDepthInput{QueryID: queryID, Outcome: true})
+		require.NoError(t, err)
+		noAfter, err := ob.GetMarketDepth(ctx, types.GetMarketDepthInput{QueryID: queryID, Outcome: false})
+		require.NoError(t, err)
+
+		if reflect.DeepEqual(yesDepth, yesAfter) && reflect.DeepEqual(noDepth, noAfter) {
+			return yesDepth, noDepth, book, noBook, true
+		}
+		t.Logf("market %d moved during attempt %d; re-reading", queryID, attempt)
+	}
+
+	return nil, nil, nil, nil, false
 }
 
 // checkSide verifies one consolidated side against the raw depth it came from.

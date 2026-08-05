@@ -134,9 +134,10 @@ func (o *OrderBook) GetBestPrices(ctx context.Context, input types.GetBestPrices
 // Composed of two get_market_depth calls rather than mapping to one action.
 // GetMarketDepth returns a single outcome's ladder, but a binary market's two
 // books are two views of one position and the matching engine fills across them.
-// A resting SELL NO at 93c is a standing offer that lets someone buy YES at 7c,
-// and the chain will execute it. Reading only the YES book makes that quote
-// invisible and the market look thinner than it is.
+// A resting SELL NO at 93c is a standing BID for YES at 7c: a trader hits it by
+// SELLING YES, both sides sell, and the chain burns the share pair. Reading only
+// the YES book makes that quote invisible and the market look thinner than it
+// is.
 //
 // So, in the YES frame:
 //
@@ -156,6 +157,13 @@ func (o *OrderBook) GetBestPrices(ctx context.Context, input types.GetBestPrices
 //
 // Input.Outcome frames the prices. The NO-framed book is the YES-framed book
 // reflected, so one call answers either tab.
+//
+// The two depth reads are NOT atomic. get_market_depth takes only a query_id and
+// an outcome (038-order-book-queries.sql:182) and the transport exposes no block
+// height, so there is no way to pin both sides to one snapshot from here. On a
+// moving book the two sides can come from adjacent heights, which makes
+// IsCrossed best-effort: re-read before acting on it. Closing the window would
+// take a node action returning both outcomes' depth in one call.
 func (o *OrderBook) GetConsolidatedOrderBook(
 	ctx context.Context, input types.GetConsolidatedOrderBookInput,
 ) (*forecast.ConsolidatedOrderBook, error) {

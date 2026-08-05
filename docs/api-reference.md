@@ -1914,10 +1914,11 @@ type MarketData struct {
 
 `GetMarketDepth` returns one outcome's ladder, but a binary market's two books
 are two views of one position and the matching engine fills across them. A
-resting SELL NO at 93c is a standing offer that lets someone buy YES at 7c, and
-the chain will execute it. Read only the YES book and that quote is invisible.
+resting SELL NO at 93c is a standing **bid** for YES at 7c: a trader hits it by
+**selling** YES, both sides sell, and the chain burns the share pair. Read only
+the YES book and that quote is invisible.
 
-#### `OrderBook.GetConsolidatedOrderBook`
+### `OrderBook.GetConsolidatedOrderBook`
 
 Returns one outcome's book with the opposite outcome's quotes folded in.
 
@@ -1971,7 +1972,11 @@ a YES bid at 61 against a NO bid at 45 shows a bid at 61 over an ask at 55, and
 61 + 45 is not 100 so nothing matches. Render it rather than treating it as bad
 data.
 
-Costs two `get_market_depth` reads.
+Costs two `get_market_depth` reads. They are **not atomic**: `get_market_depth`
+takes only a query id and an outcome, and the transport exposes no block height,
+so there is no way to pin both sides to one snapshot. On a moving book the two
+sides can come from adjacent heights, which makes `IsCrossed` best-effort.
+Re-read before acting on it.
 
 ---
 
