@@ -65,6 +65,13 @@ func TestOrderBookMarketValidation(t *testing.T) {
 
 // testCreateMarketValidation tests input validation
 func testCreateMarketValidation(t *testing.T, ctx context.Context, orderBook types.IOrderBook) {
+	// Markets are created from a bridge namespace plus the ABI-encoded query
+	// components, not from a precomputed hash. Validate only checks the encoding
+	// is long enough to be that tuple (address, bytes32, and the two offsets),
+	// so the content here does not matter.
+	validComponents := make([]byte, 128)
+	future := time.Now().Add(1 * time.Hour).Unix()
+
 	tests := []struct {
 		name    string
 		input   types.CreateMarketInput
@@ -74,42 +81,92 @@ func testCreateMarketValidation(t *testing.T, ctx context.Context, orderBook typ
 		{
 			name: "valid input",
 			input: types.CreateMarketInput{
-				QueryHash:    make([]byte, 32),
-				SettleTime:   time.Now().Add(1 * time.Hour).Unix(),
-				MaxSpread:    5,
-				MinOrderSize: 100,
+				Bridge:          "eth_truf",
+				QueryComponents: validComponents,
+				SettleTime:      future,
+				MaxSpread:       5,
+				MinOrderSize:    100,
 			},
 			wantErr: false,
 		},
 		{
-			name: "invalid hash length",
+			name: "missing bridge",
 			input: types.CreateMarketInput{
-				QueryHash:    make([]byte, 16),
-				SettleTime:   time.Now().Add(1 * time.Hour).Unix(),
+				QueryComponents: validComponents,
+				SettleTime:      future,
+				MaxSpread:       5,
+				MinOrderSize:    100,
+			},
+			wantErr: true,
+			errMsg:  "bridge is required",
+		},
+		{
+			name: "unknown bridge",
+			input: types.CreateMarketInput{
+				Bridge:          "eth_dai",
+				QueryComponents: validComponents,
+				SettleTime:      future,
+				MaxSpread:       5,
+				MinOrderSize:    100,
+			},
+			wantErr: true,
+			errMsg:  "bridge must be one of",
+		},
+		{
+			name: "missing query components",
+			input: types.CreateMarketInput{
+				Bridge:       "eth_truf",
+				SettleTime:   future,
 				MaxSpread:    5,
 				MinOrderSize: 100,
 			},
 			wantErr: true,
-			errMsg:  "must be exactly 32 bytes",
+			errMsg:  "query_components is required",
+		},
+		{
+			name: "query components too short for the ABI tuple",
+			input: types.CreateMarketInput{
+				Bridge:          "eth_truf",
+				QueryComponents: make([]byte, 127),
+				SettleTime:      future,
+				MaxSpread:       5,
+				MinOrderSize:    100,
+			},
+			wantErr: true,
+			errMsg:  "query_components too short",
 		},
 		{
 			name: "invalid settle time",
 			input: types.CreateMarketInput{
-				QueryHash:    make([]byte, 32),
-				SettleTime:   -1,
-				MaxSpread:    5,
-				MinOrderSize: 100,
+				Bridge:          "eth_truf",
+				QueryComponents: validComponents,
+				SettleTime:      -1,
+				MaxSpread:       5,
+				MinOrderSize:    100,
 			},
 			wantErr: true,
 			errMsg:  "settle_time must be positive",
 		},
 		{
+			name: "settle time already passed",
+			input: types.CreateMarketInput{
+				Bridge:          "eth_truf",
+				QueryComponents: validComponents,
+				SettleTime:      time.Now().Add(-1 * time.Hour).Unix(),
+				MaxSpread:       5,
+				MinOrderSize:    100,
+			},
+			wantErr: true,
+			errMsg:  "settle_time must be a future unix timestamp",
+		},
+		{
 			name: "invalid max spread (too low)",
 			input: types.CreateMarketInput{
-				QueryHash:    make([]byte, 32),
-				SettleTime:   time.Now().Add(1 * time.Hour).Unix(),
-				MaxSpread:    0,
-				MinOrderSize: 100,
+				Bridge:          "eth_truf",
+				QueryComponents: validComponents,
+				SettleTime:      future,
+				MaxSpread:       0,
+				MinOrderSize:    100,
 			},
 			wantErr: true,
 			errMsg:  "max_spread must be between 1 and 50",
@@ -117,10 +174,11 @@ func testCreateMarketValidation(t *testing.T, ctx context.Context, orderBook typ
 		{
 			name: "invalid max spread (too high)",
 			input: types.CreateMarketInput{
-				QueryHash:    make([]byte, 32),
-				SettleTime:   time.Now().Add(1 * time.Hour).Unix(),
-				MaxSpread:    51,
-				MinOrderSize: 100,
+				Bridge:          "eth_truf",
+				QueryComponents: validComponents,
+				SettleTime:      future,
+				MaxSpread:       51,
+				MinOrderSize:    100,
 			},
 			wantErr: true,
 			errMsg:  "max_spread must be between 1 and 50",
@@ -128,10 +186,11 @@ func testCreateMarketValidation(t *testing.T, ctx context.Context, orderBook typ
 		{
 			name: "invalid min order size",
 			input: types.CreateMarketInput{
-				QueryHash:    make([]byte, 32),
-				SettleTime:   time.Now().Add(1 * time.Hour).Unix(),
-				MaxSpread:    5,
-				MinOrderSize: 0,
+				Bridge:          "eth_truf",
+				QueryComponents: validComponents,
+				SettleTime:      future,
+				MaxSpread:       5,
+				MinOrderSize:    0,
 			},
 			wantErr: true,
 			errMsg:  "min_order_size must be positive",
