@@ -1910,6 +1910,76 @@ type MarketData struct {
 
 ---
 
+## Consolidated Order Books
+
+`GetMarketDepth` returns one outcome's ladder, but a binary market's two books
+are two views of one position and the matching engine fills across them. A
+resting SELL NO at 93c is a standing **bid** for YES at 7c: a trader hits it by
+**selling** YES, both sides sell, and the chain burns the share pair. Read only
+the YES book and that quote is invisible.
+
+### `OrderBook.GetConsolidatedOrderBook`
+
+Returns one outcome's book with the opposite outcome's quotes folded in.
+
+**Signature:**
+```go
+func (o *OrderBook) GetConsolidatedOrderBook(
+    ctx context.Context, input types.GetConsolidatedOrderBookInput,
+) (*forecast.ConsolidatedOrderBook, error)
+```
+
+**Parameters:**
+- `input.QueryID` (int): the market to read.
+- `input.Outcome` (bool): the outcome to frame prices in, true=YES. The
+  NO-framed book is the YES-framed book reflected, so one call answers either
+  tab.
+
+In the YES frame:
+
+```text
+consolidated bids = YES bids + (100 - p for every NO ask)
+consolidated asks = YES asks + (100 - p for every NO bid)
+```
+
+The sides swap. A NO ask arrives as a YES bid, because hitting it means both
+parties sell and the share pair burns; hitting a consolidated ask means both buy
+and a pair mints.
+
+**Example:**
+```go
+book, err := orderBook.GetConsolidatedOrderBook(ctx, types.GetConsolidatedOrderBookInput{
+    QueryID: 419, Outcome: true,
+})
+if err != nil {
+    return err
+}
+for _, level := range book.Asks {
+    fmt.Printf("%.0fc: %.0f shares (%.0f direct, %.0f mint)\n",
+        level.Price, level.Total, level.Native, level.Inverse)
+}
+```
+
+**This is not a sweepable ladder.** A direct same-outcome match crosses prices,
+but mint and burn fire only when the two prices sum to exactly 100. So one order
+fills every native level past its limit plus exactly **one** inverse level.
+Walking these levels the way you would walk `GetMarketDepth` quotes fills the
+chain will not produce, which is why each level keeps `Native` and `Inverse`
+separate rather than only their sum.
+
+A consolidated book can also sit crossed indefinitely, which `IsCrossed` reports:
+a YES bid at 61 against a NO bid at 45 shows a bid at 61 over an ask at 55, and
+61 + 45 is not 100 so nothing matches. Render it rather than treating it as bad
+data.
+
+Costs two `get_market_depth` reads. They are **not atomic**: `get_market_depth`
+takes only a query id and an outcome, and the transport exposes no block height,
+so there is no way to pin both sides to one snapshot. On a moving book the two
+sides can come from adjacent heights, which makes `IsCrossed` best-effort.
+Re-read before acting on it.
+
+---
+
 ## Market Forecasting
 
 Prediction markets price **ranges**, not values. A five-bucket EPS market says

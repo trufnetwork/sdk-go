@@ -258,38 +258,20 @@ func round4(v float64) float64 { return math.Round(v*1e4) / 1e4 }
 // ConsolidatedBids returns the bucket's executable bid ladder: its YES bids plus
 // every NO ask inverted to the YES price it is hittable at, best (highest)
 // first.
+//
+// A native and an inverted level landing on the same price merge into one entry.
+// Everything downstream here sums price x size or walks the ladder in price
+// order, so merging leaves the forecast numbers unchanged. Callers that need the
+// native/inverse split should use ConsolidateSide directly.
 func (d BucketDepth) ConsolidatedBids() []BookLevel {
-	levels := make([]BookLevel, 0, len(d.YesBids)+len(d.NoAsks))
-	for _, l := range d.YesBids {
-		if l.Size > 0 {
-			levels = append(levels, l)
-		}
-	}
-	for _, l := range d.NoAsks {
-		if l.Size > 0 {
-			levels = append(levels, BookLevel{Price: round4(100 - l.Price), Size: l.Size})
-		}
-	}
-	sort.SliceStable(levels, func(i, j int) bool { return levels[i].Price > levels[j].Price })
-	return levels
+	return flatten(ConsolidateSide(d.YesBids, d.NoAsks, BidSide))
 }
 
 // ConsolidatedAsks returns the bucket's executable ask ladder: its YES asks plus
 // every NO bid inverted to the YES price it is hittable at, best (lowest) first.
+// Same-price levels merge, as in ConsolidatedBids.
 func (d BucketDepth) ConsolidatedAsks() []BookLevel {
-	levels := make([]BookLevel, 0, len(d.YesAsks)+len(d.NoBids))
-	for _, l := range d.YesAsks {
-		if l.Size > 0 {
-			levels = append(levels, l)
-		}
-	}
-	for _, l := range d.NoBids {
-		if l.Size > 0 {
-			levels = append(levels, BookLevel{Price: round4(100 - l.Price), Size: l.Size})
-		}
-	}
-	sort.SliceStable(levels, func(i, j int) bool { return levels[i].Price < levels[j].Price })
-	return levels
+	return flatten(ConsolidateSide(d.YesAsks, d.NoBids, AskSide))
 }
 
 // BestView returns the consolidated best quotes, for the spread and dutch-book

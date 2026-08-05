@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
+	"github.com/trufnetwork/sdk-go/core/forecast"
 	"github.com/trufnetwork/sdk-go/core/types"
 )
 
@@ -125,6 +126,100 @@ func (o *OrderBook) GetBestPrices(ctx context.Context, input types.GetBestPrices
 	}
 
 	return prices, nil
+}
+
+// GetConsolidatedOrderBook returns one outcome's book with the opposite
+// outcome's quotes folded in.
+//
+// Composed of two get_market_depth calls rather than mapping to one action.
+// GetMarketDepth returns a single outcome's ladder, but a binary market's two
+// books are two views of one position and the matching engine fills across them.
+// A resting SELL NO at 93c is a standing BID for YES at 7c: a trader hits it by
+// SELLING YES, both sides sell, and the chain burns the share pair. Reading only
+// the YES book makes that quote invisible and the market look thinner than it
+// is.
+//
+// So, in the YES frame:
+//
+//	consolidated bids = YES bids + (100 - p for every NO ask)
+//	consolidated asks = YES asks + (100 - p for every NO bid)
+//
+// The sides swap: a NO ask arrives as a YES bid. Hitting it means both parties
+// sell and the share pair burns; hitting a consolidated ask means both buy and a
+// pair mints.
+//
+// The result is NOT a sweepable ladder. Mint and burn matches fire only when the
+// two prices sum to exactly 100, while a direct same-outcome match crosses. So
+// one order fills every native level past its limit plus exactly ONE inverse
+// level, and walking these levels the way you would walk a regular ladder quotes
+// fills the chain will not produce. Each level keeps Native and Inverse
+// separately so a caller can price that correctly.
+//
+// Input.Outcome frames the prices. The NO-framed book is the YES-framed book
+// reflected, so one call answers either tab.
+//
+// The two depth reads are NOT atomic. get_market_depth takes only a query_id and
+// an outcome (038-order-book-queries.sql:182) and the transport exposes no block
+// height, so there is no way to pin both sides to one snapshot from here. On a
+// moving book the two sides can come from adjacent heights, which makes
+// IsCrossed best-effort: re-read before acting on it. Closing the window would
+// take a node action returning both outcomes' depth in one call.
+func (o *OrderBook) GetConsolidatedOrderBook(
+	ctx context.Context, input types.GetConsolidatedOrderBookInput,
+) (*forecast.ConsolidatedOrderBook, error) {
+	if err := input.Validate(); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	native, err := o.GetMarketDepth(ctx, types.GetMarketDepthInput{
+		QueryID: input.QueryID, Outcome: input.Outcome,
+	})
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	opposite, err := o.GetMarketDepth(ctx, types.GetMarketDepthInput{
+		QueryID: input.QueryID, Outcome: !input.Outcome,
+	})
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	bids := forecast.ConsolidateSide(depthBids(native), depthAsks(opposite), forecast.BidSide)
+	asks := forecast.ConsolidateSide(depthAsks(native), depthBids(opposite), forecast.AskSide)
+
+	return &forecast.ConsolidatedOrderBook{
+		QueryID:   input.QueryID,
+		Outcome:   input.Outcome,
+		Bids:      bids,
+		Asks:      asks,
+		IsCrossed: forecast.Crossed(bids, asks),
+	}, nil
+}
+
+// depthBids returns the buy orders in a depth ladder, as levels.
+func depthBids(depth []types.DepthLevel) []forecast.BookLevel {
+	levels := make([]forecast.BookLevel, 0, len(depth))
+	for _, l := range depth {
+		if l.BuyVolume > 0 {
+			levels = append(levels, forecast.BookLevel{
+				Price: float64(l.Price), Size: float64(l.BuyVolume),
+			})
+		}
+	}
+	return levels
+}
+
+// depthAsks returns the sell orders in a depth ladder, as levels.
+func depthAsks(depth []types.DepthLevel) []forecast.BookLevel {
+	levels := make([]forecast.BookLevel, 0, len(depth))
+	for _, l := range depth {
+		if l.SellVolume > 0 {
+			levels = append(levels, forecast.BookLevel{
+				Price: float64(l.Price), Size: float64(l.SellVolume),
+			})
+		}
+	}
+	return levels
 }
 
 // GetUserCollateral returns caller's total locked collateral value

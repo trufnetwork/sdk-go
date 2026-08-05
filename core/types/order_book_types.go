@@ -117,6 +117,20 @@ type IOrderBook interface {
 	// Migration: 038-order-book-queries.sql:219-268
 	GetBestPrices(ctx context.Context, input GetBestPricesInput) (*BestPrices, error)
 
+	// GetConsolidatedOrderBook returns one outcome's book with the opposite
+	// outcome's quotes folded in, so the caller sees every quote the chain will
+	// actually fill.
+	//
+	// Composed of two get_market_depth calls rather than mapping to one action:
+	// a resting SELL NO at 93c is a hittable YES bid at 7c, and the engine fills
+	// it by burning the share pair.
+	//
+	// The result is NOT a sweepable ladder. Mint and burn fire only at the exact
+	// complement, so one order fills every native level past its limit plus
+	// exactly one inverse level.
+	GetConsolidatedOrderBook(ctx context.Context, input GetConsolidatedOrderBookInput) (
+		*forecast.ConsolidatedOrderBook, error)
+
 	// GetMarketForecast collapses a market's bucket books into the single value
 	// they imply: the median of the implied distribution, plus the band around it.
 	//
@@ -503,6 +517,21 @@ type GetMarketDepthInput struct {
 
 // Validate checks if GetMarketDepthInput is valid
 func (g *GetMarketDepthInput) Validate() error {
+	if g.QueryID < 1 {
+		return fmt.Errorf("query_id must be positive, got %d", g.QueryID)
+	}
+	return nil
+}
+
+// GetConsolidatedOrderBookInput contains parameters for getting a consolidated
+// order book
+type GetConsolidatedOrderBookInput struct {
+	QueryID int  // Market ID
+	Outcome bool // The outcome the prices are framed in: true=YES, false=NO
+}
+
+// Validate checks if GetConsolidatedOrderBookInput is valid
+func (g *GetConsolidatedOrderBookInput) Validate() error {
 	if g.QueryID < 1 {
 		return fmt.Errorf("query_id must be positive, got %d", g.QueryID)
 	}
