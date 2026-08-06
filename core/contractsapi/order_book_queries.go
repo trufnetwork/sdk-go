@@ -95,6 +95,42 @@ func (o *OrderBook) GetMarketDepth(ctx context.Context, input types.GetMarketDep
 	return levels, nil
 }
 
+// GetFullMarketDepth returns aggregated volume per price level for both outcomes
+// Maps to: get_full_market_depth($query_id)
+// Migration: 038-order-book-queries.sql:215-282
+//
+// Same aggregation as GetMarketDepth, for the whole market instead of one
+// outcome, with each level tagged by the outcome it rests on. Rows arrive YES
+// first then NO, price ascending within each.
+//
+// One statement means one snapshot. Anything that compares the two outcomes to
+// each other wants this rather than two GetMarketDepth calls, because between
+// two calls an order can land on one side and not the other.
+func (o *OrderBook) GetFullMarketDepth(
+	ctx context.Context, input types.GetFullMarketDepthInput,
+) ([]types.FullDepthLevel, error) {
+	if err := input.Validate(); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	args := []any{input.QueryID}
+	result, err := o.call(ctx, "get_full_market_depth", args)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	var levels []types.FullDepthLevel
+	for _, row := range result.Values {
+		level, err := parseFullDepthLevelRow(row)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		levels = append(levels, level)
+	}
+
+	return levels, nil
+}
+
 // GetBestPrices returns current bid/ask spread
 // Maps to: get_best_prices($query_id, $outcome)
 // Migration: 038-order-book-queries.sql:219-268
@@ -131,13 +167,13 @@ func (o *OrderBook) GetBestPrices(ctx context.Context, input types.GetBestPrices
 // GetConsolidatedOrderBook returns one outcome's book with the opposite
 // outcome's quotes folded in.
 //
-// Composed of two get_market_depth calls rather than mapping to one action.
-// GetMarketDepth returns a single outcome's ladder, but a binary market's two
-// books are two views of one position and the matching engine fills across them.
-// A resting SELL NO at 93c is a standing BID for YES at 7c: a trader hits it by
-// SELLING YES, both sides sell, and the chain burns the share pair. Reading only
-// the YES book makes that quote invisible and the market look thinner than it
-// is.
+// Reads the whole market with one get_full_market_depth call and folds the two
+// sides together here. GetMarketDepth returns a single outcome's ladder, but a
+// binary market's two books are two views of one position and the matching
+// engine fills across them. A resting SELL NO at 93c is a standing BID for YES
+// at 7c: a trader hits it by SELLING YES, both sides sell, and the chain burns
+// the share pair. Reading only the YES book makes that quote invisible and the
+// market look thinner than it is.
 //
 // So, in the YES frame:
 //
@@ -158,12 +194,12 @@ func (o *OrderBook) GetBestPrices(ctx context.Context, input types.GetBestPrices
 // Input.Outcome frames the prices. The NO-framed book is the YES-framed book
 // reflected, so one call answers either tab.
 //
-// The two depth reads are NOT atomic. get_market_depth takes only a query_id and
-// an outcome (038-order-book-queries.sql:182) and the transport exposes no block
-// height, so there is no way to pin both sides to one snapshot from here. On a
-// moving book the two sides can come from adjacent heights, which makes
-// IsCrossed best-effort: re-read before acting on it. Closing the window would
-// take a node action returning both outcomes' depth in one call.
+// Both sides come from one read, so they are one snapshot of the chain and
+// IsCrossed describes a state the book was really in. This used to take two
+// get_market_depth calls, where an order landing between them could make the
+// stitched ladder read as crossed when neither height was.
+//
+// Requires a node carrying get_full_market_depth.
 func (o *OrderBook) GetConsolidatedOrderBook(
 	ctx context.Context, input types.GetConsolidatedOrderBookInput,
 ) (*forecast.ConsolidatedOrderBook, error) {
@@ -171,18 +207,11 @@ func (o *OrderBook) GetConsolidatedOrderBook(
 		return nil, errors.WithStack(err)
 	}
 
-	native, err := o.GetMarketDepth(ctx, types.GetMarketDepthInput{
-		QueryID: input.QueryID, Outcome: input.Outcome,
-	})
+	depth, err := o.GetFullMarketDepth(ctx, types.GetFullMarketDepthInput{QueryID: input.QueryID})
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	opposite, err := o.GetMarketDepth(ctx, types.GetMarketDepthInput{
-		QueryID: input.QueryID, Outcome: !input.Outcome,
-	})
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
+	native, opposite := splitFullDepth(depth, input.Outcome)
 
 	bids := forecast.ConsolidateSide(depthBids(native), depthAsks(opposite), forecast.BidSide)
 	asks := forecast.ConsolidateSide(depthAsks(native), depthBids(opposite), forecast.AskSide)
@@ -194,6 +223,26 @@ func (o *OrderBook) GetConsolidatedOrderBook(
 		Asks:      asks,
 		IsCrossed: forecast.Crossed(bids, asks),
 	}, nil
+}
+
+// splitFullDepth separates a whole-market depth read into the ladder for the
+// requested outcome and the ladder for the other one.
+//
+// The outcome tag is the only thing that distinguishes the two here: prices are
+// still in each outcome's own frame, and inverting the opposite side into this
+// frame is ConsolidateSide's job.
+func splitFullDepth(depth []types.FullDepthLevel, outcome bool) (native, opposite []types.DepthLevel) {
+	for _, full := range depth {
+		level := types.DepthLevel{
+			Price: full.Price, BuyVolume: full.BuyVolume, SellVolume: full.SellVolume,
+		}
+		if full.Outcome == outcome {
+			native = append(native, level)
+		} else {
+			opposite = append(opposite, level)
+		}
+	}
+	return native, opposite
 }
 
 // depthBids returns the buy orders in a depth ladder, as levels.
@@ -420,6 +469,38 @@ func parseDepthLevelRow(row []any) (types.DepthLevel, error) {
 
 	// Column 2: sell_volume (INT8)
 	if err := extractInt64Column(row[2], &level.SellVolume, 2, "sell_volume"); err != nil {
+		return level, err
+	}
+
+	return level, nil
+}
+
+// parseFullDepthLevelRow parses a row from get_full_market_depth
+// Row format: outcome, price, buy_volume, sell_volume
+func parseFullDepthLevelRow(row []any) (types.FullDepthLevel, error) {
+	if len(row) < 4 {
+		return types.FullDepthLevel{}, fmt.Errorf("invalid row: expected 4 columns, got %d", len(row))
+	}
+
+	level := types.FullDepthLevel{}
+
+	// Column 0: outcome (BOOL)
+	if err := extractBoolColumn(row[0], &level.Outcome, 0, "outcome"); err != nil {
+		return level, err
+	}
+
+	// Column 1: price (INT)
+	if err := extractIntColumn(row[1], &level.Price, 1, "price"); err != nil {
+		return level, err
+	}
+
+	// Column 2: buy_volume (INT8)
+	if err := extractInt64Column(row[2], &level.BuyVolume, 2, "buy_volume"); err != nil {
+		return level, err
+	}
+
+	// Column 3: sell_volume (INT8)
+	if err := extractInt64Column(row[3], &level.SellVolume, 3, "sell_volume"); err != nil {
 		return level, err
 	}
 

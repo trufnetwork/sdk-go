@@ -3,15 +3,18 @@
 //
 // The unit tests under core/forecast prove the mapping on hand-written numbers.
 // What they cannot prove is that the SDK reads the CHAIN correctly: if the node
-// flipped the sign convention on bids, or get_market_depth swapped its two
-// volume columns, every one of them would still pass while a NO ask surfaced on
-// the wrong side of the YES ladder. That is the gap this file covers.
+// flipped the sign convention on bids, or get_full_market_depth swapped its two
+// volume columns or its outcome tag, every one of them would still pass while a
+// NO ask surfaced on the wrong side of the YES ladder. That is the gap this file
+// covers.
 //
 // Gated on an env var rather than the kwiltest build tag, because it wants a
 // network carrying live markets with real orders rather than a fresh local node:
 //
 //	TN_LIVE_ENDPOINT=https://gateway.mainnet.truf.network \
 //	    go test ./tests/integration/ -run TestConsolidatedOrderBookLive -v
+//
+// The network must be running a node that carries get_full_market_depth.
 //
 // All calls are view actions, so the signing key needs no funds and controls
 // nothing.
@@ -70,7 +73,7 @@ func TestConsolidatedOrderBookLive(t *testing.T) {
 	}
 	t.Logf("reading market %d", queryID)
 
-	yesDepth, noDepth, book, noBook, ok := readStableBooks(ctx, t, ob, queryID)
+	depth, book, noBook, ok := readStableBooks(ctx, t, ob, queryID)
 	if !ok {
 		t.Skipf("market %d kept moving across %d attempts; nothing to compare against",
 			queryID, stableReadAttempts)
@@ -83,8 +86,8 @@ func TestConsolidatedOrderBookLive(t *testing.T) {
 	// Bids are this outcome's buys plus the OTHER outcome's sells inverted; asks
 	// are this outcome's sells plus the other outcome's buys. Getting either
 	// pairing backwards is the failure this whole file exists to catch.
-	checkSide(t, "bids", book.Bids, buyVolumes(yesDepth), sellVolumes(noDepth), true)
-	checkSide(t, "asks", book.Asks, sellVolumes(yesDepth), buyVolumes(noDepth), false)
+	checkSide(t, "bids", book.Bids, buyVolumes(depth, true), sellVolumes(depth, false), true)
+	checkSide(t, "asks", book.Asks, sellVolumes(depth, true), buyVolumes(depth, false), false)
 
 	if book.IsCrossed {
 		require.NotEmpty(t, book.Bids)
@@ -105,14 +108,15 @@ func TestConsolidatedOrderBookLive(t *testing.T) {
 // readStableBooks reads the raw depth and both framed books, and reports whether
 // the market held still while it did so.
 //
-// Every read here is a separate view call, and get_market_depth takes no block
-// height, so there is no snapshot to pin them to. On a live market an order can
-// land between two of them and the comparison would fail on drift rather than on
-// a real defect. Re-reading the raw depth afterwards and requiring it to match
-// closes that: if the book is unchanged either side of the sequence, the reads in
-// between saw the same state.
+// Each of those is its own view call. A consolidated book is now internally
+// consistent — it comes from one get_full_market_depth read — but comparing one
+// against another read is still comparing two points in time, and on a live
+// market an order can land in between. The comparison would then fail on drift
+// rather than on a real defect. Re-reading the raw depth afterwards and requiring
+// it to match closes that: if the book is unchanged either side of the sequence,
+// the reads in between saw the same state.
 func readStableBooks(ctx context.Context, t *testing.T, ob types.IOrderBook, queryID int) (
-	yesDepth, noDepth []types.DepthLevel,
+	depth []types.FullDepthLevel,
 	book, noBook *forecast.ConsolidatedOrderBook,
 	ok bool,
 ) {
@@ -120,10 +124,8 @@ func readStableBooks(ctx context.Context, t *testing.T, ob types.IOrderBook, que
 
 	for attempt := 1; attempt <= stableReadAttempts; attempt++ {
 		var err error
-		yesDepth, err = ob.GetMarketDepth(ctx, types.GetMarketDepthInput{QueryID: queryID, Outcome: true})
-		require.NoError(t, err)
-		noDepth, err = ob.GetMarketDepth(ctx, types.GetMarketDepthInput{QueryID: queryID, Outcome: false})
-		require.NoError(t, err)
+		depth, err = ob.GetFullMarketDepth(ctx, types.GetFullMarketDepthInput{QueryID: queryID})
+		require.NoError(t, err, "the network must carry get_full_market_depth")
 
 		book, err = ob.GetConsolidatedOrderBook(ctx, types.GetConsolidatedOrderBookInput{
 			QueryID: queryID, Outcome: true,
@@ -134,18 +136,16 @@ func readStableBooks(ctx context.Context, t *testing.T, ob types.IOrderBook, que
 		})
 		require.NoError(t, err)
 
-		yesAfter, err := ob.GetMarketDepth(ctx, types.GetMarketDepthInput{QueryID: queryID, Outcome: true})
-		require.NoError(t, err)
-		noAfter, err := ob.GetMarketDepth(ctx, types.GetMarketDepthInput{QueryID: queryID, Outcome: false})
+		after, err := ob.GetFullMarketDepth(ctx, types.GetFullMarketDepthInput{QueryID: queryID})
 		require.NoError(t, err)
 
-		if reflect.DeepEqual(yesDepth, yesAfter) && reflect.DeepEqual(noDepth, noAfter) {
-			return yesDepth, noDepth, book, noBook, true
+		if reflect.DeepEqual(depth, after) {
+			return depth, book, noBook, true
 		}
 		t.Logf("market %d moved during attempt %d; re-reading", queryID, attempt)
 	}
 
-	return nil, nil, nil, nil, false
+	return nil, nil, nil, false
 }
 
 // checkSide verifies one consolidated side against the raw depth it came from.
@@ -255,20 +255,24 @@ func hasResting(ctx context.Context, ob types.IOrderBook, queryID int, outcome b
 	return err == nil && best != nil && (best.BestBid != nil || best.BestAsk != nil)
 }
 
-func buyVolumes(depth []types.DepthLevel) map[float64]float64 {
+// buyVolumes maps price to resting buy volume for one outcome of a whole-market
+// depth read.
+func buyVolumes(depth []types.FullDepthLevel, outcome bool) map[float64]float64 {
 	out := map[float64]float64{}
 	for _, level := range depth {
-		if level.BuyVolume > 0 {
+		if level.Outcome == outcome && level.BuyVolume > 0 {
 			out[float64(level.Price)] = float64(level.BuyVolume)
 		}
 	}
 	return out
 }
 
-func sellVolumes(depth []types.DepthLevel) map[float64]float64 {
+// sellVolumes maps price to resting sell volume for one outcome of a whole-market
+// depth read.
+func sellVolumes(depth []types.FullDepthLevel, outcome bool) map[float64]float64 {
 	out := map[float64]float64{}
 	for _, level := range depth {
-		if level.SellVolume > 0 {
+		if level.Outcome == outcome && level.SellVolume > 0 {
 			out[float64(level.Price)] = float64(level.SellVolume)
 		}
 	}

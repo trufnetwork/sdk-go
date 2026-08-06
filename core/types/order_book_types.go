@@ -112,6 +112,16 @@ type IOrderBook interface {
 	// Migration: 038-order-book-queries.sql:149-208
 	GetMarketDepth(ctx context.Context, input GetMarketDepthInput) ([]DepthLevel, error)
 
+	// GetFullMarketDepth returns aggregated volume per price level for BOTH
+	// outcomes, from one read, tagged with the outcome each level belongs to.
+	// Maps to: get_full_market_depth($query_id)
+	// Migration: 038-order-book-queries.sql:215-282
+	//
+	// Use this over two GetMarketDepth calls whenever the two sides are compared
+	// to each other: one statement is one snapshot, so nothing can land between
+	// the sides.
+	GetFullMarketDepth(ctx context.Context, input GetFullMarketDepthInput) ([]FullDepthLevel, error)
+
 	// GetBestPrices returns current bid/ask spread
 	// Maps to: get_best_prices($query_id, $outcome)
 	// Migration: 038-order-book-queries.sql:219-268
@@ -121,9 +131,9 @@ type IOrderBook interface {
 	// outcome's quotes folded in, so the caller sees every quote the chain will
 	// actually fill.
 	//
-	// Composed of two get_market_depth calls rather than mapping to one action:
-	// a resting SELL NO at 93c is a hittable YES bid at 7c, and the engine fills
-	// it by burning the share pair.
+	// Reads both outcomes with one get_full_market_depth call and folds them
+	// here: a resting SELL NO at 93c is a hittable YES bid at 7c, and the engine
+	// fills it by burning the share pair.
 	//
 	// The result is NOT a sweepable ladder. Mint and burn fire only at the exact
 	// complement, so one order fills every native level past its limit plus
@@ -523,6 +533,20 @@ func (g *GetMarketDepthInput) Validate() error {
 	return nil
 }
 
+// GetFullMarketDepthInput contains parameters for getting both outcomes' market
+// depth in one read
+type GetFullMarketDepthInput struct {
+	QueryID int // Market ID
+}
+
+// Validate checks if GetFullMarketDepthInput is valid
+func (g *GetFullMarketDepthInput) Validate() error {
+	if g.QueryID < 1 {
+		return fmt.Errorf("query_id must be positive, got %d", g.QueryID)
+	}
+	return nil
+}
+
 // GetConsolidatedOrderBookInput contains parameters for getting a consolidated
 // order book
 type GetConsolidatedOrderBookInput struct {
@@ -790,6 +814,16 @@ type DepthLevel struct {
 	Price      int   // Price level (INT)
 	BuyVolume  int64 // Total buy volume at this price (INT8)
 	SellVolume int64 // Total sell volume at this price (INT8)
+}
+
+// FullDepthLevel represents aggregated volume at one outcome's price level, as
+// get_full_market_depth returns it. The outcome tag is what a DepthLevel leaves
+// implicit, because the call it comes from asked for one outcome.
+type FullDepthLevel struct {
+	Outcome    bool  // TRUE=YES, FALSE=NO (BOOL)
+	Price      int   // Price level (INT)
+	BuyVolume  int64 // Total buy volume at this outcome and price (INT8)
+	SellVolume int64 // Total sell volume at this outcome and price (INT8)
 }
 
 // BestPrices contains the current bid/ask spread
