@@ -1918,6 +1918,46 @@ resting SELL NO at 93c is a standing **bid** for YES at 7c: a trader hits it by
 **selling** YES, both sides sell, and the chain burns the share pair. Read only
 the YES book and that quote is invisible.
 
+### `OrderBook.GetFullMarketDepth`
+
+Returns aggregated volume per price level for **both** outcomes, from one read.
+
+**Signature:**
+```go
+func (o *OrderBook) GetFullMarketDepth(
+    ctx context.Context, input types.GetFullMarketDepthInput,
+) ([]types.FullDepthLevel, error)
+```
+
+**Parameters:**
+- `input.QueryID` (int): the market to read.
+
+Same aggregation as `GetMarketDepth`, for the whole market instead of one
+outcome, with each level tagged by the outcome it rests on. Rows arrive YES first
+then NO, price ascending within each.
+
+One statement means one snapshot. Anything comparing the two outcomes to each
+other wants this rather than two `GetMarketDepth` calls, because between two
+calls an order can land on one side and not the other.
+
+**Example:**
+```go
+depth, err := orderBook.GetFullMarketDepth(ctx, types.GetFullMarketDepthInput{QueryID: 419})
+if err != nil {
+    return err
+}
+for _, level := range depth {
+    side := "NO"
+    if level.Outcome {
+        side = "YES"
+    }
+    fmt.Printf("%s %dc: %d buy, %d sell\n", side, level.Price, level.BuyVolume, level.SellVolume)
+}
+```
+
+`GetMarketDepth` is unchanged and stays the right call when you want one
+outcome — a depth chart, a market-making bot quoting one side.
+
 ### `OrderBook.GetConsolidatedOrderBook`
 
 Returns one outcome's book with the opposite outcome's quotes folded in.
@@ -1972,11 +2012,11 @@ a YES bid at 61 against a NO bid at 45 shows a bid at 61 over an ask at 55, and
 61 + 45 is not 100 so nothing matches. Render it rather than treating it as bad
 data.
 
-Costs two `get_market_depth` reads. They are **not atomic**: `get_market_depth`
-takes only a query id and an outcome, and the transport exposes no block height,
-so there is no way to pin both sides to one snapshot. On a moving book the two
-sides can come from adjacent heights, which makes `IsCrossed` best-effort.
-Re-read before acting on it.
+Costs one `get_full_market_depth` read, so both sides are one snapshot of the
+chain and `IsCrossed` describes a state the book was really in. This used to take
+two `get_market_depth` calls, where an order landing between them could make the
+stitched ladder read as crossed when neither height was. Requires a node carrying
+`get_full_market_depth`.
 
 ---
 
