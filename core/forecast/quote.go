@@ -91,14 +91,22 @@ type ConsolidatedSellQuote struct {
 	Fills []ConsolidatedFill
 }
 
-// tradableLevels drops the levels the engine cannot trade at.
+// Submittable reports whether a price is one an order can actually carry: a
+// whole cent from 1 through 99.
 //
-// place_buy_order and place_sell_order both reject a price outside 1-99, so a
-// level there can never be the limit and must not be picked as one.
+// The node declares $price as INT and errors outside that range, so anything
+// else is a limit place_buy_order and place_sell_order will reject. A quote at
+// such a price would describe an order that never reaches the book.
+func Submittable(price float64) bool {
+	return price >= 1 && price <= 99 && price == math.Trunc(price)
+}
+
+// tradableLevels drops the levels the engine cannot trade at, so no level that
+// could never be submitted gets picked as the limit.
 func tradableLevels(levels []ConsolidatedLevel, side BookSide) []ConsolidatedLevel {
 	out := make([]ConsolidatedLevel, 0, len(levels))
 	for _, level := range levels {
-		if level.Price >= 1 && level.Price <= 99 {
+		if Submittable(level.Price) {
 			out = append(out, level)
 		}
 	}
@@ -220,8 +228,19 @@ func sellableShares(bids []ConsolidatedLevel) float64 {
 // QuoteConsolidatedBuy picks the cheapest limit that fills the whole order, and
 // a caller wanting the largest fill, a price ceiling or the least market impact
 // wants this instead.
+//
+// A limit that fails Submittable quotes nothing, since no order can carry it.
+// AvailableShares still describes the ladder, so a zero fill beside a non-zero
+// AvailableShares says the limit was the problem rather than the book.
 func QuoteConsolidatedBuyAtPrice(levels []ConsolidatedLevel, shares, limit float64) ConsolidatedBuyQuote {
 	asks := tradableLevels(levels, AskSide)
+	if !Submittable(limit) {
+		return ConsolidatedBuyQuote{
+			AvailableShares: buyableShares(asks),
+			Fills:           []ConsolidatedFill{},
+		}
+	}
+
 	filled, costCents, fills := simulateBuy(asks, shares, limit)
 
 	average := 0.0
@@ -284,8 +303,17 @@ func QuoteConsolidatedBuy(levels []ConsolidatedLevel, shares float64) Consolidat
 // moves the price, such as a self-trade guard raising it clear of the seller's
 // own resting buy order, and whenever the routing policy is the caller's rather
 // than the one QuoteConsolidatedSell applies.
+//
+// A limit that fails Submittable quotes nothing, since no order can carry it.
 func QuoteConsolidatedSellAtPrice(levels []ConsolidatedLevel, shares, limit float64) ConsolidatedSellQuote {
 	bids := tradableLevels(levels, BidSide)
+	if !Submittable(limit) {
+		return ConsolidatedSellQuote{
+			AvailableShares: sellableShares(bids),
+			Fills:           []ConsolidatedFill{},
+		}
+	}
+
 	filled, fills := simulateSell(bids, shares, limit)
 
 	average := 0.0

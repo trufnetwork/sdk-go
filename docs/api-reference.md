@@ -2067,6 +2067,12 @@ the limit that fills the most, cheapest for a buy and highest for a sell. A
 caller wanting a price ceiling, the least market impact, or a price something
 downstream already settled on passes it to the `AtPrice` variants instead.
 
+A limit only counts if an order could carry it: a whole cent from 1 through 99,
+which is what the node accepts. `forecast.Submittable` is that check. The model
+never chooses a limit that fails it, and the `AtPrice` variants quote nothing
+when handed one — `AvailableShares` is still filled in, so a zero fill beside a
+non-zero `AvailableShares` says the limit was the problem rather than the book.
+
 The quote assumes the order reaches the front of the queue at its price. Matching
 is FIFO within a level, so an older order resting at the same price takes the
 counterparty first and the real fill comes up short.

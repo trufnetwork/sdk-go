@@ -177,6 +177,54 @@ func TestQuoteConsolidatedBuyAtPrice_QuotesACallerSuppliedLimit(t *testing.T) {
 	assert.False(t, quote.IsFullyFilled)
 }
 
+func TestQuoteConsolidatedAtPrice_RejectsALimitNoOrderCanCarry(t *testing.T) {
+	// The node declares $price as INT and errors outside 1-99, so none of these
+	// reach the book. Quoting a fill for one would promise an order that cannot
+	// be placed: a buy at 100 otherwise takes every level, and a sell at 0
+	// otherwise fills the whole ladder for nothing.
+	asks := []ConsolidatedLevel{
+		{Price: 16, Total: 349, Native: 320, Inverse: 29},
+		{Price: 19, Total: 342, Native: 289, Inverse: 53},
+	}
+	bids := []ConsolidatedLevel{
+		{Price: 80, Total: 50, Native: 50},
+		{Price: 70, Total: 50, Native: 50},
+	}
+
+	for _, limit := range []float64{0, 100, 19.5, -5} {
+		buy := QuoteConsolidatedBuyAtPrice(asks, 500, limit)
+		assert.Zero(t, buy.FilledShares, "buy at %v", limit)
+		assert.Zero(t, buy.LimitPrice, "buy at %v", limit)
+		assert.Zero(t, buy.EstimatedTotalCost, "buy at %v", limit)
+		assert.False(t, buy.IsFullyFilled, "buy at %v", limit)
+		assert.Empty(t, buy.Fills, "buy at %v", limit)
+
+		// The ladder is still described, so a caller can tell the limit was the
+		// problem rather than the book.
+		assert.Equal(t, 662.0, buy.AvailableShares, "buy at %v", limit)
+
+		sell := QuoteConsolidatedSellAtPrice(bids, 100, limit)
+		assert.Zero(t, sell.FilledShares, "sell at %v", limit)
+		assert.Zero(t, sell.EstimatedProceeds, "sell at %v", limit)
+		assert.Empty(t, sell.Fills, "sell at %v", limit)
+		assert.Equal(t, 100.0, sell.AvailableShares, "sell at %v", limit)
+	}
+}
+
+func TestQuoteConsolidated_NeverChoosesAFractionalLimit(t *testing.T) {
+	// A hand-built ladder can carry a price the chain never produces. The model
+	// must not select one as the limit, since the resulting order is rejected.
+	asks := []ConsolidatedLevel{
+		{Price: 19.5, Total: 500, Native: 500},
+		{Price: 40, Total: 60, Native: 60},
+	}
+
+	quote := QuoteConsolidatedBuy(asks, 60)
+
+	assert.Equal(t, 40.0, quote.LimitPrice)
+	assert.Equal(t, 60.0, quote.AvailableShares)
+}
+
 func TestQuoteConsolidated_EmptyBookQuotesNothing(t *testing.T) {
 	buy := QuoteConsolidatedBuy(nil, 100)
 	assert.Zero(t, buy.LimitPrice)
