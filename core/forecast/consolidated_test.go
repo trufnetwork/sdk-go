@@ -161,3 +161,67 @@ func centShares(levels []BookLevel) float64 {
 	}
 	return total
 }
+
+func TestReflectConsolidatedBook_SwapsSidesAndVolume(t *testing.T) {
+	// A YES ask at 60 holding 10 YES sells and 4 NO buys (resting at 40) is, in
+	// the NO frame, a NO bid at 40 holding those 4 NO buys natively and the 10
+	// YES sells as its inverse.
+	yes := ConsolidatedOrderBook{
+		QueryID: 419,
+		Outcome: true,
+		Asks:    []ConsolidatedLevel{{Price: 60, Total: 14, Native: 10, Inverse: 4}},
+		Bids:    []ConsolidatedLevel{{Price: 30, Total: 20, Native: 20}},
+	}
+
+	no := ReflectConsolidatedBook(yes)
+
+	assert.Equal(t, 419, no.QueryID)
+	assert.False(t, no.Outcome)
+	assert.Equal(t, []ConsolidatedLevel{{Price: 40, Total: 14, Native: 4, Inverse: 10}}, no.Bids)
+	assert.Equal(t, []ConsolidatedLevel{{Price: 70, Total: 20, Native: 0, Inverse: 20}}, no.Asks)
+}
+
+func TestReflectConsolidatedBook_RoundTripsToItself(t *testing.T) {
+	yes := ConsolidatedOrderBook{
+		QueryID: 419,
+		Outcome: true,
+		Asks: []ConsolidatedLevel{
+			{Price: 16, Total: 349, Native: 320, Inverse: 29},
+			{Price: 19, Total: 342, Native: 289, Inverse: 53},
+		},
+		Bids: []ConsolidatedLevel{
+			{Price: 4, Total: 1082, Native: 1049, Inverse: 33},
+			{Price: 1, Total: 4339, Native: 4283, Inverse: 56},
+		},
+	}
+	yes.IsCrossed = Crossed(yes.Bids, yes.Asks)
+
+	assert.Equal(t, yes, ReflectConsolidatedBook(ReflectConsolidatedBook(yes)))
+}
+
+func TestReflectConsolidatedBook_MatchesASecondConsolidation(t *testing.T) {
+	// The reflection has to agree with reading the other outcome directly,
+	// because that is the round trip it replaces.
+	yesBids := []BookLevel{{Price: 40, Size: 20}}
+	yesAsks := []BookLevel{{Price: 60, Size: 10}}
+	noBids := []BookLevel{{Price: 30, Size: 7}}
+	noAsks := []BookLevel{{Price: 55, Size: 3}}
+
+	yes := ConsolidatedOrderBook{
+		QueryID: 419,
+		Outcome: true,
+		Bids:    ConsolidateSide(yesBids, noAsks, BidSide),
+		Asks:    ConsolidateSide(yesAsks, noBids, AskSide),
+	}
+	yes.IsCrossed = Crossed(yes.Bids, yes.Asks)
+
+	direct := ConsolidatedOrderBook{
+		QueryID: 419,
+		Outcome: false,
+		Bids:    ConsolidateSide(noBids, yesAsks, BidSide),
+		Asks:    ConsolidateSide(noAsks, yesBids, AskSide),
+	}
+	direct.IsCrossed = Crossed(direct.Bids, direct.Asks)
+
+	assert.Equal(t, direct, ReflectConsolidatedBook(yes))
+}

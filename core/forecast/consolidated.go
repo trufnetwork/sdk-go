@@ -128,6 +128,50 @@ func ConsolidateSide(native, opposite []BookLevel, side BookSide) []Consolidated
 	return levels
 }
 
+// reflectLevel moves one level into the opposite outcome's frame.
+//
+// Native and inverse swap because the resting order belongs to the other
+// outcome once the frame flips: this outcome's own book is the opposite
+// outcome's inverse, and the other way round.
+func reflectLevel(level ConsolidatedLevel) ConsolidatedLevel {
+	return ConsolidatedLevel{
+		Price:   InversePrice(level.Price),
+		Total:   level.Total,
+		Native:  level.Inverse,
+		Inverse: level.Native,
+	}
+}
+
+// ReflectConsolidatedBook returns the same market in the opposite outcome's
+// frame, without reading the chain again.
+//
+// Both outcome views come from one get_full_market_depth response, so the
+// opposite view is an exact reflection rather than new information: prices
+// complement to 100, asks and bids swap, and native and inverse volume swap
+// with them. Reading the second outcome separately costs another round trip and
+// risks stitching two different moments together.
+func ReflectConsolidatedBook(book ConsolidatedOrderBook) ConsolidatedOrderBook {
+	bids := make([]ConsolidatedLevel, 0, len(book.Asks))
+	for _, level := range book.Asks {
+		bids = append(bids, reflectLevel(level))
+	}
+	asks := make([]ConsolidatedLevel, 0, len(book.Bids))
+	for _, level := range book.Bids {
+		asks = append(asks, reflectLevel(level))
+	}
+
+	sort.SliceStable(bids, func(i, j int) bool { return bids[i].Price > bids[j].Price })
+	sort.SliceStable(asks, func(i, j int) bool { return asks[i].Price < asks[j].Price })
+
+	return ConsolidatedOrderBook{
+		QueryID:   book.QueryID,
+		Outcome:   !book.Outcome,
+		Bids:      bids,
+		Asks:      asks,
+		IsCrossed: Crossed(bids, asks),
+	}
+}
+
 // Crossed reports whether the best bid sits at or above the best ask.
 func Crossed(bids, asks []ConsolidatedLevel) bool {
 	return len(bids) > 0 && len(asks) > 0 && bids[0].Price >= asks[0].Price
