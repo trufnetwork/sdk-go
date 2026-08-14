@@ -2018,6 +2018,59 @@ two `get_market_depth` calls, where an order landing between them could make the
 stitched ladder read as crossed when neither height was. Requires a node carrying
 `get_full_market_depth`.
 
+### Quoting a fill
+
+`forecast.QuoteConsolidatedBuy` and `forecast.QuoteConsolidatedSell` answer what
+an order of a given size will actually do against a consolidated ladder, so no
+caller has to re-derive the matching rules.
+
+**Signatures:**
+```go
+func QuoteConsolidatedBuy(levels []ConsolidatedLevel, shares float64) ConsolidatedBuyQuote
+func QuoteConsolidatedSell(levels []ConsolidatedLevel, shares float64) ConsolidatedSellQuote
+
+func QuoteConsolidatedBuyAtPrice(levels []ConsolidatedLevel, shares, limit float64) ConsolidatedBuyQuote
+func QuoteConsolidatedSellAtPrice(levels []ConsolidatedLevel, shares, limit float64) ConsolidatedSellQuote
+```
+
+Pass `book.Asks` to buy and `book.Bids` to sell.
+
+**Example:**
+```go
+quote := forecast.QuoteConsolidatedBuy(book.Asks, 700)
+fmt.Printf("submit %0.fc for %.0f shares, $%.2f\n",
+    quote.LimitPrice, quote.FilledShares, quote.EstimatedTotalCost)
+for _, fill := range quote.Fills {
+    fmt.Printf("  %.0f @ %.0fc by %s\n", fill.Shares, fill.Price, fill.Path)
+}
+```
+
+Three things the returned quote makes explicit, each of which a hand-rolled
+ladder walk gets wrong:
+
+- **`AvailableShares` is not the ladder's total.** It is the most any single
+  order can take, which is smaller whenever inverse volume rests at more than
+  one price. A ladder summing to 350 can cap one order at 200.
+- **Fillable size is not monotonic in the limit price.** Raising the limit can
+  lose the inverse level the fill was counting on, so the model evaluates every
+  candidate price instead of walking down the ladder.
+- **A sell pays its limit on every share.** A direct match pays the seller the
+  ask price and refunds the buyer the difference, so crediting each resting bid
+  its own price overstates any sell reaching past one level.
+
+`Fills` carries each leg's `Path` — `FillDirect`, `FillMint` or `FillBurn` — for
+callers that want to show how the order settles.
+
+**Choosing the limit is the caller's policy, not the SDK's.**
+`QuoteConsolidatedBuy` and `QuoteConsolidatedSell` apply one reasonable default:
+the limit that fills the most, cheapest for a buy and highest for a sell. A
+caller wanting a price ceiling, the least market impact, or a price something
+downstream already settled on passes it to the `AtPrice` variants instead.
+
+The quote assumes the order reaches the front of the queue at its price. Matching
+is FIFO within a level, so an older order resting at the same price takes the
+counterparty first and the real fill comes up short.
+
 ---
 
 ## Market Forecasting
