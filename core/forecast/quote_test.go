@@ -240,6 +240,24 @@ func TestQuoteConsolidated_EmptyBookQuotesNothing(t *testing.T) {
 	assert.Empty(t, sell.Fills)
 }
 
+func TestQuoteConsolidatedBuy_ZeroSizeIsNotFullyFilled(t *testing.T) {
+	// An empty quantity box quotes the top of the book at no size. The point is
+	// that it must not claim to be fully filled: "0 >= 0" is true, so only the
+	// shares > 0 half of the condition keeps this honest.
+	asks := []ConsolidatedLevel{
+		{Price: 16, Total: 349, Native: 320, Inverse: 29},
+		{Price: 19, Total: 342, Native: 289, Inverse: 53},
+	}
+
+	quote := QuoteConsolidatedBuy(asks, 0)
+
+	assert.Equal(t, 16.0, quote.LimitPrice)
+	assert.Zero(t, quote.FilledShares)
+	assert.False(t, quote.IsFullyFilled)
+	assert.Empty(t, quote.Fills)
+	assert.Equal(t, 662.0, quote.AvailableShares)
+}
+
 func TestQuoteConsolidated_SortsAnUnorderedLadder(t *testing.T) {
 	// ConsolidateSide sorts, but a caller can hand-build a ladder and the model
 	// must not quote a worse price off the input order.
@@ -249,6 +267,24 @@ func TestQuoteConsolidated_SortsAnUnorderedLadder(t *testing.T) {
 	}
 
 	assert.Equal(t, 20.0, QuoteConsolidatedBuy(asks, 40).LimitPrice)
+	assert.Equal(t, 60.0, asks[0].Price, "the caller's slice must not be reordered")
+}
+
+func TestQuoteConsolidatedSell_SortsAnUnorderedLadder(t *testing.T) {
+	// The sell side needs this more than the buy side does: simulateSell breaks
+	// on the first bid below the limit, so an ascending ladder would stop at the
+	// worst price instead of starting at the best.
+	bids := []ConsolidatedLevel{
+		{Price: 60, Total: 40, Native: 40},
+		{Price: 80, Total: 50, Native: 50},
+	}
+
+	quote := QuoteConsolidatedSell(bids, 50)
+
+	assert.Equal(t, 80.0, quote.LimitPrice)
+	assert.Equal(t, 50.0, quote.FilledShares)
+	assert.Equal(t, 40.0, quote.EstimatedProceeds)
+	assert.Equal(t, 60.0, bids[0].Price, "the caller's slice must not be reordered")
 }
 
 // A frozen snapshot of mainnet market 419, read 2026-08-12 through
