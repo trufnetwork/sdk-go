@@ -225,3 +225,19 @@ func TestReflectConsolidatedBook_MatchesASecondConsolidation(t *testing.T) {
 
 	assert.Equal(t, direct, ReflectConsolidatedBook(yes))
 }
+
+func TestReflectConsolidatedBook_EmptySidesStayEmptyNotNil(t *testing.T) {
+	// ConsolidateSide never returns nil, so neither does this. A caller ranging
+	// over a reflected book, or marshalling it, sees an empty ladder rather than
+	// a null one.
+	reflected := ReflectConsolidatedBook(ConsolidatedOrderBook{QueryID: 419, Outcome: true})
+
+	assert.NotNil(t, reflected.Bids)
+	assert.NotNil(t, reflected.Asks)
+	assert.Empty(t, reflected.Bids)
+	assert.Empty(t, reflected.Asks)
+	assert.False(t, reflected.IsCrossed)
+	assert.False(t, reflected.Outcome)
+
+	assert.NotNil(t, ConsolidateSide(nil, nil, BidSide), "the contract this matches")
+}
