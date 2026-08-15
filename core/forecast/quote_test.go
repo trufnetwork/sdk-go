@@ -75,8 +75,8 @@ func TestQuoteConsolidatedBuy_PricesNativeLegsOwnAndInverseAtTheLimit(t *testing
 	assert.Equal(t, 30.0, quote.LimitPrice)
 	assert.Equal(t, 26.0, quote.EstimatedTotalCost)
 	assert.Equal(t, []ConsolidatedFill{
-		{Price: 20, Shares: 40, Path: FillDirect},
-		{Price: 30, Shares: 60, Path: FillMint},
+		{Price: 20, LevelPrice: 20, Shares: 40, Path: FillDirect},
+		{Price: 30, LevelPrice: 30, Shares: 60, Path: FillMint},
 	}, quote.Fills)
 }
 
@@ -116,8 +116,8 @@ func TestQuoteConsolidatedSell_CombinesADirectLegAndABurnLeg(t *testing.T) {
 	assert.Equal(t, 70.0, quote.FilledShares)
 	assert.Equal(t, 49.0, quote.EstimatedProceeds)
 	assert.Equal(t, []ConsolidatedFill{
-		{Price: 70, Shares: 30, Path: FillDirect},
-		{Price: 70, Shares: 40, Path: FillBurn},
+		{Price: 70, LevelPrice: 70, Shares: 30, Path: FillDirect},
+		{Price: 70, LevelPrice: 70, Shares: 40, Path: FillBurn},
 	}, quote.Fills)
 }
 
@@ -131,7 +131,7 @@ func TestQuoteConsolidatedSell_ReachesTheInverseLegOnlyAtTheExactLimit(t *testin
 
 	assert.Equal(t, 65.0, quote.LimitPrice)
 	assert.Equal(t, 52.0, quote.EstimatedProceeds)
-	assert.Equal(t, []ConsolidatedFill{{Price: 65, Shares: 80, Path: FillBurn}}, quote.Fills)
+	assert.Equal(t, []ConsolidatedFill{{Price: 65, LevelPrice: 65, Shares: 80, Path: FillBurn}}, quote.Fills)
 }
 
 func TestQuoteConsolidated_IgnoresLevelsOutsideTheTradableRange(t *testing.T) {
@@ -341,4 +341,39 @@ func TestQuoteConsolidated_AvailableSharesToleratesAnUnboundedRequest(t *testing
 	assert.Equal(t, 986.0, filled)
 	assert.False(t, math.IsNaN(cost))
 	assert.Len(t, fills, 4)
+}
+
+func TestQuoteConsolidatedSell_FillsCarryTheRestingLevel(t *testing.T) {
+	// A sell is paid its limit on every share, so Price alone cannot say which
+	// bids the order consumed. Anything rendering "x of y taken at this level"
+	// reads LevelPrice instead.
+	bids := []ConsolidatedLevel{
+		{Price: 80, Total: 50, Native: 50},
+		{Price: 70, Total: 90, Native: 50, Inverse: 40},
+	}
+
+	quote := QuoteConsolidatedSell(bids, 140)
+
+	assert.Equal(t, 70.0, quote.LimitPrice)
+	assert.Equal(t, []ConsolidatedFill{
+		{Price: 70, LevelPrice: 80, Shares: 50, Path: FillDirect},
+		{Price: 70, LevelPrice: 70, Shares: 50, Path: FillDirect},
+		{Price: 70, LevelPrice: 70, Shares: 40, Path: FillBurn},
+	}, quote.Fills)
+
+	// Every share is paid the limit, so the 80c bid earns 70c here.
+	assert.Equal(t, 98.0, quote.EstimatedProceeds)
+}
+
+func TestQuoteConsolidatedBuy_FillsCarryTheRestingLevel(t *testing.T) {
+	// A buy pays each native level its own price, so Price and LevelPrice agree
+	// on every leg. Asserted so the sell-side asymmetry stays deliberate.
+	asks := []ConsolidatedLevel{
+		{Price: 20, Total: 40, Native: 40},
+		{Price: 30, Total: 60, Inverse: 60},
+	}
+
+	for _, fill := range QuoteConsolidatedBuy(asks, 100).Fills {
+		assert.Equal(t, fill.Price, fill.LevelPrice)
+	}
 }

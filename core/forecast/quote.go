@@ -39,8 +39,15 @@ const (
 
 // ConsolidatedFill is one leg of a quoted fill.
 type ConsolidatedFill struct {
-	// Price is the leg's price in cents.
+	// Price is what each share on this leg pays or receives, in cents.
 	Price float64
+	// LevelPrice is the ladder level the liquidity rested at, in cents.
+	//
+	// It differs from Price only on a sell: a direct match pays the seller the
+	// submitted limit rather than the resting bid's own price, so one order can
+	// take several bids and receive the same price on all of them. Anything
+	// showing which levels an order consumed wants this rather than Price.
+	LevelPrice float64
 	// Shares is how much fills on this leg.
 	Shares float64
 	// Path is how the leg reaches the chain.
@@ -138,7 +145,7 @@ func simulateBuy(asks []ConsolidatedLevel, shares, limit float64) (filled, costC
 		filled += take
 		costCents += take * level.Price
 		remaining -= take
-		fills = append(fills, ConsolidatedFill{Price: level.Price, Shares: take, Path: FillDirect})
+		fills = append(fills, ConsolidatedFill{Price: level.Price, LevelPrice: level.Price, Shares: take, Path: FillDirect})
 	}
 
 	if remaining > 0 {
@@ -150,7 +157,7 @@ func simulateBuy(asks []ConsolidatedLevel, shares, limit float64) (filled, costC
 				filled += take
 				costCents += take * limit
 				remaining -= take
-				fills = append(fills, ConsolidatedFill{Price: limit, Shares: take, Path: FillMint})
+				fills = append(fills, ConsolidatedFill{Price: limit, LevelPrice: limit, Shares: take, Path: FillMint})
 			}
 			break
 		}
@@ -181,7 +188,7 @@ func simulateSell(bids []ConsolidatedLevel, shares, limit float64) (filled float
 
 		filled += take
 		remaining -= take
-		fills = append(fills, ConsolidatedFill{Price: limit, Shares: take, Path: FillDirect})
+		fills = append(fills, ConsolidatedFill{Price: limit, LevelPrice: level.Price, Shares: take, Path: FillDirect})
 	}
 
 	if remaining > 0 {
@@ -192,7 +199,7 @@ func simulateSell(bids []ConsolidatedLevel, shares, limit float64) (filled float
 			if take := math.Min(level.Inverse, remaining); take > 0 {
 				filled += take
 				remaining -= take
-				fills = append(fills, ConsolidatedFill{Price: limit, Shares: take, Path: FillBurn})
+				fills = append(fills, ConsolidatedFill{Price: limit, LevelPrice: limit, Shares: take, Path: FillBurn})
 			}
 			break
 		}

@@ -2018,6 +2018,36 @@ two `get_market_depth` calls, where an order landing between them could make the
 stitched ladder read as crossed when neither height was. Requires a node carrying
 `get_full_market_depth`.
 
+### `forecast.ReflectConsolidatedBook`
+
+Returns the same market in the opposite outcome's frame, with no second chain
+read.
+
+**Signature:**
+```go
+func ReflectConsolidatedBook(book ConsolidatedOrderBook) ConsolidatedOrderBook
+```
+
+Both outcome views come from one `get_full_market_depth` response, so the
+opposite view is an exact reflection rather than new information: prices
+complement to 100, bids and asks swap, and native and inverse volume swap with
+them, because a resting order belongs to the other outcome once the frame flips.
+
+**Example:**
+```go
+yes, err := orderBook.GetConsolidatedOrderBook(ctx, types.GetConsolidatedOrderBookInput{
+    QueryID: 419, Outcome: true,
+})
+if err != nil {
+    return err
+}
+no := forecast.ReflectConsolidatedBook(yes)
+```
+
+Anything rendering both outcomes wants this rather than a second
+`GetConsolidatedOrderBook` call. It halves the round trips, and it removes the
+chance of stitching two different moments of the chain into one view.
+
 ### Quoting a fill
 
 `forecast.QuoteConsolidatedBuy` and `forecast.QuoteConsolidatedSell` answer what
@@ -2060,6 +2090,14 @@ ladder walk gets wrong:
 
 `Fills` carries each leg's `Path` — `FillDirect`, `FillMint` or `FillBurn` — for
 callers that want to show how the order settles.
+
+Each leg also carries two prices, and they are not the same thing. `Price` is
+what a share on that leg pays or receives; `LevelPrice` is the ladder level the
+liquidity rested at. They agree on every buy leg. They diverge on a sell, where
+a direct match pays the seller the submitted limit rather than each resting
+bid's own price, so one order can take three bids and be paid the same on all
+three. Anything rendering which levels an order consumed wants `LevelPrice`;
+anything totalling money wants `Price`.
 
 **Choosing the limit is the caller's policy, not the SDK's.**
 `QuoteConsolidatedBuy` and `QuoteConsolidatedSell` apply one reasonable default:
