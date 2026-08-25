@@ -160,6 +160,67 @@ func (v *ValueEqualsInput) ActionName() string {
 	return "value_equals"
 }
 
+// IndexChangeInRangeInput contains parameters for "index_change_in_range" action
+// Use case: "Will year-over-year inflation land between 2% and 3%?"
+// Returns TRUE if min_change <= percentage change < max_change at the timestamp.
+//
+// The change is measured against the stream's own value one TimeInterval earlier,
+// in percent, and the bounds are half-open: a change landing exactly on a boundary
+// belongs to the bucket above it, so a set of buckets tiles the number line without
+// two of them settling TRUE.
+//
+// Either bound may be nil, which strikes an open tail -- the outer two buckets of a
+// set are always struck that way. Both nil is rejected.
+type IndexChangeInRangeInput struct {
+	DataProvider string  // 0x-prefixed Ethereum address of the data provider
+	StreamID     string  // 32-character stream ID
+	Timestamp    int64   // Unix timestamp to measure the change at
+	BaseTime     *int64  // Optional: index base date, nil for the stream's default
+	TimeInterval int64   // Seconds to look back for the comparison value (e.g. 31536000 for YoY)
+	MinChange    *string // Lower bound in percent, inclusive; nil for an open tail
+	MaxChange    *string // Upper bound in percent, exclusive; nil for an open tail
+	FrozenAt     *int64  // Optional: Unix timestamp to freeze the value lookup
+}
+
+// Validate checks if the input is valid
+//
+// Rejecting both-nil bounds mirrors the node action and turns a failed
+// transaction into a local error. The node's other bound rule, min < max, is
+// enforced when the bounds are parsed into decimals during encoding -- comparing
+// them as strings here would be wrong at the precision the action uses.
+func (v *IndexChangeInRangeInput) Validate() error {
+	if len(v.DataProvider) != 42 {
+		return fmt.Errorf("data_provider must be 42 characters (0x + 40 hex), got %d", len(v.DataProvider))
+	}
+	if v.DataProvider[:2] != "0x" {
+		return fmt.Errorf("data_provider must be 0x-prefixed")
+	}
+	if len(v.StreamID) != 32 {
+		return fmt.Errorf("stream_id must be exactly 32 characters, got %d", len(v.StreamID))
+	}
+	if v.Timestamp <= 0 {
+		return fmt.Errorf("timestamp must be positive")
+	}
+	if v.TimeInterval <= 0 {
+		return fmt.Errorf("time_interval must be positive, got %d", v.TimeInterval)
+	}
+	if v.MinChange == nil && v.MaxChange == nil {
+		return fmt.Errorf("at least one of min_change or max_change is required")
+	}
+	if v.MinChange != nil && *v.MinChange == "" {
+		return fmt.Errorf("min_change is set but empty; use nil for an open tail")
+	}
+	if v.MaxChange != nil && *v.MaxChange == "" {
+		return fmt.Errorf("max_change is set but empty; use nil for an open tail")
+	}
+	return nil
+}
+
+// ActionName returns the action name for this input type
+func (v *IndexChangeInRangeInput) ActionName() string {
+	return "index_change_in_range"
+}
+
 // ═══════════════════════════════════════════════════════════════
 // BINARY ACTION INTERFACE
 // ═══════════════════════════════════════════════════════════════
@@ -176,4 +237,5 @@ var (
 	_ BinaryActionInput = (*PriceBelowThresholdInput)(nil)
 	_ BinaryActionInput = (*ValueInRangeInput)(nil)
 	_ BinaryActionInput = (*ValueEqualsInput)(nil)
+	_ BinaryActionInput = (*IndexChangeInRangeInput)(nil)
 )

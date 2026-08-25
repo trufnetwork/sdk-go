@@ -109,12 +109,13 @@ func decodeEncodedValue(buf []byte) (any, error) {
 // decodeCanonicalQueryResult decodes a canonical query result (rows/columns format)
 //
 // Format: [row_count: uint32 LE]
-//         [row1_col_count: uint32 LE]
-//           [col1_len: uint32 LE][encoded_col1]
-//           [col2_len: uint32 LE][encoded_col2]
-//           ...
-//         [row2_col_count: uint32 LE]
-//           ...
+//
+//	[row1_col_count: uint32 LE]
+//	  [col1_len: uint32 LE][encoded_col1]
+//	  [col2_len: uint32 LE][encoded_col2]
+//	  ...
+//	[row2_col_count: uint32 LE]
+//	  ...
 func decodeCanonicalQueryResult(data []byte) ([]sdktypes.DecodedRow, error) {
 	if len(data) < 4 {
 		return nil, fmt.Errorf("data too short for row count")
@@ -493,11 +494,15 @@ func decodeABIBoolean(data []byte) (bool, error) {
 
 // ParseBooleanResult extracts a boolean result from a binary action attestation payload.
 //
-// This function is specifically for binary attestation actions (IDs 6-9):
+// This function is specifically for binary attestation actions:
 //   - price_above_threshold (6)
 //   - price_below_threshold (7)
 //   - value_in_range (8)
 //   - value_equals (9)
+//   - index_change_in_range (12)
+//
+// The set is not a range -- IDs 10 and 11 are numeric actions on the node -- so
+// membership comes from the action registry.
 //
 // These actions return abi.encode(bool) instead of abi.encode(uint256[], int256[]).
 //
@@ -506,7 +511,7 @@ func decodeABIBoolean(data []byte) (bool, error) {
 //
 // Returns:
 //   - result: The boolean outcome (TRUE/FALSE)
-//   - actionID: The action ID from the payload (should be 6-9)
+//   - actionID: The action ID from the payload (should be a binary action)
 //   - err: Error if parsing fails or action is not a binary action
 func ParseBooleanResult(payload []byte) (result bool, actionID uint16, err error) {
 	// First, parse enough to get the action ID and result bytes
@@ -561,7 +566,7 @@ func ParseBooleanResult(payload []byte) (result bool, actionID uint16, err error
 
 	// Validate this is a binary action
 	if !sdktypes.IsBinaryActionID(actionID) {
-		return false, actionID, fmt.Errorf("action ID %d is not a binary action (expected 6-9)", actionID)
+		return false, actionID, fmt.Errorf("action ID %d is not a binary action", actionID)
 	}
 
 	// 7. Skip arguments (length-prefixed)
@@ -609,7 +614,7 @@ func ParseBooleanResultFromParsed(parsed *sdktypes.ParsedAttestationPayload) (bo
 
 	// Validate this is a binary action
 	if !sdktypes.IsBinaryActionID(parsed.ActionID) {
-		return false, fmt.Errorf("action ID %d is not a binary action (expected 6-9)", parsed.ActionID)
+		return false, fmt.Errorf("action ID %d is not a binary action", parsed.ActionID)
 	}
 
 	// For binary actions, the Result field may be empty or incorrectly parsed

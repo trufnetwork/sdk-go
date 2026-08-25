@@ -15,6 +15,11 @@ import (
 // are always struck. Bounds are half-open upstream, so a value landing exactly
 // on a boundary resolves the upper bucket only.
 //
+// "above", "below" and "between" markets are struck in the stream's own units;
+// "change_between" markets are struck in percent, against the stream's value one
+// time_interval earlier. This function does not distinguish them -- a caller
+// comparing bounds across markets has to know it is comparing like with like.
+//
 // This is SDK-side glue, deliberately kept OUT of the forecast package: that
 // package is a translation of the upstream algorithm in
 // truflation/prediction-bots and must stay comparable against it (and against
@@ -50,6 +55,25 @@ func BucketBoundsFromMarketData(market *MarketData) (lower, upper *float64, err 
 		return value, nil
 	}
 
+	// optionalThreshold reads a slot that is allowed to be struck open. An open
+	// tail decodes to an empty string in place rather than a missing slot, so a
+	// short slice is still a malformed market.
+	optionalThreshold := func(index int) (*float64, error) {
+		if len(market.Thresholds) <= index {
+			return nil, fmt.Errorf(
+				"a %q market needs %d threshold slot(s), got %d",
+				market.Type, index+1, len(market.Thresholds))
+		}
+		if market.Thresholds[index] == "" {
+			return nil, nil
+		}
+		value, tErr := threshold(index)
+		if tErr != nil {
+			return nil, tErr
+		}
+		return forecast.Ptr(value), nil
+	}
+
 	switch market.Type {
 	case "below":
 		upperBound, tErr := threshold(0)
@@ -83,6 +107,32 @@ func BucketBoundsFromMarketData(market *MarketData) (lower, upper *float64, err 
 				market.Type, lowerBound, upperBound)
 		}
 		return forecast.Ptr(lowerBound), forecast.Ptr(upperBound), nil
+
+	case "change_between":
+		// Percentage-change buckets, already half-open upstream and already in
+		// the open-ended shape this function returns, so the bounds pass
+		// through rather than being derived.
+		lowerBound, lErr := optionalThreshold(0)
+		if lErr != nil {
+			return nil, nil, lErr
+		}
+		upperBound, uErr := optionalThreshold(1)
+		if uErr != nil {
+			return nil, nil, uErr
+		}
+		// Both tails open would describe the whole number line. The node action
+		// refuses to be created that way, so a market reaching here like that is
+		// malformed rather than unbounded.
+		if lowerBound == nil && upperBound == nil {
+			return nil, nil, fmt.Errorf(
+				"a %q market needs at least one bound, got neither", market.Type)
+		}
+		if lowerBound != nil && upperBound != nil && *lowerBound >= *upperBound {
+			return nil, nil, fmt.Errorf(
+				"a %q market needs lower < upper, got [%v, %v)",
+				market.Type, *lowerBound, *upperBound)
+		}
+		return lowerBound, upperBound, nil
 
 	case "equals":
 		// Thresholds are (target, tolerance), NOT (lower, upper). Reading them

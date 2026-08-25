@@ -2,7 +2,7 @@ package types
 
 // ActionInfo contains metadata about an attestation action
 type ActionInfo struct {
-	ID          uint16 // Unique action ID (1-9 currently defined)
+	ID          uint16 // Unique action ID (see ActionRegistry for the defined set)
 	Name        string // Action name as used in query_components
 	IsBinary    bool   // True for binary (TRUE/FALSE) actions, false for numeric actions
 	Description string // Human-readable description
@@ -12,6 +12,12 @@ type ActionInfo struct {
 // These correspond to the actions defined in the node's migrations:
 // - 000-create-tn.sql (IDs 1-5: numeric actions)
 // - 040-binary-attestation-actions.sql (IDs 6-9: binary actions)
+// - 055-index-change-attestation-action.sql (ID 12: binary action)
+//
+// IDs are not contiguous, and binary IDs are not a range: 10 and 11 exist on the
+// node as numeric actions and are deliberately absent here. Anything deciding
+// whether an action is binary must ask this registry rather than compare against
+// a bound.
 var ActionRegistry = map[string]ActionInfo{
 	// Numeric actions (IDs 1-5) - return uint256[], int256[]
 	"get_record": {
@@ -70,6 +76,14 @@ var ActionRegistry = map[string]ActionInfo{
 		IsBinary:    true,
 		Description: "TRUE if value = target ± tolerance (e.g., 'Will Fed rate be exactly 5.25%?')",
 	},
+
+	// Binary action (ID 12) - returns bool (TRUE/FALSE)
+	"index_change_in_range": {
+		ID:          12,
+		Name:        "index_change_in_range",
+		IsBinary:    true,
+		Description: "TRUE if min <= percentage change < max (e.g., 'Will inflation land between 2% and 3%?')",
+	},
 }
 
 // ActionByID maps action IDs to their metadata
@@ -97,7 +111,7 @@ func GetActionInfoByID(id uint16) *ActionInfo {
 	return nil
 }
 
-// IsBinaryAction returns true if the action name corresponds to a binary action (IDs 6-9)
+// IsBinaryAction returns true if the action name corresponds to a binary action
 func IsBinaryAction(name string) bool {
 	if info, ok := ActionRegistry[name]; ok {
 		return info.IsBinary
@@ -105,7 +119,7 @@ func IsBinaryAction(name string) bool {
 	return false
 }
 
-// IsBinaryActionID returns true if the action ID corresponds to a binary action (6-9)
+// IsBinaryActionID returns true if the action ID corresponds to a binary action
 func IsBinaryActionID(id uint16) bool {
 	if info, ok := ActionByID[id]; ok {
 		return info.IsBinary
