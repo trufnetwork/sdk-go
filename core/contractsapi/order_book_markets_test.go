@@ -163,6 +163,7 @@ func TestEncodeQueryComponents_DifferentActionIDs(t *testing.T) {
 		"price_below_threshold",
 		"value_in_range",
 		"value_equals",
+		"index_change_in_range",
 	}
 
 	for _, actionID := range actionIDs {
@@ -377,39 +378,55 @@ func TestDecodeMarketData(t *testing.T) {
 	streamID := "stbtcusd000000000000000000000000"
 
 	tests := []struct {
-		name       string
-		actionID   string
-		args       []any
-		expectType string
+		name         string
+		actionID     string
+		args         []any
+		expectType   string
 		expectThresh []string
 	}{
 		{
-			name:       "Price Above",
-			actionID:   "price_above_threshold",
-			args:       []any{"0x...", "stream", int64(123), "100000", nil},
-			expectType: "above",
+			name:         "Price Above",
+			actionID:     "price_above_threshold",
+			args:         []any{"0x...", "stream", int64(123), "100000", nil},
+			expectType:   "above",
 			expectThresh: []string{"100000"},
 		},
 		{
-			name:       "Price Below",
-			actionID:   "price_below_threshold",
-			args:       []any{"0x...", "stream", int64(123), "4.5", nil},
-			expectType: "below",
+			name:         "Price Below",
+			actionID:     "price_below_threshold",
+			args:         []any{"0x...", "stream", int64(123), "4.5", nil},
+			expectType:   "below",
 			expectThresh: []string{"4.5"},
 		},
 		{
-			name:       "Value In Range",
-			actionID:   "value_in_range",
-			args:       []any{"0x...", "stream", int64(123), "90000", "110000", nil},
-			expectType: "between",
+			name:         "Value In Range",
+			actionID:     "value_in_range",
+			args:         []any{"0x...", "stream", int64(123), "90000", "110000", nil},
+			expectType:   "between",
 			expectThresh: []string{"90000", "110000"},
 		},
 		{
-			name:       "Value Equals",
-			actionID:   "value_equals",
-			args:       []any{"0x...", "stream", int64(123), "5.25", "0.01", nil},
-			expectType: "equals",
+			name:         "Value Equals",
+			actionID:     "value_equals",
+			args:         []any{"0x...", "stream", int64(123), "5.25", "0.01", nil},
+			expectType:   "equals",
 			expectThresh: []string{"5.25", "0.01"},
+		},
+		{
+			// Eight arguments, and the bounds sit at 5 and 6 rather than 3 and 4:
+			// base_time and time_interval come first.
+			name:         "Index Change In Range",
+			actionID:     "index_change_in_range",
+			args:         []any{"0x...", "stream", int64(123), nil, int64(31536000), "2", "3", nil},
+			expectType:   "change_between",
+			expectThresh: []string{"2", "3"},
+		},
+		{
+			name:         "Index Change In Range with an open bottom tail",
+			actionID:     "index_change_in_range",
+			args:         []any{"0x...", "stream", int64(123), nil, int64(31536000), nil, "3", nil},
+			expectType:   "change_between",
+			expectThresh: []string{"", "3"},
 		},
 	}
 

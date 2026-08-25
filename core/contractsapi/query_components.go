@@ -143,11 +143,16 @@ func DecodeQueryComponents(encoded []byte) (dataProvider, streamID, actionID str
 
 // MarketData represents the structured content of a prediction market's query components
 type MarketData struct {
-	DataProvider string   `json:"data_provider"`
-	StreamID     string   `json:"stream_id"`
-	ActionID     string   `json:"action_id"`
-	Type         string   `json:"type"`       // "above", "below", "between", "equals"
-	Thresholds   []string `json:"thresholds"` // Formatted numeric values
+	DataProvider string `json:"data_provider"`
+	StreamID     string `json:"stream_id"`
+	ActionID     string `json:"action_id"`
+	Type         string `json:"type"` // "above", "below", "between", "equals", "change_between"
+	// Thresholds holds the market's strike values in the order the action
+	// declares them, one entry per slot. A "change_between" market may strike an
+	// open tail, which reads back as an empty string in place rather than a
+	// shorter slice -- dropping it would slide the remaining bound into the wrong
+	// position.
+	Thresholds []string `json:"thresholds"`
 	// Timestamp is the point in the stream the query observes, in unix seconds.
 	// Every bucket of one market shares it; nil only when the arguments could
 	// not be read.
@@ -245,11 +250,14 @@ func DecodeMarketData(encoded []byte) (*MarketData, error) {
 	}
 
 	// Map action_id to market type and thresholds
-	// Based on 040-binary-attestation-actions.sql
+	// Based on 040-binary-attestation-actions.sql and
+	// 055-index-change-attestation-action.sql
 	//
 	// Every binary action takes ($data_provider, $stream_id, $timestamp, ...,
 	// $frozen_at), so the timestamp is always argument 2 and frozen_at is always
-	// last. Only the thresholds in between change shape.
+	// last. Only the arguments in between change shape, and they are not all
+	// thresholds: index_change_in_range carries $base_time and $time_interval
+	// ahead of its two bounds.
 	switch actionID {
 	case "price_above_threshold":
 		market.Type = "above"
@@ -275,6 +283,15 @@ func DecodeMarketData(encoded []byte) (*MarketData, error) {
 			market.Thresholds = append(market.Thresholds, formatArg(args[3]), formatArg(args[4]))
 		}
 		readQueryTime(market, args, 5)
+	case "index_change_in_range":
+		// Its own type rather than "between": the bounds here are half-open and
+		// either may be NULL for an open tail, which "between" consumers parse
+		// as a number and would reject.
+		market.Type = "change_between"
+		if len(args) >= 7 {
+			market.Thresholds = append(market.Thresholds, formatArg(args[5]), formatArg(args[6]))
+		}
+		readQueryTime(market, args, 7)
 	default:
 		market.Type = "unknown"
 	}

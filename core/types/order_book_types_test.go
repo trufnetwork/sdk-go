@@ -355,7 +355,7 @@ func TestCreateMarketInput_Validate_EdgeCases(t *testing.T) {
 	t.Run("All maximum valid values", func(t *testing.T) {
 		input := CreateMarketInput{
 			Bridge:          "ethereum_bridge",
-			QueryComponents: make([]byte, 10000), // Large query components
+			QueryComponents: make([]byte, 10000),          // Large query components
 			SettleTime:      time.Now().Unix() + 31536000, // 1 year in future
 			MaxSpread:       50,
 			MinOrderSize:    1000000000,
@@ -523,6 +523,7 @@ func TestActionRegistry(t *testing.T) {
 		require.True(t, IsBinaryAction("price_below_threshold"))
 		require.True(t, IsBinaryAction("value_in_range"))
 		require.True(t, IsBinaryAction("value_equals"))
+		require.True(t, IsBinaryAction("index_change_in_range"))
 	})
 
 	t.Run("IsBinaryActionID checks", func(t *testing.T) {
@@ -532,7 +533,20 @@ func TestActionRegistry(t *testing.T) {
 		require.True(t, IsBinaryActionID(7))
 		require.True(t, IsBinaryActionID(8))
 		require.True(t, IsBinaryActionID(9))
+		require.True(t, IsBinaryActionID(12))
+		// 10 and 11 are numeric actions on the node and sit between the binary
+		// ones, so binary membership cannot be a range.
 		require.False(t, IsBinaryActionID(10))
+		require.False(t, IsBinaryActionID(11))
+	})
+
+	t.Run("Index change action is registered as binary", func(t *testing.T) {
+		info := GetActionInfo("index_change_in_range")
+		require.NotNil(t, info)
+		require.Equal(t, uint16(12), info.ID)
+		require.True(t, info.IsBinary)
+		require.Equal(t, "index_change_in_range", GetActionName(12))
+		require.Equal(t, uint16(12), GetActionID("index_change_in_range"))
 	})
 
 	t.Run("GetActionID", func(t *testing.T) {
