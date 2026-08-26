@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,9 +44,9 @@ const (
 	dataProvider = "0x4710a8d8f0d845da110086812a32de6d90d7ff5c"
 	streamID     = "st9f212b7c208afd83705cc0dbdadfe8"
 
-	// The last event time in that stream. Used only to show what the rate
-	// currently is; the markets below observe a settlement time instead.
-	lastRecordAt = int64(1783296000)
+	// Fallback observation point, used only if the stream's latest event time
+	// cannot be read. The markets below observe their settlement time instead.
+	fallbackObservedAt = int64(1783296000)
 
 	yearInSeconds = int64(31536000)
 
@@ -97,14 +98,21 @@ func main() {
 	fmt.Printf("Endpoint: %s\n", endpoint)
 	fmt.Printf("Wallet:   %s\n\n", address.Address())
 
-	describeTheRate(ctx, client)
-	readTheBucketsOffline()
+	observedAt := describeTheRate(ctx, client)
+	readTheBucketsOffline(observedAt)
 	createTheMarkets(ctx, client)
 }
 
-// describeTheRate shows the number a market on this stream settles against.
-// get_index_change is a plain read, so this costs nothing.
-func describeTheRate(ctx context.Context, client *tnclient.Client) {
+// describeTheRate shows the number a market on this stream settles against, and
+// returns the point in the stream it was measured at.
+//
+// The point is read from the stream rather than hardcoded, so this stays honest
+// as the stream advances. A published index is not a live price -- CPI-style
+// data lands monthly -- so the latest reading is routinely weeks old, and saying
+// which day it belongs to matters more than calling it "current".
+//
+// Both calls are plain reads and cost nothing.
+func describeTheRate(ctx context.Context, client *tnclient.Client) int64 {
 	fmt.Println("--- What such a market measures ---")
 
 	actions, err := client.LoadActions()
@@ -112,29 +120,64 @@ func describeTheRate(ctx context.Context, client *tnclient.Client) {
 		log.Fatalf("Failed to load actions: %v", err)
 	}
 
+	observedAt := fallbackObservedAt
+
+	// get_last_record($data_provider, $stream_id, $before, $frozen_at, $use_cache)
+	latest, err := actions.CallProcedure(ctx, "get_last_record", []any{
+		dataProvider, streamID, nil, nil, false,
+	})
+	if err == nil && len(latest.Values) > 0 {
+		if at, ok := eventTime(latest.ColumnNames, latest.Values[0]); ok {
+			observedAt = at
+		}
+	}
+
 	// get_index_change($data_provider, $stream_id, $from, $to, $frozen_at,
 	//                  $base_time, $time_interval, $use_cache)
 	result, err := actions.CallProcedure(ctx, "get_index_change", []any{
-		dataProvider, streamID, lastRecordAt, lastRecordAt, nil, nil, yearInSeconds, false,
+		dataProvider, streamID, observedAt, observedAt, nil, nil, yearInSeconds, false,
 	})
 	if err != nil {
-		fmt.Printf("Could not read the current rate: %v\n\n", err)
-		return
+		fmt.Printf("Could not read the rate: %v\n\n", err)
+		return observedAt
 	}
 	if len(result.Values) == 0 {
 		fmt.Print("The stream has no value at that point.\n\n")
-		return
+		return observedAt
 	}
 
 	row := result.Values[0]
-	fmt.Printf("Stream %s moved %v%% over the year ending %s.\n\n",
-		streamID, row[len(row)-1], time.Unix(lastRecordAt, 0).UTC().Format("2006-01-02"))
+	fmt.Printf("Stream %s moved %v%% over the year ending %s,\n",
+		streamID, row[len(row)-1], time.Unix(observedAt, 0).UTC().Format("2006-01-02"))
+	fmt.Printf("which is its latest reading, not today's date.\n\n")
+	return observedAt
+}
+
+// eventTime pulls the event_time column out of a result row by name, so a change
+// in column order does not silently turn a value into a timestamp.
+func eventTime(columns []string, row []any) (int64, bool) {
+	for i, name := range columns {
+		if name != "event_time" || i >= len(row) {
+			continue
+		}
+		switch v := row[i].(type) {
+		case int64:
+			return v, true
+		case int:
+			return int64(v), true
+		case string:
+			if parsed, err := strconv.ParseInt(v, 10, 64); err == nil {
+				return parsed, true
+			}
+		}
+	}
+	return 0, false
 }
 
 // readTheBucketsOffline builds each bucket's query components and reads them
 // back without touching the network, which is where the encoding contract is
 // easiest to see.
-func readTheBucketsOffline() {
+func readTheBucketsOffline(observedAt int64) {
 	fmt.Println("--- The bucket set, built and decoded locally ---")
 
 	for _, bucket := range buckets {
@@ -142,7 +185,7 @@ func readTheBucketsOffline() {
 			types.IndexChangeInRangeInput{
 				DataProvider: dataProvider,
 				StreamID:     streamID,
-				Timestamp:    lastRecordAt,
+				Timestamp:    observedAt,
 				TimeInterval: yearInSeconds,
 				MinChange:    bucket.min,
 				MaxChange:    bucket.max,

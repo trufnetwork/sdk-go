@@ -15,8 +15,11 @@ be struck on the *rate* while reading a stream that only publishes *levels*.
 
 ## What the example does
 
-1. Reads the stream's current year-over-year change, so you can see the number such a market settles
-   against. This is a plain read and costs nothing.
+1. Reads the stream's latest year-over-year change, so you can see the number such a market settles
+   against. The observation point is read from the stream rather than hardcoded, so it stays honest
+   as the stream advances. A published index is not a live price — CPI-style data lands monthly — so
+   the latest reading is routinely weeks old, and the example prints which day it belongs to. Plain
+   reads, cost nothing.
 2. Builds three buckets and decodes them locally, without touching the network. This is where the
    encoding contract is easiest to see.
 3. Creates the same three markets on testnet.
@@ -54,8 +57,12 @@ open side.
 ## Prerequisites
 
 - Go 1.24 or later
-- Nothing else. The example points at `https://gateway.testnet.truf.network` and ships with a
-  throwaway testnet wallet.
+- A node carrying **migration 055**, which is what defines `index_change_in_range`. The public
+  testnet the example points at has it. **Mainnet does not yet** — repointing `endpoint` there today
+  fails with an unknown action, and it will keep failing until the migration is applied.
+
+Otherwise nothing: the example points at `https://gateway.testnet.truf.network` and ships with a
+throwaway testnet wallet.
 
 ## Running it
 
@@ -87,7 +94,8 @@ Endpoint: https://gateway.testnet.truf.network
 Wallet:   0x32a46917df74808b9add7dc6ef0c34520412fdf3
 
 --- What such a market measures ---
-Stream st9f212b7c208afd83705cc0dbdadfe8 moved -33.659022158930734676% over the year ending 2026-07-06.
+Stream st9f212b7c208afd83705cc0dbdadfe8 moved -33.659022158930734676% over the year ending 2026-07-06,
+which is its latest reading, not today's date.
 
 --- The bucket set, built and decoded locally ---
   below 2%             type=change_between thresholds=["" "2.000000000000000000"] bounds=[open, 2)
