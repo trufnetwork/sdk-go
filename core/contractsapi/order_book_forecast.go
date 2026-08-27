@@ -73,7 +73,8 @@ func (o *OrderBook) GetMarketForecast(ctx context.Context, input types.GetMarket
 		} else if thisIdentity != identity {
 			return nil, errors.Errorf(
 				"market %d belongs to a different event than the first bucket: "+
-					"(data_provider, stream_id, bridge, settle_time, timestamp, frozen_at) is %s against %s. "+
+					"(data_provider, stream_id, bridge, settle_time, timestamp, frozen_at, "+
+					"base_time, time_interval) is %s against %s. "+
 					"One forecast covers the buckets of ONE market.",
 				queryID, thisIdentity, identity)
 		}
@@ -169,11 +170,26 @@ func forecastFromBooks(books []forecast.BucketDepth) *forecast.MarketForecast {
 // identical question while collateralising it differently. Those are separate
 // markets with separate books, and averaging them would be meaningless.
 //
+// base_time and time_interval are nil for every market type except
+// "change_between", where they say what the change is measured over. A
+// year-over-year bucket and a month-over-month one can share every other field
+// here and still be two unrelated events. Carrying them also keeps a
+// percent-change bucket from joining a set struck in the stream's own units,
+// since only a change market has an interval at all -- and that collision is
+// reachable, because the index streams these markets are built on already carry
+// value_in_range sets that observe at their own settle time exactly as the new
+// ones do. Bounds around 335 would be normalised against bounds around 2.5.
+//
+// The action id is deliberately NOT here: a complete set tiles the line with one
+// price_below_threshold bucket, one price_above_threshold, and value_in_range
+// between, so three different actions is the normal shape of ONE market.
+//
 // Kept as a pure function so the comparison can be tested without a node.
 func marketIdentity(market *MarketData, bridge string, settleTime int64) string {
-	return fmt.Sprintf("%s|%s|%s|%d|%s|%s",
+	return fmt.Sprintf("%s|%s|%s|%d|%s|%s|%s|%s",
 		market.DataProvider, market.StreamID, bridge, settleTime,
-		formatOptionalInt64(market.Timestamp), formatOptionalInt64(market.FrozenAt))
+		formatOptionalInt64(market.Timestamp), formatOptionalInt64(market.FrozenAt),
+		formatOptionalInt64(market.BaseTime), formatOptionalInt64(market.TimeInterval))
 }
 
 // requireQueryTime rejects a market whose query timestamp could not be read.

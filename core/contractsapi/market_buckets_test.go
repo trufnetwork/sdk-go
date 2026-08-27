@@ -393,6 +393,48 @@ func TestMarketIdentity_DiffersOnEveryEventField(t *testing.T) {
 		"the same question on a different bridge is a separate market")
 }
 
+func TestMarketIdentity_SeparatesChangeMarketsByWhatTheyMeasure(t *testing.T) {
+	// index_change_in_range is the first action to carry query arguments that
+	// change the question without changing a strike. Without them in the
+	// identity, these all collapse onto one event.
+	const settleTime = int64(1756771200)
+	queryTime := int64(1756771200)
+	year, month := int64(31536000), int64(2592000)
+	base := int64(1600000000)
+
+	yearly := MarketData{DataProvider: "0xabc", StreamID: "stcpi", Type: "change_between",
+		Thresholds: []string{"2.000000000000000000", "3.000000000000000000"},
+		Timestamp:  &queryTime, TimeInterval: &year}
+	want := marketIdentity(&yearly, "eth_usdc", settleTime)
+
+	monthly := yearly
+	monthly.TimeInterval = &month
+	assert.NotEqual(t, want, marketIdentity(&monthly, "eth_usdc", settleTime),
+		"year-over-year and month-over-month are different events")
+
+	based := yearly
+	based.BaseTime = &base
+	assert.NotEqual(t, want, marketIdentity(&based, "eth_usdc", settleTime),
+		"a different index base measures a different change")
+
+	// The collision that is actually reachable on mainnet: the index streams
+	// these markets are built on already carry value_in_range sets, struck in
+	// the stream's own units and observing at their own settle time exactly as
+	// a change market does. Only the interval separates them, and bounds around
+	// 335 must never be normalised against bounds around 2.5.
+	valueBucket := MarketData{DataProvider: "0xabc", StreamID: "stcpi", Type: "between",
+		Thresholds: []string{"335.800000000000000000", "336.900000000000000000"},
+		Timestamp:  &queryTime}
+	assert.NotEqual(t, want, marketIdentity(&valueBucket, "eth_usdc", settleTime),
+		"a percent-change bucket must not join a set struck in stream units")
+
+	// And a change market's own buckets still share one identity: only the
+	// strike differs across them.
+	openTail := yearly
+	openTail.Thresholds = []string{"", "2.000000000000000000"}
+	assert.Equal(t, want, marketIdentity(&openTail, "eth_usdc", settleTime))
+}
+
 func TestRequireQueryTime_UnreadableTimestampIsRejected(t *testing.T) {
 	// The identity renders a nil timestamp as "null", so two malformed markets
 	// would collide there and merge. Refusing them is the point.
