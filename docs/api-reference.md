@@ -1901,12 +1901,24 @@ type MarketData struct {
     DataProvider string   `json:"data_provider"`
     StreamID     string   `json:"stream_id"`
     ActionID     string   `json:"action_id"`
-    Type         string   `json:"type"`       // "above", "below", "between", "equals" or "unknown"
+    Type         string   `json:"type"`       // "above", "below", "between", "equals", "change_between" or "unknown"
     Thresholds   []string `json:"thresholds"` // Formatted numeric values as strings
     Timestamp    *int64   `json:"timestamp"`  // Query observation time, unix seconds
     FrozenAt     *int64   `json:"frozen_at"`  // Pinned block height; nil means latest
+    BaseTime     *int64   `json:"base_time"`     // "change_between" only; nil means the stream's default base
+    TimeInterval *int64   `json:"time_interval"` // "change_between" only, seconds; e.g. 31536000 for YoY
 }
 ```
+
+`Thresholds` holds one entry per strike slot the action declares, in order. A
+`"change_between"` market may strike an open tail, which reads back as an **empty
+string in place** rather than as a shorter slice — so `["", "2.000000000000000000"]`
+is "below 2%", and dropping the empty entry would slide the surviving bound into
+the wrong slot.
+
+`BaseTime` and `TimeInterval` are `nil` for every type except `"change_between"`,
+which is the only action carrying arguments that change the question without
+changing a strike.
 
 ---
 
@@ -2162,9 +2174,21 @@ One forecast covers the buckets of **one** market. A repeated query ID would
 have its bucket counted twice, and mixing two markets would normalise unrelated
 probabilities into a single distribution — both are rejected rather than
 warned about. Buckets of one market differ only in their strike, so the identity
-compared is `(data_provider, stream_id, settle_time, timestamp, frozen_at)` —
-the query's own time is included because two markets can settle at the same
-moment while observing the stream at different points.
+compared is `(data_provider, stream_id, bridge, settle_time, timestamp,
+frozen_at, base_time, time_interval)`.
+
+The query's own time is included because two markets can settle at the same
+moment while observing the stream at different points. The bridge is included
+because it is a `create_market` argument, so the same question can be
+collateralised two ways. And `base_time` / `time_interval` are included because a
+`"change_between"` market measures over an interval: a year-over-year set and a
+month-over-month set can otherwise match on every other field, and a
+percent-change bucket could join a set struck in the stream's own units.
+
+The **action id is deliberately not** part of the identity — a complete set tiles
+the line with one `price_below_threshold` bucket, one `price_above_threshold`,
+and `value_in_range` between, so three different actions is the normal shape of
+one market.
 
 **Cost:** two order-book reads plus one market-info read per bucket. Both the
 YES and NO books are fetched, because on this venue a resting BUY NO at *p* is

@@ -160,6 +160,20 @@ type MarketData struct {
 	// FrozenAt is the block height the data is pinned to. It is encoded as NULL
 	// to mean "latest", so nil is a real value rather than a decode failure.
 	FrozenAt *int64 `json:"frozen_at"`
+	// BaseTime is the index base date the query measures against, in unix
+	// seconds, or nil for the stream's own default.
+	//
+	// Only a "change_between" market carries one; it is nil for every other
+	// type, which has no such argument.
+	BaseTime *int64 `json:"base_time"`
+	// TimeInterval is how far back the query looks for its comparison value, in
+	// seconds -- e.g. 31536000 for year-over-year.
+	//
+	// Only a "change_between" market carries one. Two markets over the same
+	// stream and the same observation time but different intervals are asking
+	// different questions, so this is part of a market's identity rather than
+	// presentation.
+	TimeInterval *int64 `json:"time_interval"`
 }
 
 // readQueryTime fills in a market's query time, but only when the whole
@@ -290,6 +304,11 @@ func DecodeMarketData(encoded []byte) (*MarketData, error) {
 		market.Type = "change_between"
 		if len(args) >= 7 {
 			market.Thresholds = append(market.Thresholds, formatArg(args[5]), formatArg(args[6]))
+			// The two arguments the bounds displaced. They are not strikes, so
+			// they do not belong in Thresholds, but they do change the question
+			// the market asks and so cannot be dropped either.
+			market.BaseTime = argInt64(args, 3)
+			market.TimeInterval = argInt64(args, 4)
 		}
 		readQueryTime(market, args, 7)
 	default:

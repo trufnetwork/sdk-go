@@ -284,6 +284,51 @@ func TestIndexChangeDecode_CarriesTheQueryTimeFromTheRightSlots(t *testing.T) {
 	assert.Equal(t, []string{"2.000000000000000000", "3.000000000000000000"}, market.Thresholds)
 }
 
+func TestIndexChangeDecode_CarriesWhatTheChangeIsMeasuredOver(t *testing.T) {
+	// base_time and time_interval are not strikes, so they stay out of
+	// Thresholds -- but they change the question, so a market that dropped them
+	// would be indistinguishable from one measuring a different interval.
+	input := validIndexChangeInput()
+	input.BaseTime = i64Ptr(1600000000)
+
+	encoded, err := BuildIndexChangeInRangeQueryComponents(input)
+	require.NoError(t, err)
+
+	market, err := DecodeMarketData(encoded)
+	require.NoError(t, err)
+	require.NotNil(t, market.BaseTime)
+	assert.Equal(t, int64(1600000000), *market.BaseTime)
+	require.NotNil(t, market.TimeInterval)
+	assert.Equal(t, yearInSeconds, *market.TimeInterval)
+
+	// An absent base date stays nil rather than becoming a zero.
+	input.BaseTime = nil
+	encoded, err = BuildIndexChangeInRangeQueryComponents(input)
+	require.NoError(t, err)
+	market, err = DecodeMarketData(encoded)
+	require.NoError(t, err)
+	assert.Nil(t, market.BaseTime)
+	require.NotNil(t, market.TimeInterval)
+	assert.Equal(t, yearInSeconds, *market.TimeInterval)
+}
+
+func TestIndexChangeDecode_ValueMarketsCarryNoInterval(t *testing.T) {
+	// Only index_change_in_range has these arguments. A value market having no
+	// interval is what keeps it out of a percent-change bucket set.
+	argsBytes, err := EncodeActionArgs(
+		[]any{indexChangeProvider, indexChangeStream, int64(1735689600), "1", "2", nil})
+	require.NoError(t, err)
+	encoded, err := EncodeQueryComponents(
+		indexChangeProvider, indexChangeStream, "value_in_range", argsBytes)
+	require.NoError(t, err)
+
+	market, err := DecodeMarketData(encoded)
+	require.NoError(t, err)
+	assert.Equal(t, "between", market.Type)
+	assert.Nil(t, market.BaseTime)
+	assert.Nil(t, market.TimeInterval)
+}
+
 func TestIndexChangeDecode_OpenTailKeepsTheOtherBoundInPlace(t *testing.T) {
 	input := validIndexChangeInput()
 	input.MinChange = nil
@@ -316,6 +361,8 @@ func TestIndexChangeDecode_TruncatedArgsLeaveTheMarketUnread(t *testing.T) {
 	assert.Empty(t, market.Thresholds)
 	assert.Nil(t, market.Timestamp, "an unreadable market keeps its timestamp nil")
 	assert.Nil(t, market.FrozenAt)
+	assert.Nil(t, market.BaseTime, "a truncated market reports nothing it cannot read")
+	assert.Nil(t, market.TimeInterval)
 }
 
 // ═══════════════════════════════════════════════════════════════
