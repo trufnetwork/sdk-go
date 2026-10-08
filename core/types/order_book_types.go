@@ -129,11 +129,12 @@ type IOrderBook interface {
 
 	// GetMarketActivity returns filled volume and unique traders for one order
 	// book over a time window.
-	// Maps to: no action; one ad hoc read-only SQL statement over ob_order_events
+	// Maps to: get_market_activity($query_id, $from_ts, $to_ts)
+	// Migration: 058-order-book-market-activity.sql
 	//
 	// Volume is in cents of the market's own collateral and is never summable
 	// across bridges. A zero with CoverageComplete false is truncation, not
-	// inactivity. Requires a node that serves ad hoc queries.
+	// inactivity.
 	GetMarketActivity(ctx context.Context, input GetMarketActivityInput) (*MarketActivity, error)
 
 	// GetConsolidatedOrderBook returns one outcome's book with the opposite

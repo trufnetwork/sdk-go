@@ -166,26 +166,23 @@ func (o *OrderBook) GetBestPrices(ctx context.Context, input types.GetBestPrices
 }
 
 // GetMarketActivity returns filled volume and participation for one order book
-// over a time window, computed by one ad hoc read-only SQL statement against
-// ob_order_events. No node action is involved; see marketActivitySQL.
+// over a time window, both ends inclusive.
+// Maps to: get_market_activity($query_id, $from_ts, $to_ts)
+// Migration: 058-order-book-market-activity.sql
 //
-// Volume is in cents of the market's own collateral, named by Bridge. Never sum
-// it across bridges: base units differ between collateral tokens by orders of
-// magnitude, and nothing here converts between them. Unique traders are
-// comparable across bridges.
+// The node action holds the one definition of volume, so every SDK reads the
+// same figures. Volume is in cents of the market's own collateral, named by
+// Bridge. Never sum it across bridges: base units differ between collateral
+// tokens by orders of magnitude, and nothing here converts between them. Unique
+// traders are comparable across bridges.
 //
 // The node trims ob_order_events once the events are indexed, so it holds a
 // rolling window. CoverageFromBlock is the earliest block it still holds, and
 // CoverageComplete is false when the market was created before that block. A
 // zero with CoverageComplete false is truncation, not inactivity.
 //
-// The statement scans the whole retained table, because ob_order_events has no
-// index on query_id or block_timestamp. Its cost follows the table's size, not
-// the window's.
-//
-// Requires a node that serves ad hoc queries. A node in Kwil private mode
-// refuses the query from a client without a signer, and that refusal comes back
-// as this call's error. A market that does not exist is an error too.
+// A market that does not exist is an error. Requires a node carrying
+// get_market_activity.
 func (o *OrderBook) GetMarketActivity(
 	ctx context.Context, input types.GetMarketActivityInput,
 ) (*types.MarketActivity, error) {
@@ -193,32 +190,25 @@ func (o *OrderBook) GetMarketActivity(
 		return nil, errors.WithStack(err)
 	}
 
-	// skipAuth false: with a signer configured the query is authenticated,
-	// which is what a node in private mode accepts.
-	result, err := o._client.Query(ctx, marketActivitySQL, marketActivityParams(input), false)
+	result, err := o.call(ctx, "get_market_activity", marketActivityArgs(input))
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to query market activity")
+		return nil, errors.WithStack(err)
 	}
 
 	return marketActivityFromResult(input.QueryID, result)
 }
 
-// marketActivityParams binds the input to marketActivitySQL. The keys carry the
-// $ prefix the statement uses.
-func marketActivityParams(input types.GetMarketActivityInput) map[string]any {
-	return map[string]any{
-		"$query_id": input.QueryID,
-		"$from_ts":  input.FromTs,
-		"$to_ts":    input.ToTs,
-	}
+// marketActivityArgs orders the input as get_market_activity takes it.
+func marketActivityArgs(input types.GetMarketActivityInput) []any {
+	return []any{input.QueryID, input.FromTs, input.ToTs}
 }
 
-// marketActivityFromResult reads marketActivitySQL's result. A market that
+// marketActivityFromResult reads get_market_activity's result. A market that
 // exists returns one row even when nothing traded in the window; a market that
 // does not exist returns none.
 func marketActivityFromResult(queryID int, result *kwiltypes.QueryResult) (*types.MarketActivity, error) {
 	if result == nil {
-		return nil, fmt.Errorf("market activity query for market %d returned no result", queryID)
+		return nil, fmt.Errorf("get_market_activity for market %d returned no result", queryID)
 	}
 
 	switch len(result.Values) {
@@ -227,7 +217,7 @@ func marketActivityFromResult(queryID int, result *kwiltypes.QueryResult) (*type
 	case 1:
 		return parseMarketActivityRow(result.Values[0])
 	default:
-		return nil, fmt.Errorf("market activity query for market %d returned %d rows, expected 1",
+		return nil, fmt.Errorf("get_market_activity for market %d returned %d rows, expected 1",
 			queryID, len(result.Values))
 	}
 }
@@ -575,7 +565,7 @@ func parseFullDepthLevelRow(row []any) (types.FullDepthLevel, error) {
 	return level, nil
 }
 
-// parseMarketActivityRow parses the row marketActivitySQL returns
+// parseMarketActivityRow parses a row from get_market_activity
 // Row format: bridge, volume_cents, direct_cents, mint_burn_cents,
 // unique_traders, fill_count, direct_fill_count, shares_traded,
 // first_event_ts, last_event_ts, coverage_from_block, coverage_complete
@@ -644,23 +634,15 @@ func parseMarketActivityRow(row []any) (*types.MarketActivity, error) {
 		activity.LastEventTs = &ts
 	}
 
-	// Columns 10 and 11 are NULL when the node retains no order events at all:
-	// MIN over an empty table is NULL, and so is the comparison built on it.
-	// They then stay 0 and false, since nothing says whether the market lost
-	// fills and a zero from it must not be trusted.
-
-	// Column 10: coverage_from_block (INT8)
-	if row[10] != nil {
-		if err := extractInt64Column(row[10], &activity.CoverageFromBlock, 10, "coverage_from_block"); err != nil {
-			return nil, err
-		}
+	// Column 10: coverage_from_block (INT8). The action reports 0 when the node
+	// holds no order events.
+	if err := extractInt64Column(row[10], &activity.CoverageFromBlock, 10, "coverage_from_block"); err != nil {
+		return nil, err
 	}
 
 	// Column 11: coverage_complete (BOOL)
-	if row[11] != nil {
-		if err := extractBoolColumn(row[11], &activity.CoverageComplete, 11, "coverage_complete"); err != nil {
-			return nil, err
-		}
+	if err := extractBoolColumn(row[11], &activity.CoverageComplete, 11, "coverage_complete"); err != nil {
+		return nil, err
 	}
 
 	return activity, nil

@@ -1,11 +1,11 @@
-// Live-network check that GetMarketActivity's statement runs on a real node and
-// that the figures it returns hang together.
+// Live-network check that GetMarketActivity reads get_market_activity from a real
+// node and that the figures it returns hang together.
 //
-// The unit tests under core/contractsapi prove the statement's text and the
-// parse of a captured row. What they cannot prove is that a node accepts the
-// statement with the SDK's parameter binding, through the authenticated query a
-// signed client sends, and filters the window the way the statement says. That
-// is the gap this file covers.
+// The unit tests under core/contractsapi prove the argument order and the parse
+// of a captured row, and the node's own tests prove the action's definition on a
+// local chain. What they cannot prove is that a live network serves the action
+// to this SDK and filters the window the way the definition says. That is the
+// gap this file covers.
 //
 // Gated on an env var rather than the kwiltest build tag, because it wants a
 // network carrying markets with real fills rather than a fresh local node:
@@ -13,8 +13,10 @@
 //	TN_LIVE_ENDPOINT=https://gateway.mainnet.truf.network \
 //	    go test ./tests/integration/ -run TestMarketActivityLive -v
 //
-// The statement is a read, so the signing key needs no funds and controls
-// nothing.
+// The network must be running a node that carries get_market_activity (node
+// migration 058).
+//
+// The action is a view, so the signing key needs no funds and controls nothing.
 //
 // These assert INVARIANTS, not numbers. The node trims order events once they
 // are indexed, so figures pinned here would drift.
@@ -43,7 +45,7 @@ const (
 	// activityWindow is how far back the test looks for fills.
 	activityWindow = 30 * 24 * time.Hour
 
-	// maxMarketsForActivity bounds discovery, which runs the statement once per
+	// maxMarketsForActivity bounds discovery, which reads the action once per
 	// market, newest market first.
 	maxMarketsForActivity = 100
 )

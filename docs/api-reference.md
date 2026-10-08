@@ -2150,11 +2150,10 @@ func (o *OrderBook) GetMarketActivity(
 - `input.ToTs` (int64): window end, unix seconds, inclusive. A window that ends
   before it starts is rejected rather than read as empty.
 
-No node action is involved. The SDK runs one read-only SQL statement through the
-node's ad hoc query RPC, so the call needs a node that serves ad hoc queries. A
-node in Kwil private mode refuses the query from a client without a signer, and
-that refusal is the call's error. A market that does not exist is an error too:
-`market <id> not found`.
+Maps to the node action `get_market_activity($query_id, $from_ts, $to_ts)`
+(migration `058-order-book-market-activity.sql`), which holds the one definition
+of volume, so every SDK reads the same figures. Requires a node carrying that
+action. A market that does not exist is an error: `market <id> not found`.
 
 **Returns** `*types.MarketActivity`:
 
@@ -2206,9 +2205,8 @@ created before the earliest block the node still holds, so fills may be missing
 and a zero says nothing about activity. It is also false on a node that holds
 no order events at all.
 
-**Each call scans the retained events.** `ob_order_events` has no index on
-market or time, so the cost follows how many events the node holds, not the
-window's length. A one-hour window costs the same as a one-year one.
+**A call costs what its window holds.** The node indexes order events by market
+and time, so a short window reads only the events inside it.
 
 ---
 

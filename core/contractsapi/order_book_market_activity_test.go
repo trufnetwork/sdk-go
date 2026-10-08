@@ -1,9 +1,6 @@
 package contractsapi
 
 import (
-	"regexp"
-	"sort"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,15 +9,15 @@ import (
 	"github.com/trufnetwork/sdk-go/core/types"
 )
 
-// GetMarketActivity is one ad hoc statement and a parse of the single row it
-// returns. The statement's text is the volume definition, and the parse depends
-// on the order of its columns, so both are checked here without a node.
+// GetMarketActivity calls get_market_activity and parses the single row it
+// returns. The node action holds the definition of volume; what is left here is
+// the argument order and the parse, both checked without a node.
 //
-// The row below is market 782 as the mainnet gateway returned it on 2026-10-08
-// for the window [1700000000, 1800000000]: numbers arrive as strings, the
+// The row below is market 782 over [1700000000, 1800000000] as mainnet answered
+// on 2026-10-08, in the form a call result carries: numbers as strings, the
 // coverage flag as a JSON bool.
 
-// marketActivityColumnNames is the statement's column order, which is the order
+// marketActivityColumnNames is the action's column order, which is the order
 // parseMarketActivityRow reads.
 var marketActivityColumnNames = []string{
 	"bridge", "volume_cents", "direct_cents", "mint_burn_cents",
@@ -39,7 +36,7 @@ func market782Row() []any {
 func int64Ptr(v int64) *int64 { return &v }
 
 func TestParseMarketActivityRow(t *testing.T) {
-	t.Run("maps every column the statement returns", func(t *testing.T) {
+	t.Run("maps every column the action returns", func(t *testing.T) {
 		activity, err := parseMarketActivityRow(market782Row())
 
 		require.NoError(t, err)
@@ -99,13 +96,10 @@ func TestParseMarketActivityRow(t *testing.T) {
 		assert.True(t, activity.CoverageComplete)
 	})
 
-	t.Run("reads a node that holds no order events as incomplete coverage", func(t *testing.T) {
-		// MIN over an empty ob_order_events is NULL, and so is the comparison
-		// built on it. Nothing says whether that market lost fills, so a zero
-		// from it must not be trusted.
+	t.Run("reads a node that holds no order events", func(t *testing.T) {
+		// The action reports coverage from block 0, incomplete, rather than NULL.
 		row := market782Row()
-		row[10] = nil
-		row[11] = nil
+		row[10] = "0"
 
 		activity, err := parseMarketActivityRow(row)
 
@@ -140,6 +134,21 @@ func TestParseMarketActivityRow(t *testing.T) {
 			assert.Regexp(t, `\b`+name+`\b`, err.Error(), "column %d", i)
 		}
 	})
+
+	t.Run("rejects NULL in every column but the fill times", func(t *testing.T) {
+		for i, name := range marketActivityColumnNames {
+			if name == "first_event_ts" || name == "last_event_ts" {
+				continue
+			}
+			row := market782Row()
+			row[i] = nil
+
+			_, err := parseMarketActivityRow(row)
+
+			require.Error(t, err, "column %d (%s)", i, name)
+			assert.Regexp(t, `\b`+name+`\b`, err.Error(), "column %d", i)
+		}
+	})
 }
 
 func TestMarketActivityFromResult(t *testing.T) {
@@ -154,7 +163,6 @@ func TestMarketActivityFromResult(t *testing.T) {
 	})
 
 	t.Run("no rows means the market does not exist", func(t *testing.T) {
-		// The gateway answers a missing market with null columns and values.
 		_, err := marketActivityFromResult(999999999, &kwiltypes.QueryResult{})
 
 		require.Error(t, err)
@@ -178,50 +186,10 @@ func TestMarketActivityFromResult(t *testing.T) {
 	})
 }
 
-func TestMarketActivitySQL(t *testing.T) {
-	t.Run("counts volume over an allowlist of fill events", func(t *testing.T) {
-		for _, event := range []string{"'direct_buy_fill'", "'mint_fill'", "'burn_fill'"} {
-			assert.Contains(t, marketActivitySQL, event)
-		}
-		// A split is a deposit with no counterparty, never volume.
-		assert.NotContains(t, marketActivitySQL, "'split_placed'")
-	})
+func TestMarketActivityArgs(t *testing.T) {
+	// get_market_activity($query_id INT, $from_ts INT8, $to_ts INT8): swapping
+	// the two times would read an inverted window, which the action refuses.
+	args := marketActivityArgs(types.GetMarketActivityInput{QueryID: 782, FromTs: 1, ToTs: 2})
 
-	t.Run("returns its columns in the order the parser reads them", func(t *testing.T) {
-		// The first column is q.bridge, which takes its name from the column;
-		// every other column is aliased.
-		aliases := regexp.MustCompile(`\bAS (\w+)`).FindAllStringSubmatch(marketActivitySQL, -1)
-		got := []string{"bridge"}
-		for _, m := range aliases {
-			got = append(got, m[1])
-		}
-
-		require.True(t, strings.HasPrefix(strings.TrimSpace(marketActivitySQL), "SELECT\n  q.bridge,"))
-		assert.Equal(t, marketActivityColumnNames, got)
-	})
-
-	t.Run("binds exactly the parameters the statement uses", func(t *testing.T) {
-		params := marketActivityParams(types.GetMarketActivityInput{QueryID: 782, FromTs: 1, ToTs: 2})
-
-		var bound []string
-		for key := range params {
-			bound = append(bound, key)
-		}
-		sort.Strings(bound)
-
-		used := map[string]bool{}
-		for _, p := range regexp.MustCompile(`\$\w+`).FindAllString(marketActivitySQL, -1) {
-			used[p] = true
-		}
-		var usedKeys []string
-		for p := range used {
-			usedKeys = append(usedKeys, p)
-		}
-		sort.Strings(usedKeys)
-
-		assert.Equal(t, usedKeys, bound)
-		assert.Equal(t, 782, params["$query_id"])
-		assert.Equal(t, int64(1), params["$from_ts"])
-		assert.Equal(t, int64(2), params["$to_ts"])
-	})
+	assert.Equal(t, []any{782, int64(1), int64(2)}, args)
 }
