@@ -50,6 +50,10 @@ const (
 	maxMarketsForActivity = 100
 )
 
+// TestMarketActivityLive reads the newest live market with a fill in the last
+// activityWindow and checks that its figures agree with each other, that both
+// ends of the window are inclusive, and that a market that does not exist is an
+// error.
 func TestMarketActivityLive(t *testing.T) {
 	endpoint := os.Getenv("TN_LIVE_ENDPOINT")
 	if endpoint == "" {
@@ -200,6 +204,7 @@ func findMarketWithFills(
 	return 0, nil, false
 }
 
+// readActivity calls GetMarketActivity and fails the test on an error.
 func readActivity(
 	ctx context.Context, t *testing.T, ob types.IOrderBook, queryID int, fromTs, toTs int64,
 ) *types.MarketActivity {
@@ -222,6 +227,7 @@ type fills struct {
 	hasFirst, hasLast                   bool
 }
 
+// fillsOf returns the part of a that depends only on the fills in the window.
 func fillsOf(a *types.MarketActivity) fills {
 	f := fills{
 		volume: a.VolumeCents, direct: a.DirectCents, mintBurn: a.MintBurnCents,
@@ -237,6 +243,8 @@ func fillsOf(a *types.MarketActivity) fills {
 	return f
 }
 
+// parseCents parses a cents column as an integer of any size, and fails the test
+// when it is not one.
 func parseCents(t *testing.T, name, value string) *big.Int {
 	t.Helper()
 
@@ -245,6 +253,7 @@ func parseCents(t *testing.T, name, value string) *big.Int {
 	return n
 }
 
+// describeActivity formats every field of a on one line for the test log.
 func describeActivity(a *types.MarketActivity) string {
 	ts := func(p *int64) string {
 		if p == nil {

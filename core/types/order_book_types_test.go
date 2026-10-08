@@ -496,6 +496,8 @@ func TestValueEqualsInput_Validate(t *testing.T) {
 // MARKET ACTIVITY INPUT VALIDATION TESTS
 // ═══════════════════════════════════════════════════════════════
 
+// TestGetMarketActivityInput_Validate checks which inputs Validate accepts, and
+// that each rejection names the field at fault.
 func TestGetMarketActivityInput_Validate(t *testing.T) {
 	tests := []struct {
 		name    string

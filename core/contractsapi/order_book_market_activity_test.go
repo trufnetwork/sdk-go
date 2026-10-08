@@ -12,10 +12,6 @@ import (
 // GetMarketActivity calls get_market_activity and parses the single row it
 // returns. The node action holds the definition of volume; what is left here is
 // the argument order and the parse, both checked without a node.
-//
-// The row below is market 782 over [1700000000, 1800000000] as mainnet answered
-// on 2026-10-08, in the form a call result carries: numbers as strings, the
-// coverage flag as a JSON bool.
 
 // marketActivityColumnNames is the action's column order, which is the order
 // parseMarketActivityRow reads.
@@ -25,6 +21,9 @@ var marketActivityColumnNames = []string{
 	"first_event_ts", "last_event_ts", "coverage_from_block", "coverage_complete",
 }
 
+// market782Row returns market 782's row over [1700000000, 1800000000] as mainnet
+// answered on 2026-10-08, in the form a call result carries: numbers as strings,
+// the coverage flag as a JSON bool.
 func market782Row() []any {
 	return []any{
 		"eth_usdc", "1604", "1504", "100",
@@ -33,8 +32,12 @@ func market782Row() []any {
 	}
 }
 
+// int64Ptr returns a pointer to v, for the nullable fill times.
 func int64Ptr(v int64) *int64 { return &v }
 
+// TestParseMarketActivityRow checks the parse of each of the action's 12 columns,
+// and that a short row, a wrong-typed column or a NULL where none is allowed is an
+// error naming the column.
 func TestParseMarketActivityRow(t *testing.T) {
 	t.Run("maps every column the action returns", func(t *testing.T) {
 		activity, err := parseMarketActivityRow(market782Row())
@@ -151,6 +154,9 @@ func TestParseMarketActivityRow(t *testing.T) {
 	})
 }
 
+// TestMarketActivityFromResult checks what each row count means: one row is the
+// market's activity, no rows is a market that does not exist, and a nil result or
+// two rows are errors.
 func TestMarketActivityFromResult(t *testing.T) {
 	t.Run("one row is the market's activity", func(t *testing.T) {
 		activity, err := marketActivityFromResult(782, &kwiltypes.QueryResult{
@@ -186,6 +192,8 @@ func TestMarketActivityFromResult(t *testing.T) {
 	})
 }
 
+// TestMarketActivityArgs checks that the arguments go in the action's parameter
+// order.
 func TestMarketActivityArgs(t *testing.T) {
 	// get_market_activity($query_id INT, $from_ts INT8, $to_ts INT8): swapping
 	// the two times would read an inverted window, which the action refuses.
