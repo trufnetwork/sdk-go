@@ -493,6 +493,68 @@ func TestValueEqualsInput_Validate(t *testing.T) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// MARKET ACTIVITY INPUT VALIDATION TESTS
+// ═══════════════════════════════════════════════════════════════
+
+func TestGetMarketActivityInput_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   GetMarketActivityInput
+		wantErr string // empty when the input is valid
+	}{
+		{
+			name:  "A window inside one market",
+			input: GetMarketActivityInput{QueryID: 782, FromTs: 1700000000, ToTs: 1800000000},
+		},
+		{
+			name:  "A window of one second",
+			input: GetMarketActivityInput{QueryID: 1, FromTs: 1700000000, ToTs: 1700000000},
+		},
+		{
+			name:  "A window from the epoch",
+			input: GetMarketActivityInput{QueryID: 1, FromTs: 0, ToTs: 0},
+		},
+		{
+			name:    "Zero query_id",
+			input:   GetMarketActivityInput{QueryID: 0, FromTs: 0, ToTs: 1},
+			wantErr: "query_id",
+		},
+		{
+			name:    "Negative query_id",
+			input:   GetMarketActivityInput{QueryID: -1, FromTs: 0, ToTs: 1},
+			wantErr: "query_id",
+		},
+		{
+			name:    "Negative from_ts",
+			input:   GetMarketActivityInput{QueryID: 1, FromTs: -1, ToTs: 1},
+			wantErr: "from_ts",
+		},
+		{
+			name:    "Negative to_ts",
+			input:   GetMarketActivityInput{QueryID: 1, FromTs: 0, ToTs: -1},
+			wantErr: "to_ts",
+		},
+		{
+			name:    "A window that ends before it starts",
+			input:   GetMarketActivityInput{QueryID: 1, FromTs: 1700000001, ToTs: 1700000000},
+			wantErr: "to_ts",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.input.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════
 // ACTION REGISTRY TESTS
 // ═══════════════════════════════════════════════════════════════
 

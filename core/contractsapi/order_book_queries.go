@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
+	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
 	"github.com/trufnetwork/sdk-go/core/forecast"
 	"github.com/trufnetwork/sdk-go/core/types"
 )
@@ -162,6 +163,73 @@ func (o *OrderBook) GetBestPrices(ctx context.Context, input types.GetBestPrices
 	}
 
 	return prices, nil
+}
+
+// GetMarketActivity returns filled volume and participation for one order book
+// over a time window, computed by one ad hoc read-only SQL statement against
+// ob_order_events. No node action is involved; see marketActivitySQL.
+//
+// Volume is in cents of the market's own collateral, named by Bridge. Never sum
+// it across bridges: base units differ between collateral tokens by orders of
+// magnitude, and nothing here converts between them. Unique traders are
+// comparable across bridges.
+//
+// The node trims ob_order_events once the events are indexed, so it holds a
+// rolling window. CoverageFromBlock is the earliest block it still holds, and
+// CoverageComplete is false when the market was created before that block. A
+// zero with CoverageComplete false is truncation, not inactivity.
+//
+// The statement scans the whole retained table, because ob_order_events has no
+// index on query_id or block_timestamp. Its cost follows the table's size, not
+// the window's.
+//
+// Requires a node that serves ad hoc queries. A node in Kwil private mode
+// refuses the query from a client without a signer, and that refusal comes back
+// as this call's error. A market that does not exist is an error too.
+func (o *OrderBook) GetMarketActivity(
+	ctx context.Context, input types.GetMarketActivityInput,
+) (*types.MarketActivity, error) {
+	if err := input.Validate(); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// skipAuth false: with a signer configured the query is authenticated,
+	// which is what a node in private mode accepts.
+	result, err := o._client.Query(ctx, marketActivitySQL, marketActivityParams(input), false)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query market activity")
+	}
+
+	return marketActivityFromResult(input.QueryID, result)
+}
+
+// marketActivityParams binds the input to marketActivitySQL. The keys carry the
+// $ prefix the statement uses.
+func marketActivityParams(input types.GetMarketActivityInput) map[string]any {
+	return map[string]any{
+		"$query_id": input.QueryID,
+		"$from_ts":  input.FromTs,
+		"$to_ts":    input.ToTs,
+	}
+}
+
+// marketActivityFromResult reads marketActivitySQL's result. A market that
+// exists returns one row even when nothing traded in the window; a market that
+// does not exist returns none.
+func marketActivityFromResult(queryID int, result *kwiltypes.QueryResult) (*types.MarketActivity, error) {
+	if result == nil {
+		return nil, fmt.Errorf("market activity query for market %d returned no result", queryID)
+	}
+
+	switch len(result.Values) {
+	case 0:
+		return nil, fmt.Errorf("market %d not found", queryID)
+	case 1:
+		return parseMarketActivityRow(result.Values[0])
+	default:
+		return nil, fmt.Errorf("market activity query for market %d returned %d rows, expected 1",
+			queryID, len(result.Values))
+	}
 }
 
 // GetConsolidatedOrderBook returns one outcome's book with the opposite
@@ -505,6 +573,97 @@ func parseFullDepthLevelRow(row []any) (types.FullDepthLevel, error) {
 	}
 
 	return level, nil
+}
+
+// parseMarketActivityRow parses the row marketActivitySQL returns
+// Row format: bridge, volume_cents, direct_cents, mint_burn_cents,
+// unique_traders, fill_count, direct_fill_count, shares_traded,
+// first_event_ts, last_event_ts, coverage_from_block, coverage_complete
+func parseMarketActivityRow(row []any) (*types.MarketActivity, error) {
+	if len(row) < 12 {
+		return nil, fmt.Errorf("invalid row: expected 12 columns, got %d", len(row))
+	}
+
+	activity := &types.MarketActivity{}
+
+	// Column 0: bridge (TEXT)
+	if err := extractStringColumn(row[0], &activity.Bridge, 0, "bridge"); err != nil {
+		return nil, err
+	}
+
+	// Column 1: volume_cents (NUMERIC(78,0) as string)
+	if err := extractStringColumn(row[1], &activity.VolumeCents, 1, "volume_cents"); err != nil {
+		return nil, err
+	}
+
+	// Column 2: direct_cents (NUMERIC(78,0) as string)
+	if err := extractStringColumn(row[2], &activity.DirectCents, 2, "direct_cents"); err != nil {
+		return nil, err
+	}
+
+	// Column 3: mint_burn_cents (NUMERIC(78,0) as string)
+	if err := extractStringColumn(row[3], &activity.MintBurnCents, 3, "mint_burn_cents"); err != nil {
+		return nil, err
+	}
+
+	// Column 4: unique_traders (INT)
+	if err := extractIntColumn(row[4], &activity.UniqueTraders, 4, "unique_traders"); err != nil {
+		return nil, err
+	}
+
+	// Column 5: fill_count (INT)
+	if err := extractIntColumn(row[5], &activity.FillCount, 5, "fill_count"); err != nil {
+		return nil, err
+	}
+
+	// Column 6: direct_fill_count (INT)
+	if err := extractIntColumn(row[6], &activity.DirectFillCount, 6, "direct_fill_count"); err != nil {
+		return nil, err
+	}
+
+	// Column 7: shares_traded (INT8)
+	if err := extractInt64Column(row[7], &activity.SharesTraded, 7, "shares_traded"); err != nil {
+		return nil, err
+	}
+
+	// Column 8: first_event_ts (INT8, nullable)
+	if row[8] != nil {
+		var ts int64
+		if err := extractInt64Column(row[8], &ts, 8, "first_event_ts"); err != nil {
+			return nil, err
+		}
+		activity.FirstEventTs = &ts
+	}
+
+	// Column 9: last_event_ts (INT8, nullable)
+	if row[9] != nil {
+		var ts int64
+		if err := extractInt64Column(row[9], &ts, 9, "last_event_ts"); err != nil {
+			return nil, err
+		}
+		activity.LastEventTs = &ts
+	}
+
+	// Columns 10 and 11 are NULL when the node retains no order events at all:
+	// MIN over an empty table is NULL, and so is the comparison built on it.
+	// They then stay 0 and false, since nothing says whether the market lost
+	// fills and a zero from it must not be trusted.
+
+	// Column 10: coverage_from_block (INT8)
+	if row[10] != nil {
+		if err := extractInt64Column(row[10], &activity.CoverageFromBlock, 10, "coverage_from_block"); err != nil {
+			return nil, err
+		}
+	}
+
+	// Column 11: coverage_complete (BOOL)
+	if row[11] != nil {
+		if err := extractBoolColumn(row[11], &activity.CoverageComplete, 11, "coverage_complete"); err != nil {
+			return nil, err
+		}
+	}
+
+	return activity, nil
 }
 
 // parseBestPricesRow parses a row from get_best_prices

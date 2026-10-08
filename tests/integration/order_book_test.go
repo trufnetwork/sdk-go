@@ -402,6 +402,10 @@ func testOrderValidation(t *testing.T, ctx context.Context, orderBook types.IOrd
 //   - GetMarketDepth: Returns aggregated volume per price level
 //     Combines all orders at same price into single depth level
 //
+//   - GetMarketActivity: Returns filled volume and unique traders over a window
+//     Runs one ad hoc read-only statement rather than an action, so no node
+//     test covers it; market_activity_test.go reads it from a live network
+//
 //   - GetBestPrices: Returns current bid/ask spread
 //     BestBid: Highest buy price (nil if no bids)
 //     BestAsk: Lowest sell price (nil if no asks)
