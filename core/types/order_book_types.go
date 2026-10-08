@@ -127,6 +127,16 @@ type IOrderBook interface {
 	// Migration: 038-order-book-queries.sql:219-268
 	GetBestPrices(ctx context.Context, input GetBestPricesInput) (*BestPrices, error)
 
+	// GetMarketActivity returns filled volume and unique traders for one order
+	// book over a time window.
+	// Maps to: get_market_activity($query_id, $from_ts, $to_ts)
+	// Migration: 058-order-book-market-activity.sql
+	//
+	// Volume is in cents of the market's own collateral and is never summable
+	// across bridges. A zero with CoverageComplete false is truncation, not
+	// inactivity.
+	GetMarketActivity(ctx context.Context, input GetMarketActivityInput) (*MarketActivity, error)
+
 	// GetConsolidatedOrderBook returns one outcome's book with the opposite
 	// outcome's quotes folded in, so the caller sees every quote the chain will
 	// actually fill.
@@ -576,6 +586,31 @@ func (g *GetBestPricesInput) Validate() error {
 	return nil
 }
 
+// GetMarketActivityInput contains parameters for reading a market's filled volume
+type GetMarketActivityInput struct {
+	QueryID int   // Market ID
+	FromTs  int64 // Window start, unix seconds, inclusive
+	ToTs    int64 // Window end, unix seconds, inclusive
+}
+
+// Validate checks if GetMarketActivityInput is valid
+func (g *GetMarketActivityInput) Validate() error {
+	if g.QueryID < 1 {
+		return fmt.Errorf("query_id must be positive, got %d", g.QueryID)
+	}
+	if g.FromTs < 0 {
+		return fmt.Errorf("from_ts must be non-negative, got %d", g.FromTs)
+	}
+	if g.ToTs < 0 {
+		return fmt.Errorf("to_ts must be non-negative, got %d", g.ToTs)
+	}
+	// An inverted window is a caller bug, not an empty result.
+	if g.ToTs < g.FromTs {
+		return fmt.Errorf("to_ts (%d) must not be before from_ts (%d)", g.ToTs, g.FromTs)
+	}
+	return nil
+}
+
 // GetMarketForecastInput contains parameters for forecasting a market
 type GetMarketForecastInput struct {
 	// QueryIDs are the bucket market IDs of ONE market. Order does not matter;
@@ -831,6 +866,24 @@ type BestPrices struct {
 	BestBid *int // Highest buy price, nil if no bids (INT nullable)
 	BestAsk *int // Lowest sell price, nil if no asks (INT nullable)
 	Spread  *int // BestAsk - BestBid, nil if either side empty (INT nullable)
+}
+
+// MarketActivity is one order book's filled volume and participation over a
+// window. Volume is in cents of Bridge's collateral and is never summable
+// across bridges.
+type MarketActivity struct {
+	Bridge            string // Collateral token the figures are denominated in (TEXT)
+	VolumeCents       string // NUMERIC(78,0) as string
+	DirectCents       string // Subset of VolumeCents from counterparty matches (NUMERIC(78,0) as string)
+	MintBurnCents     string // Subset of VolumeCents from mint and burn matches (NUMERIC(78,0) as string)
+	UniqueTraders     int    // INT
+	FillCount         int    // All fills, one per economic event (INT)
+	DirectFillCount   int    // Subset of FillCount that were counterparty matches (INT)
+	SharesTraded      int64  // INT8
+	FirstEventTs      *int64 // First fill observed inside the window, nil when nothing traded (INT8 nullable)
+	LastEventTs       *int64 // Last fill observed inside the window, nil when nothing traded (INT8 nullable)
+	CoverageFromBlock int64  // Earliest block still retained in ob_order_events; 0 when the node retains no events (INT8)
+	CoverageComplete  bool   // False when the market was created before CoverageFromBlock, or the node retains no events (BOOL)
 }
 
 // UserCollateral contains user's total locked collateral

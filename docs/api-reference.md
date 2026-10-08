@@ -2129,6 +2129,87 @@ counterparty first and the real fill comes up short.
 
 ---
 
+## Market Activity
+
+The calls above answer what is resting on a book right now. `GetMarketActivity`
+answers how much traded: filled volume and unique traders for one order book
+over a time window.
+
+### `OrderBook.GetMarketActivity`
+
+**Signature:**
+```go
+func (o *OrderBook) GetMarketActivity(
+    ctx context.Context, input types.GetMarketActivityInput,
+) (*types.MarketActivity, error)
+```
+
+**Parameters:**
+- `input.QueryID` (int): the market to read.
+- `input.FromTs` (int64): window start, unix seconds, inclusive.
+- `input.ToTs` (int64): window end, unix seconds, inclusive. A window that ends
+  before it starts is rejected rather than read as empty.
+
+Maps to the node action `get_market_activity($query_id, $from_ts, $to_ts)`
+(migration `058-order-book-market-activity.sql`), which holds the one definition
+of volume, so every SDK reads the same figures. Requires a node carrying that
+action. A market that does not exist is an error: `market <id> not found`.
+
+**Returns** `*types.MarketActivity`:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `Bridge` | `string` | The collateral token the figures are in |
+| `VolumeCents` | `string` | Filled volume in cents, `NUMERIC(78,0)` as a decimal string |
+| `DirectCents` | `string` | The part of `VolumeCents` from counterparty matches |
+| `MintBurnCents` | `string` | The part of `VolumeCents` from mint and burn matches |
+| `UniqueTraders` | `int` | Distinct participants on either side of a fill |
+| `FillCount` | `int` | Fills, one per trade |
+| `DirectFillCount` | `int` | The part of `FillCount` that were counterparty matches |
+| `SharesTraded` | `int64` | Shares across those fills |
+| `FirstEventTs` | `*int64` | First fill inside the window, nil when nothing traded |
+| `LastEventTs` | `*int64` | Last fill inside the window, nil when nothing traded |
+| `CoverageFromBlock` | `int64` | Earliest block whose events the node still holds |
+| `CoverageComplete` | `bool` | False when the market is older than `CoverageFromBlock` |
+
+Volume counts each trade once. A direct match counts its buy side at
+`price * amount`, and a mint or burn counts its YES side at `100 * amount`.
+Splits, placements, cancels, amends and settlement are not volume.
+`VolumeCents` always equals `DirectCents + MintBurnCents`, and `DirectFillCount`
+never exceeds `FillCount`.
+
+**Example:**
+```go
+now := time.Now().Unix()
+activity, err := orderBook.GetMarketActivity(ctx, types.GetMarketActivityInput{
+    QueryID: 782, FromTs: now - 7*24*3600, ToTs: now,
+})
+if err != nil {
+    return err
+}
+if activity.FillCount == 0 && !activity.CoverageComplete {
+    fmt.Println("no fills retained; the node may have trimmed them")
+}
+fmt.Printf("%s cents of %s across %d fills by %d traders\n",
+    activity.VolumeCents, activity.Bridge, activity.FillCount, activity.UniqueTraders)
+```
+
+**Volume is per bridge.** It is in cents of the market's own collateral. Base
+units differ between collateral tokens by orders of magnitude, so never add
+volumes from markets on different bridges. Unique traders do compare across
+bridges.
+
+**A zero can be truncation.** The node trims order events once they are indexed
+and keeps a rolling window. When `CoverageComplete` is false, the market was
+created before the earliest block the node still holds, so fills may be missing
+and a zero says nothing about activity. It is also false on a node that holds
+no order events at all.
+
+**A call costs what its window holds.** The node indexes order events by market
+and time, so a short window reads only the events inside it.
+
+---
+
 ## Market Forecasting
 
 Prediction markets price **ranges**, not values. A five-bucket EPS market says
