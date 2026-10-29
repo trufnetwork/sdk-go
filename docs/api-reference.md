@@ -2359,8 +2359,8 @@ as "our estimate is accurate to 0.24" is not.
 
 **Check the basis flags before displaying a number.** The outer two buckets are
 open-ended, so the books say nothing about how far out they extend. When a
-percentile falls inside one, an exponential tail model supplies the number and
-the corresponding flag reads `BasisTail`. `BasisInterior` means it was read
+percentile falls inside one, the number is the outer strike; the value lies at
+or beyond it, and the corresponding flag reads `BasisTail`. `BasisInterior` means it was read
 between real strikes with no shape assumption. `BasisUnresolved` means the
 market has too few strikes to place it at all.
 

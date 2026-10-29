@@ -162,11 +162,11 @@ func TestFromBuckets_LandsInsideTheLeadingBucket(t *testing.T) {
 }
 
 func TestFromBuckets_OpenTailsNeedNoAssumedValue(t *testing.T) {
-	// Heavy mass in the unbounded top bucket must still give a finite answer
-	// that sits above the last boundary.
+	// Heavy mass in the unbounded top bucket gives the last boundary itself,
+	// flagged as a tail: the outcome lies at or above it.
 	f := mustForecast(t, msft(1, 2, 7, 20, 70))
-	assert.False(t, math.IsInf(f.Value, 0) || math.IsNaN(f.Value))
-	assert.Greater(t, f.Value, 4.92)
+	assert.Equal(t, 4.92, f.Value)
+	assert.Equal(t, BasisTail, f.ValueBasis)
 }
 
 func TestFromBuckets_ProbabilitiesAreNormalised(t *testing.T) {
@@ -365,4 +365,86 @@ func TestFromBuckets_MonotonicCDFIsEnforced(t *testing.T) {
 	// not trip over it.
 	f := mustForecast(t, msft(30, 1, 40, 1, 28))
 	assert.False(t, math.IsNaN(f.Value) || math.IsInf(f.Value, 0))
+}
+
+// googlBounds is the GOOGL EPS ladder from truflation/website#5091.
+// Extrapolating a tail past the outer strike forecast -47.78 for the first
+// near-certain book below.
+var googlBounds = []bound{
+	{nil, Ptr(2.6)},
+	{Ptr(2.6), Ptr(2.98)},
+	{Ptr(2.98), Ptr(3.36)},
+	{Ptr(3.36), Ptr(3.73)},
+	{Ptr(3.73), nil},
+}
+
+// quoted returns GOOGL books quoted [bid, ask] per bucket, in cents.
+func quoted(quotes ...[2]float64) []BucketBook {
+	books := make([]BucketBook, len(googlBounds))
+	for i, b := range googlBounds {
+		books[i] = BucketBook{
+			Lower: b.lower, Upper: b.upper,
+			BestBid: Ptr(quotes[i][0]), BestAsk: Ptr(quotes[i][1]),
+		}
+	}
+	return books
+}
+
+// nearCertainLower puts nearly all the mass in the lower open bucket.
+var nearCertainLower = map[string][][2]float64{
+	"near-empty neighbour": {{98, 99}, {0, 1}, {0, 1}, {0, 1}, {0, 1}},
+	"thin neighbour":       {{98, 99}, {1, 2}, {0, 1}, {0, 1}, {0, 1}},
+}
+
+func TestFromBuckets_NearCertainEdgeBucketReportsTheOuterStrike(t *testing.T) {
+	for name, quotes := range nearCertainLower {
+		reversed := make([][2]float64, len(quotes))
+		for i, q := range quotes {
+			reversed[len(quotes)-1-i] = q
+		}
+		for _, tc := range []struct {
+			tail   string
+			quotes [][2]float64
+			strike float64
+		}{{"lower", quotes, 2.6}, {"upper", reversed, 3.73}} {
+			t.Run(tc.tail+" with "+name, func(t *testing.T) {
+				f := mustForecast(t, quoted(tc.quotes...))
+				assert.Equal(t, MethodRank, f.Method)
+				assert.Equal(t, tc.strike, f.Value)
+				require.NotNil(t, f.P10)
+				require.NotNil(t, f.P90)
+				assert.Equal(t, tc.strike, *f.P10)
+				assert.Equal(t, tc.strike, *f.P90)
+				assert.Equal(t, BasisTail, f.ValueBasis)
+				assert.Equal(t, BasisTail, f.P10Basis)
+				assert.Equal(t, BasisTail, f.P90Basis)
+			})
+		}
+	}
+}
+
+func TestFromBuckets_BandStillReadsItsInteriorEndWhenOneEndIsInATail(t *testing.T) {
+	f := mustForecast(t, quoted([2]float64{69, 71}, [2]float64{19, 21}, [2]float64{0, 1}, [2]float64{0, 1}, [2]float64{0, 1}))
+	assert.Equal(t, 2.6, f.Value)
+	assert.Equal(t, BasisTail, f.ValueBasis)
+	require.NotNil(t, f.P10)
+	require.NotNil(t, f.P90)
+	assert.Equal(t, 2.6, *f.P10)
+	assert.Equal(t, BasisInterior, f.P90Basis)
+	assert.Greater(t, *f.P90, 2.6)
+	assert.Less(t, *f.P90, 2.98)
+}
+
+func TestFromBuckets_TailWarningsSayTheValueIsTheOuterStrike(t *testing.T) {
+	f := mustForecast(t, quoted(nearCertainLower["near-empty neighbour"]...))
+	found := false
+	for _, w := range f.Warnings {
+		if strings.HasPrefix(w, "median lies beyond the outer strikes") &&
+			strings.Contains(w, "value is the outer strike") {
+			found = true
+		}
+	}
+	assert.True(t, found, "median warning")
+	assert.Contains(t, f.Warnings, "p10 falls in an open tail; reported as the outer strike")
+	assert.Contains(t, f.Warnings, "p90 falls in an open tail; reported as the outer strike")
 }
