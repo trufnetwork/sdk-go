@@ -53,14 +53,20 @@ package forecast
 
 // Translated from truflation/prediction-bots @ main 21fe4f3 (PR #37), upstream
 // path market-maker-bot/src/market_maker_bot/forecast.py, by way of the
-// byte-identical mirror in trufnetwork/sdk-py (src/trufnetwork_sdk_py/forecast.py).
+// mirror in trufnetwork/sdk-py (src/trufnetwork_sdk_py/forecast.py).
 //
-// sdk-py can keep a verbatim copy and re-sync with a diff. Go cannot, so this is
+// The SDKs differ from upstream in one rule: a percentile in an open edge
+// bucket returns the outer strike, flagged "tail", where upstream still
+// extrapolates an exponential tail (trufnetwork/sdk-js#186,
+// trufnetwork/sdk-py#143, trufnetwork/sdk-go#208). Keep that rule when porting
+// upstream changes, and change it in all three SDKs together.
+//
+// sdk-py can keep a close copy and re-sync with a diff. Go cannot, so this is
 // a hand translation and drift has to be caught by BEHAVIOUR instead:
 // forecast_test.go and forecast_depth_test.go are ports of the upstream suites,
 // including the frozen live NVDA book, and are the contract that keeps the SDKs
-// agreeing. Change the algorithm upstream first, then port it here and re-run
-// both suites.
+// agreeing. Change the algorithm upstream first, keeping the outer-strike rule,
+// then port it here and re-run both suites.
 //
 // Verified against sdk-py over 39 shared cases (best-quote and depth paths,
 // tails, the discrete fallback, dutch books, dust griefing, the frozen NVDA

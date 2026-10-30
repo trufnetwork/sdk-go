@@ -288,7 +288,14 @@ func TestMarketForecastLive(t *testing.T) {
 		}
 		assert.LessOrEqual(t, *f.P10, f.Value)
 		assert.LessOrEqual(t, f.Value, *f.P90)
-		assert.Greater(t, f.MarginOfError, 0.0)
+		if *f.P10 == *f.P90 {
+			// Both ends in one edge bucket: each is the outer strike, margin 0.
+			assert.Equal(t, forecast.BasisTail, f.P10Basis)
+			assert.Equal(t, forecast.BasisTail, f.P90Basis)
+			assert.Equal(t, 0.0, f.MarginOfError)
+		} else {
+			assert.Greater(t, f.MarginOfError, 0.0)
+		}
 	})
 
 	t.Run("the buckets are ordered and tile the line", func(t *testing.T) {

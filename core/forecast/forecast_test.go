@@ -418,8 +418,38 @@ func TestFromBuckets_NearCertainEdgeBucketReportsTheOuterStrike(t *testing.T) {
 				assert.Equal(t, BasisTail, f.ValueBasis)
 				assert.Equal(t, BasisTail, f.P10Basis)
 				assert.Equal(t, BasisTail, f.P90Basis)
+				assert.Equal(t, 0.0, f.MarginOfError)
+				assert.Equal(t, 0.0, f.Sigma)
 			})
 		}
+	}
+}
+
+func TestFromBuckets_ExactlyEmptyNeighbourStillReportsTheOuterStrike(t *testing.T) {
+	// A [0, 0] neighbour gave the old tail model no density to extrapolate
+	// from: the median came back unresolved and the discrete fallback forecast
+	// 2.4287 for the lower book.
+	for _, tc := range []struct {
+		tail   string
+		quotes [][2]float64
+		strike float64
+	}{
+		{"lower", [][2]float64{{98, 99}, {0, 0}, {0, 1}, {0, 1}, {0, 1}}, 2.6},
+		{"upper", [][2]float64{{0, 1}, {0, 1}, {0, 1}, {0, 0}, {98, 99}}, 3.73},
+	} {
+		t.Run(tc.tail, func(t *testing.T) {
+			f := mustForecast(t, quoted(tc.quotes...))
+			assert.Equal(t, MethodRank, f.Method)
+			assert.Equal(t, tc.strike, f.Value)
+			require.NotNil(t, f.P10)
+			require.NotNil(t, f.P90)
+			assert.Equal(t, tc.strike, *f.P10)
+			assert.Equal(t, tc.strike, *f.P90)
+			assert.Equal(t, BasisTail, f.ValueBasis)
+			assert.Equal(t, BasisTail, f.P10Basis)
+			assert.Equal(t, BasisTail, f.P90Basis)
+			assert.False(t, hasWarning(f, "falling back to discrete estimate"))
+		})
 	}
 }
 
@@ -431,8 +461,25 @@ func TestFromBuckets_BandStillReadsItsInteriorEndWhenOneEndIsInATail(t *testing.
 	require.NotNil(t, f.P90)
 	assert.Equal(t, 2.6, *f.P10)
 	assert.Equal(t, BasisInterior, f.P90Basis)
-	assert.Greater(t, *f.P90, 2.6)
-	assert.Less(t, *f.P90, 2.98)
+	assert.InDelta(t, 2.83465, *f.P90, 1e-12)
+	assert.InDelta(t, (*f.P90-2.6)/2, f.MarginOfError, 1e-12)
+}
+
+func TestFromBuckets_BandResolvesWhenAnEmptyBucketSitsBesideItsTailEnd(t *testing.T) {
+	// p10 falls in the lower tail beside a [0, 0] bucket. The old tail model
+	// had no density to anchor on there, so the band came back unresolved with
+	// a margin of 0.
+	f := mustForecast(t, quoted([2]float64{14, 16}, [2]float64{0, 0}, [2]float64{55, 57}, [2]float64{20, 22}, [2]float64{5, 7}))
+	assert.Equal(t, BasisInterior, f.ValueBasis)
+	assert.InDelta(t, 3.210714285714286, f.Value, 1e-12)
+	require.NotNil(t, f.P10)
+	require.NotNil(t, f.P90)
+	assert.Equal(t, 2.6, *f.P10)
+	assert.Equal(t, BasisTail, f.P10Basis)
+	assert.Equal(t, BasisInterior, f.P90Basis)
+	assert.Greater(t, f.MarginOfError, 0.0)
+	assert.InDelta(t, 0.5315238095238095, f.MarginOfError, 1e-12)
+	assert.False(t, hasWarning(f, "band unresolvable"))
 }
 
 func TestFromBuckets_TailWarningsSayTheValueIsTheOuterStrike(t *testing.T) {
