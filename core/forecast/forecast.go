@@ -40,11 +40,10 @@
 // within the bucket where the crossing happens. No distribution shape is assumed
 // for anything interior. The published band is P10..P90 read the same way. When
 // a requested percentile falls inside an OPEN-ENDED outer bucket the books
-// contain no information about how far out it lies, so an exponential tail
-// matched to the adjacent bucket's density supplies a number, and the result is
-// flagged (ValueBasis / P10Basis / P90Basis = "tail") so consumers can decide
-// whether to show it. Markets struck so that the mass stays between the outer
-// boundaries never need the tail model at all.
+// contain no information about how far out it lies, so the outer strike itself
+// is reported and the result is flagged (ValueBasis / P10Basis / P90Basis =
+// "tail"): the value lies at or beyond that strike. Markets struck so that the
+// mass stays between the outer boundaries never need it.
 //
 // Confidence per bucket is (1 - spread) * min(1, n / median(n)) with n the
 // thinner side's committed dollars, standardised against the market's own depth
@@ -67,27 +66,18 @@ package forecast
 // tails, the discrete fallback, dutch books, dust griefing, the frozen NVDA
 // book) and against a live mainnet market.
 //
-// The residual is ~1e-16, worst case 6.5 ULP, from two causes, neither of them
-// fixable and neither of them a translation error:
+// The residual is ~1e-16, worst case 6.5 ULP, from one cause that is neither
+// fixable nor a translation error: CPython 3.12 gave sum() compensated
+// (Neumaier) summation for floats, so the Python sums are slightly MORE
+// accurate than the plain left-to-right ones here. Reproducing that would mean
+// a compensated adder at every sum site, coupling this file to a CPython
+// implementation detail that upstream's source does not state -- it just says
+// sum(...) -- and making the translation harder to read against the original,
+// which is the whole maintenance strategy. sdk-js made the same call.
 //
-//  1. CPython 3.12 gave sum() compensated (Neumaier) summation for floats, so
-//     the Python sums are slightly MORE accurate than the plain left-to-right
-//     ones here. Reproducing that would mean a compensated adder at every sum
-//     site, coupling this file to a CPython implementation detail that
-//     upstream's source does not state -- it just says sum(...) -- and making
-//     the translation harder to read against the original, which is the whole
-//     maintenance strategy. sdk-js made the same call.
-//
-//  2. math.Log is not bit-identical across runtimes. This shows up ONLY in
-//     percentiles whose basis is BasisTail, the exponential tail model being
-//     the sole caller of a transcendental. On one case Go's p90 lands an ULP
-//     off CPython's and JavaScript's, which agree with each other. Nothing can
-//     be done about this from inside the algorithm.
-//
-// Both are fourteen orders of magnitude below the published margin of error.
-// Neither is purely invisible: a sum landing within 1e-16 of a rounding
-// boundary can move the last digit of a warning STRING. The forecast numbers
-// are unaffected.
+// That is fourteen orders of magnitude below the published margin of error. It
+// is not purely invisible: a sum landing within 1e-16 of a rounding boundary can
+// move the last digit of a warning STRING. The forecast numbers are unaffected.
 //
 // Go needs no tie-breaking helper of its own: fmt rounds half to even, which is
 // what Python's format spec does. (sdk-js needs one, because toFixed rounds ties
@@ -155,8 +145,8 @@ const (
 	// BasisInterior means the value was read between real strikes with no shape
 	// assumption.
 	BasisInterior = "interior"
-	// BasisTail means the value fell inside an open-ended outer bucket and rests
-	// on the exponential tail model.
+	// BasisTail means the value fell inside an open-ended outer bucket and is the
+	// outer strike; the value lies at or beyond it.
 	BasisTail = "tail"
 	// BasisUnresolved means the market has too few strikes to place the value.
 	BasisUnresolved = "unresolved"
@@ -308,8 +298,8 @@ type BucketEstimate struct {
 // Value is the MEDIAN of the implied distribution. P10/P90 are the published
 // band. Each carries a basis flag: BasisInterior means it was read between real
 // strikes with no shape assumption; BasisTail means it fell inside an
-// open-ended outer bucket and rests on the exponential tail model;
-// BasisUnresolved means the market has too few strikes to place it at all.
+// open-ended outer bucket and is the outer strike, the value lying at or beyond
+// it; BasisUnresolved means the market has too few strikes to place it at all.
 //
 // MarginOfError is kept for downstream compatibility as half the P10..P90 band;
 // Sigma as the band scaled to a normal-equivalent standard deviation
@@ -613,10 +603,11 @@ func dutchBookWarning(buckets []BucketBook) string {
 //
 // Interior crossings interpolate between real strikes and assume nothing beyond
 // uniform density within the bucket. A crossing inside an open-ended outer
-// bucket needs a shape for the tail; we use an exponential decay matched to the
-// adjacent interior bucket's density, and flag the result BasisTail so consumers
-// know it rests on that assumption. With fewer than two boundaries there is no
-// interior at all and no density to anchor a tail, so the answer is unresolved.
+// bucket has no outer bound, and the books say nothing about how far past the
+// strike it lies, so the outer strike itself is returned, flagged BasisTail: the
+// value lies at or beyond it. Extrapolating instead ran to absurd values when an
+// edge bucket was near-certain and its neighbour near-empty. With fewer than two
+// boundaries there is no interior at all, so the answer is unresolved.
 func rankQuantile(bounds, probs []float64, q float64) (*float64, string) {
 	k := len(probs)
 	cum := make([]float64, 0, k-1)
@@ -641,34 +632,10 @@ func rankQuantile(bounds, probs []float64, q float64) (*float64, string) {
 		}
 	}
 
-	widths := make([]float64, 0, len(bounds)-1)
-	for i := 0; i+1 < len(bounds); i++ {
-		widths = append(widths, bounds[i+1]-bounds[i])
-	}
-
 	if q < cum[0] { // lower open tail
-		dens := 0.0
-		if widths[0] > 0 {
-			dens = probs[1] / widths[0]
-		}
-		if dens <= 0 || cum[0] <= 0 {
-			return nil, BasisUnresolved
-		}
-		lam := dens / cum[0]
-		return Ptr(bounds[0] + math.Log(q/cum[0])/lam), BasisTail
+		return Ptr(bounds[0]), BasisTail
 	}
-
-	// upper open tail
-	upperMass := probs[k-1]
-	dens := 0.0
-	if widths[len(widths)-1] > 0 {
-		dens = probs[k-2] / widths[len(widths)-1]
-	}
-	if dens <= 0 || upperMass <= 0 {
-		return nil, BasisUnresolved
-	}
-	lam := dens / upperMass
-	return Ptr(bounds[len(bounds)-1] - math.Log(math.Max(1-q, 1e-12)/upperMass)/lam), BasisTail
+	return Ptr(bounds[len(bounds)-1]), BasisTail // upper open tail
 }
 
 // countPeaks returns the prominent local maxima of the interior density profile.
@@ -890,7 +857,7 @@ func assemble(
 		}
 		warnings = append(warnings, fmt.Sprintf(
 			"median lies beyond the outer strikes (%.0f%% of mass in an "+
-				"open-ended bucket); value depends on the assumed tail shape",
+				"open-ended bucket); value is the outer strike, the outcome lies at or beyond it",
 			outside*100))
 	}
 	for _, pair := range []struct {
@@ -899,7 +866,7 @@ func assemble(
 	}{{"p10", p10Basis}, {"p90", p90Basis}} {
 		switch pair.basis {
 		case BasisTail:
-			warnings = append(warnings, pair.name+" falls in an open tail; tail-model dependent")
+			warnings = append(warnings, pair.name+" falls in an open tail; reported as the outer strike")
 		case BasisUnresolved:
 			warnings = append(warnings, pair.name+" unresolvable from these strikes")
 		}
