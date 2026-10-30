@@ -448,6 +448,8 @@ func TestFromBuckets_ExactlyEmptyNeighbourStillReportsTheOuterStrike(t *testing.
 			assert.Equal(t, BasisTail, f.ValueBasis)
 			assert.Equal(t, BasisTail, f.P10Basis)
 			assert.Equal(t, BasisTail, f.P90Basis)
+			assert.Equal(t, 0.0, f.MarginOfError)
+			assert.Equal(t, 0.0, f.Sigma)
 			assert.False(t, hasWarning(f, "falling back to discrete estimate"))
 		})
 	}
