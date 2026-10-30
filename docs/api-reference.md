@@ -2220,7 +2220,7 @@ imply.
 
 ```text
 market says                     ->  forecast says
-"34% between 2.06 and 2.21"         "2.14, p10..p90 1.91..2.38"
+"34% between 2.06 and 2.21"         "2.14, p10..p90 1.91..2.35"
 ```
 
 This is the same algorithm as `sdk-py` and `sdk-js`, verified to produce the
@@ -2303,7 +2303,7 @@ fmt.Printf("%.4f\n", f.Value) // 2.1361
 
 // P10/P90 are nil when the market has too few strikes to place them.
 if f.P10 != nil && f.P90 != nil {
-    fmt.Printf("%.4f..%.4f\n", *f.P10, *f.P90) // 1.9055..2.3789
+    fmt.Printf("%.4f..%.4f\n", *f.P10, *f.P90) // 1.9100..2.3500
 } else {
     fmt.Println("band unresolved")
 }
@@ -2335,7 +2335,7 @@ func BucketBoundsFromMarketData(market *MarketData) (lower, upper *float64, err 
 | Field | Type | Meaning |
 |-------|------|---------|
 | `Value` | `float64` | The point estimate: the **median** of the implied distribution |
-| `P10`, `P90` | `*float64` | The published band. The market implies an 80% chance the outcome lands inside it |
+| `P10`, `P90` | `*float64` | The published band. When both ends are interior, the market implies an 80% chance the outcome lands inside it; an end flagged `BasisTail` is the outer strike, and the band then holds less than 80% |
 | `MarginOfError` | `float64` | Half the P10..P90 band. **Not** a standard error — see below |
 | `Sigma` | `float64` | The band scaled to a normal-equivalent standard deviation |
 | `ValueBasis` | `string` | `BasisInterior`, `BasisTail`, or `BasisUnresolved` — see below |
@@ -2344,7 +2344,7 @@ func BucketBoundsFromMarketData(market *MarketData) (lower, upper *float64, err 
 | `Buckets` | `[]BucketEstimate` | Per-bucket detail |
 | `Warnings` | `[]string` | Book-quality problems worth surfacing |
 | `Multimodal`, `NPeaks` | `bool`, `int` | Whether the book implies more than one peak |
-| `Low()`, `High()` | `float64` | `Value -/+ MarginOfError` |
+| `Low()`, `High()` | `float64` | `Value -/+ MarginOfError`. Either can fall past the outer strikes, for example when `Value` is flagged `BasisTail`, so `P10` and `P90` are the ones to show |
 | `AsMap()` | `map[string]any` | Flat, JSON-serialisable form |
 
 Each `BucketEstimate` carries `QueryID`, `Lower`, `Upper`, `Probability`
@@ -2354,15 +2354,18 @@ Each `BucketEstimate` carries `QueryID`, `Lower`, `Upper`, `Probability`
 **`MarginOfError` is a band, not a precision.** It is half the P10..P90 spread,
 so it describes how uncertain the **outcome** is, not how tightly the book pins
 your estimate. Expect it to be large — on a live five-bucket EPS market, roughly
-0.24 against a value of 2.14. Publishing it as "± 0.24" is correct; reading it
-as "our estimate is accurate to 0.24" is not.
+0.22 against a value of 2.14. Publishing it as "± 0.22" is correct; reading it
+as "our estimate is accurate to 0.22" is not. The margin is 0 when `P10` and
+`P90` both sit at the same outer strike (both flagged `BasisTail`), which
+means the book puts nearly all its mass past that strike, not that the value
+is certain.
 
 **Check the basis flags before displaying a number.** The outer two buckets are
 open-ended, so the books say nothing about how far out they extend. When a
 percentile falls inside one, the number is the outer strike; the value lies at
-or beyond it, and the corresponding flag reads `BasisTail`. `BasisInterior` means it was read
-between real strikes with no shape assumption. `BasisUnresolved` means the
-market has too few strikes to place it at all.
+or beyond it, and the corresponding flag reads `BasisTail`. `BasisInterior`
+means it was read between real strikes with no shape assumption.
+`BasisUnresolved` means the market has too few strikes to place it at all.
 
 **Read `Warnings`.** Unquoted or one-sided buckets, crossed books, and
 dutch-book deviations are reported rather than silently smoothed over.
