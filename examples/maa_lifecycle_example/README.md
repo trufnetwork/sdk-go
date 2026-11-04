@@ -4,8 +4,11 @@ A runnable, end-to-end proof of **Modular Agent Addresses** ("agent wallets") th
 against a live TRUF.NETWORK node where `maa_exec` is activated (testnet from height `6523123`).
 
 An MAA lets a token holder (the **owner**) hand a constrained **agent** key a wallet it can *operate*
-but provably cannot *drain*. This example drives the whole lifecycle and asserts the properties that
-make that safe, mirroring the node's canonical oracle `tests/streams/maa/data_agent_test.go` and the
+but not *withdraw* from. Withdrawals stay with the owner, and the token boundary blocks the agent's
+transfers and bridge-outs apart from network write fees. An agent allowed to trade still controls the
+wallet's value through its orders, so its key needs the same care as the owner key (see the node's
+`docs/modular-agent-addresses.md`). This example drives the whole lifecycle and asserts those limits,
+mirroring the node's canonical oracle `tests/streams/maa/data_agent_test.go` and the
 Python SDK's `examples/maa_lifecycle_example`.
 
 ## What it proves
