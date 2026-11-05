@@ -5,13 +5,17 @@ against a live TRUF.NETWORK node where `maa_exec` is activated (testnet from hei
 
 An MAA lets a token holder (the **owner**) hand a constrained **agent** key a wallet it can *operate*
 but not *withdraw* from. Withdrawals stay with the owner, and the token boundary blocks the agent's
-transfers and bridge-outs apart from network write fees. An agent allowed to trade still controls the
-wallet's value through its orders, so its key needs the same care as the owner key (see the node's
+transfers and bridge-outs apart from network write fees. Each withdrawal first pays the agent the
+commission set in the rule the agent wrote: up to 100% of the withdrawal in `bps` mode, or in `flat`
+mode a fixed amount that can take the whole withdrawal. Read the rule's terms with `GetAgentRule`
+before joining. An agent allowed to trade still controls the wallet's value through its orders, so
+its key needs the same care as the owner key (see the node's
 [agent wallet docs](https://github.com/trufnetwork/node/blob/main/docs/modular-agent-addresses.md)).
 This example drives the whole lifecycle, mirroring the node's canonical oracle
 `tests/streams/maa/data_agent_test.go` and the Python SDK's `examples/maa_lifecycle_example`. It
-asserts the withdrawal limit (the agent's `maa_withdraw` is refused) and does not try a transfer, a
-bridge-out or a trade.
+asserts the withdrawal limit (the agent's `maa_withdraw` is refused). The only transfers the agent
+makes are the write fees it pays to the block leader, and it does not try a transfer to any other
+address, a bridge-out or a trade.
 
 ## What it proves
 
@@ -20,7 +24,7 @@ bridge-out or a trade.
    record back under the MAA address to confirm.
 2. **Fees debit the MAA's own escrow** — each action's fee comes out of the wallet's bridge balance
    (printed before/after every step).
-3. **The agent cannot exfiltrate** — when the restricted agent attempts `maa_withdraw`, the node
+3. **The agent cannot withdraw** — when the restricted agent attempts `maa_withdraw`, the node
    rejects it ("reserved for the unrestricted owner") and the escrow is unchanged.
 4. **The owner withdraws with commission** — the owner drains the remaining escrow; the agent earns
    the rule's `fee_bps` commission.

@@ -1,14 +1,15 @@
 // Modular Agent Address (MAA / "agent wallet") lifecycle smoke test — Go SDK.
 //
 // Runs the full agent-wallet lifecycle against a live TRUF.NETWORK node where maa_exec is activated
-// (testnet from height 6523123). It proves, end-to-end through the Go SDK, the properties that make an
-// agent wallet useful and safe:
+// (testnet from height 6523123). It proves, end-to-end through the Go SDK, these properties of an
+// agent wallet:
 //
 //   - a restricted AGENT key registers an immutable rule;
 //   - an unrestricted OWNER key joins it to derive a wallet (the MAA) and funds it;
 //   - the agent runs allow-listed actions AS the MAA — the node rewrites @caller to the wallet, so the
 //     streams it creates are owned by the MAA and every fee is debited from the MAA's OWN escrow;
-//   - the agent CANNOT move the funds out (owner-exit actions are reserved for the owner);
+//   - the agent's maa_withdraw is refused and moves nothing (owner-exit actions are reserved for
+//     the owner);
 //   - the owner withdraws the remaining escrow at any time, paying the agent its commission.
 //
 // This mirrors the node's canonical oracle, tests/streams/maa/data_agent_test.go, and the Python SDK's
@@ -435,7 +436,7 @@ func run(ctx context.Context) error {
 	fmt.Println("Proven on-chain via the Go SDK:")
 	fmt.Println("  • @caller rewritten to the MAA (the stream is owned by the wallet, not the agent key)")
 	fmt.Println("  • fees debit the MAA's own escrow")
-	fmt.Println("  • the restricted agent cannot move funds out")
+	fmt.Println("  • the restricted agent's maa_withdraw is refused and moves nothing")
 	fmt.Println("  • the owner withdraws with the agreed commission")
 	fmt.Println("  • an owner can read the wallet's order-book positions/collateral by address (051)")
 	return nil
