@@ -7,9 +7,11 @@ An MAA lets a token holder (the **owner**) hand a constrained **agent** key a wa
 but not *withdraw* from. Withdrawals stay with the owner, and the token boundary blocks the agent's
 transfers and bridge-outs apart from network write fees. An agent allowed to trade still controls the
 wallet's value through its orders, so its key needs the same care as the owner key (see the node's
-`docs/modular-agent-addresses.md`). This example drives the whole lifecycle and asserts those limits,
-mirroring the node's canonical oracle `tests/streams/maa/data_agent_test.go` and the
-Python SDK's `examples/maa_lifecycle_example`.
+[agent wallet docs](https://github.com/trufnetwork/node/blob/main/docs/modular-agent-addresses.md)).
+This example drives the whole lifecycle, mirroring the node's canonical oracle
+`tests/streams/maa/data_agent_test.go` and the Python SDK's `examples/maa_lifecycle_example`. It
+asserts the withdrawal limit (the agent's `maa_withdraw` is refused) and does not try a transfer, a
+bridge-out or a trade.
 
 ## What it proves
 
