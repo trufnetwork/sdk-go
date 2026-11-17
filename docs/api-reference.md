@@ -2583,8 +2583,10 @@ dutch-book deviations are reported rather than silently smoothed over.
 **v2 outcome markets price in the refund.** An outcome market (action ids 13-16,
 see [Outcome Markets](#outcome-markets)) that settles INVALID pays $0.50 on every
 YES and NO share, so a v2 bucket's YES price is about
-`P(YES) + 0.5 × P(INVALID)`. The forecast reads YES midpoints as probabilities
-and normalises them, so for a v2 set the bucket probabilities, and the value and
+`P(YES) + 0.5 × P(INVALID)`. The forecast prices each bucket from its full YES
+and NO books, weighted by committed notional, and a NO price read as YES
+(1 minus the NO price) carries the same refund share. It normalises those
+bucket prices, so for a v2 set the bucket probabilities, and the value and
 band read off them, include that refund value. They are not a distribution over
 the valid outcomes only. The estimator is the same in every SDK and is not
 adjusted for this. Instead, when any bucket of the set is an outcome action,

@@ -35,8 +35,10 @@ import (
 //
 // The outcome actions (ids 13-16) price differently. An INVALID settlement pays
 // $0.50 on every YES and NO share, so a v2 bucket's YES price is about
-// P(YES) + 0.5 x P(INVALID). The forecast reads YES midpoints as probabilities
-// and normalises them, so for a v2 set its probabilities, and the value and band
+// P(YES) + 0.5 x P(INVALID). The forecast prices each bucket from its full YES
+// and NO books, weighted by committed notional, and a NO price read as YES
+// (1 minus the NO price) carries the same refund share. It normalises those
+// bucket prices, so for a v2 set its probabilities, and the value and band
 // read off them, include that refund value and are not a distribution over the
 // valid outcomes only. The estimator is shared with sdk-py, sdk-js and upstream
 // and is not adjusted for this; instead, when any bucket is an outcome action,
