@@ -504,6 +504,9 @@ func decodeABIBoolean(data []byte) (bool, error) {
 // The set is not a range -- IDs 10 and 11 are numeric actions on the node -- so
 // membership comes from the action registry.
 //
+// The outcome actions (IDs 13-16) are refused: they can answer INVALID, which a
+// boolean cannot carry. Read them with ParseOutcomeResult.
+//
 // These actions return abi.encode(bool) instead of abi.encode(uint256[], int256[]).
 //
 // Parameters:
@@ -649,4 +652,142 @@ func ParseBooleanResultFromParsed(parsed *sdktypes.ParsedAttestationPayload) (bo
 // IsBinaryActionResult returns true if the action ID corresponds to a binary action
 func IsBinaryActionResult(actionID uint16) bool {
 	return sdktypes.IsBinaryActionID(actionID)
+}
+
+// ═══════════════════════════════════════════════════════════════
+// OUTCOME ACTION RESULT PARSING
+// ═══════════════════════════════════════════════════════════════
+
+// Outcomes of the outcome actions (IDs 13-16), as ParseOutcomeResult returns them.
+const (
+	OutcomeYes     = 1
+	OutcomeNo      = 0
+	OutcomeInvalid = -1
+)
+
+// outcomeUnit is 1 in the 18-decimal fixed point of a result value.
+var outcomeUnit = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+
+// ParseOutcomeResult extracts the outcome from an outcome action attestation
+// payload:
+//   - index_change_in_range_v2 (13)
+//   - price_above_threshold_v2 (14)
+//   - price_below_threshold_v2 (15)
+//   - value_in_range_v2 (16)
+//
+// These actions return one row abi.encode(uint256[] event_times, int256[] values)
+// whose value is 1e18 (YES), 0 (NO) or -1e18 (INVALID). This maps them to
+// OutcomeYes, OutcomeNo and OutcomeInvalid, as the node's
+// parse_attestation_outcome does.
+//
+// Parameters:
+//   - payload: The canonical attestation payload (without signature)
+//
+// Returns:
+//   - outcome: OutcomeYes (1), OutcomeNo (0) or OutcomeInvalid (-1)
+//   - actionID: The action ID from the payload
+//   - err: Error if parsing fails, the action is not an outcome action, or the
+//     result is not exactly one of those three values
+func ParseOutcomeResult(payload []byte) (outcome int, actionID uint16, err error) {
+	offset := 0
+
+	// Version, algorithm and block height
+	if len(payload) < 1+1+8 {
+		return 0, 0, fmt.Errorf("payload too short for version, algorithm and block height")
+	}
+	offset += 1 + 1 + 8
+
+	// Data provider and stream ID (length-prefixed)
+	for _, field := range []string{"data provider", "stream ID"} {
+		if offset+4 > len(payload) {
+			return 0, 0, fmt.Errorf("payload too short for %s length", field)
+		}
+		fieldLen := int(readUint32BE(payload, offset))
+		if fieldLen > len(payload)-offset-4 {
+			return 0, 0, fmt.Errorf("payload too short for %s content", field)
+		}
+		offset += 4 + fieldLen
+	}
+
+	// Action ID (2 bytes)
+	if offset+2 > len(payload) {
+		return 0, 0, fmt.Errorf("payload too short for action ID")
+	}
+	actionID = readUint16BE(payload, offset)
+	offset += 2
+
+	if !sdktypes.IsOutcomeActionID(actionID) {
+		return 0, actionID, fmt.Errorf("action ID %d is not an outcome action", actionID)
+	}
+
+	// Arguments (length-prefixed)
+	if offset+4 > len(payload) {
+		return 0, actionID, fmt.Errorf("payload too short for arguments length")
+	}
+	argsLen := int(readUint32BE(payload, offset))
+	if argsLen > len(payload)-offset-4 {
+		return 0, actionID, fmt.Errorf("payload too short for arguments content")
+	}
+	offset += 4 + argsLen
+
+	// Result (length-prefixed)
+	if offset+4 > len(payload) {
+		return 0, actionID, fmt.Errorf("payload too short for result length")
+	}
+	resultLen := int(readUint32BE(payload, offset))
+	offset += 4
+	if resultLen > len(payload)-offset {
+		return 0, actionID, fmt.Errorf("payload too short for result")
+	}
+
+	outcome, err = decodeABIOutcome(payload[offset : offset+resultLen])
+	if err != nil {
+		return 0, actionID, fmt.Errorf("failed to decode outcome result: %w", err)
+	}
+	return outcome, actionID, nil
+}
+
+// decodeABIOutcome decodes abi.encode(uint256[], int256[]) holding exactly one
+// data point and maps its value 1e18, 0 or -1e18 to 1, 0 or -1.
+func decodeABIOutcome(data []byte) (int, error) {
+	uint256ArrayType, err := abi.NewType("uint256[]", "", nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create uint256[] type: %w", err)
+	}
+	int256ArrayType, err := abi.NewType("int256[]", "", nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create int256[] type: %w", err)
+	}
+
+	unpacked, err := abi.Arguments{{Type: uint256ArrayType}, {Type: int256ArrayType}}.Unpack(data)
+	if err != nil {
+		return 0, fmt.Errorf("failed to unpack ABI data: %w", err)
+	}
+	if len(unpacked) != 2 {
+		return 0, fmt.Errorf("expected 2 arrays, got %d", len(unpacked))
+	}
+	eventTimes, ok := unpacked[0].([]*big.Int)
+	if !ok {
+		return 0, fmt.Errorf("expected []*big.Int for event times, got %T", unpacked[0])
+	}
+	values, ok := unpacked[1].([]*big.Int)
+	if !ok {
+		return 0, fmt.Errorf("expected []*big.Int for values, got %T", unpacked[1])
+	}
+	if len(eventTimes) != 1 || len(values) != 1 {
+		return 0, fmt.Errorf("expected exactly one data point, got %d event times and %d values",
+			len(eventTimes), len(values))
+	}
+
+	value := values[0]
+	switch {
+	case value.Cmp(outcomeUnit) == 0:
+		return OutcomeYes, nil
+	case value.Sign() == 0:
+		return OutcomeNo, nil
+	case new(big.Int).Neg(value).Cmp(outcomeUnit) == 0:
+		return OutcomeInvalid, nil
+	default:
+		return 0, fmt.Errorf("outcome value must be 1e18, 0 or -1e18, got %s", value)
+	}
 }

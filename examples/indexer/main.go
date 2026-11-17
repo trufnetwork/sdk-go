@@ -134,7 +134,9 @@ func queryMarkets() ([]Market, error) {
 			status = "SETTLED"
 		}
 		outcome := ""
-		if m.WinningOutcome != nil {
+		if m.Settled && m.WinningOutcome == nil {
+			outcome = " (no result, refunded)"
+		} else if m.WinningOutcome != nil {
 			if *m.WinningOutcome {
 				outcome = " (YES wins)"
 			} else {

@@ -5,6 +5,7 @@ type ActionInfo struct {
 	ID          uint16 // Unique action ID (see ActionRegistry for the defined set)
 	Name        string // Action name as used in query_components
 	IsBinary    bool   // True for binary (TRUE/FALSE) actions, false for numeric actions
+	IsOutcome   bool   `json:"is_outcome"` // True for outcome actions (YES/NO/INVALID), ids 13-16
 	Description string // Human-readable description
 }
 
@@ -13,11 +14,16 @@ type ActionInfo struct {
 // - 000-create-tn.sql (IDs 1-5: numeric actions)
 // - 040-binary-attestation-actions.sql (IDs 6-9: binary actions)
 // - 055-index-change-attestation-action.sql (ID 12: binary action)
+// - 063-outcome-attestation-actions.sql (IDs 13-16: outcome actions)
 //
 // IDs are not contiguous, and binary IDs are not a range: 10 and 11 exist on the
 // node as numeric actions and are deliberately absent here. Anything deciding
 // whether an action is binary must ask this registry rather than compare against
 // a bound.
+//
+// The outcome actions (13-16) are not binary. Each answers 1 (YES), 0 (NO) or
+// -1 (INVALID) as a numeric row, so ParseBooleanResult refuses them and
+// ParseOutcomeResult reads them.
 var ActionRegistry = map[string]ActionInfo{
 	// Numeric actions (IDs 1-5) - return uint256[], int256[]
 	"get_record": {
@@ -84,6 +90,36 @@ var ActionRegistry = map[string]ActionInfo{
 		IsBinary:    true,
 		Description: "TRUE if min <= percentage change < max (e.g., 'Will inflation land between 2% and 3%?')",
 	},
+
+	// Outcome actions (IDs 13-16) - return 1 (YES), 0 (NO) or -1 (INVALID)
+	"index_change_in_range_v2": {
+		ID:          13,
+		Name:        "index_change_in_range_v2",
+		IsBinary:    false,
+		IsOutcome:   true,
+		Description: "YES if min <= percentage change < max, INVALID if the print never arrives",
+	},
+	"price_above_threshold_v2": {
+		ID:          14,
+		Name:        "price_above_threshold_v2",
+		IsBinary:    false,
+		IsOutcome:   true,
+		Description: "YES if value > threshold, INVALID if the print never arrives",
+	},
+	"price_below_threshold_v2": {
+		ID:          15,
+		Name:        "price_below_threshold_v2",
+		IsBinary:    false,
+		IsOutcome:   true,
+		Description: "YES if value < threshold, INVALID if the print never arrives",
+	},
+	"value_in_range_v2": {
+		ID:          16,
+		Name:        "value_in_range_v2",
+		IsBinary:    false,
+		IsOutcome:   true,
+		Description: "YES if min <= value < max, INVALID if the print never arrives",
+	},
 }
 
 // ActionByID maps action IDs to their metadata
@@ -123,6 +159,24 @@ func IsBinaryAction(name string) bool {
 func IsBinaryActionID(id uint16) bool {
 	if info, ok := ActionByID[id]; ok {
 		return info.IsBinary
+	}
+	return false
+}
+
+// IsOutcomeAction returns true if the action name corresponds to an outcome
+// action (YES, NO or INVALID)
+func IsOutcomeAction(name string) bool {
+	if info, ok := ActionRegistry[name]; ok {
+		return info.IsOutcome
+	}
+	return false
+}
+
+// IsOutcomeActionID returns true if the action ID corresponds to an outcome
+// action (YES, NO or INVALID)
+func IsOutcomeActionID(id uint16) bool {
+	if info, ok := ActionByID[id]; ok {
+		return info.IsOutcome
 	}
 	return false
 }

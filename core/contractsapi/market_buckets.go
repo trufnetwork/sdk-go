@@ -15,10 +15,11 @@ import (
 // are always struck. Bounds are half-open upstream, so a value landing exactly
 // on a boundary resolves the upper bucket only.
 //
-// "above", "below" and "between" markets are struck in the stream's own units;
-// "change_between" markets are struck in percent, against the stream's value one
-// time_interval earlier. This function does not distinguish them -- a caller
-// comparing bounds across markets has to know it is comparing like with like.
+// "above", "below", "between" and "range" markets are struck in the stream's
+// own units; "change_between" markets are struck in percent, against the
+// stream's value one time_interval earlier. This function does not distinguish
+// them -- a caller comparing bounds across markets has to know it is comparing
+// like with like.
 //
 // This is SDK-side glue, deliberately kept OUT of the forecast package: that
 // package is a translation of the upstream algorithm in
@@ -108,10 +109,11 @@ func BucketBoundsFromMarketData(market *MarketData) (lower, upper *float64, err 
 		}
 		return forecast.Ptr(lowerBound), forecast.Ptr(upperBound), nil
 
-	case "change_between":
-		// Percentage-change buckets, already half-open upstream and already in
-		// the open-ended shape this function returns, so the bounds pass
-		// through rather than being derived.
+	case "change_between", "range":
+		// Percentage-change buckets ("change_between") and value_in_range_v2
+		// buckets ("range") are already half-open upstream and already in the
+		// open-ended shape this function returns, so the bounds pass through
+		// rather than being derived.
 		lowerBound, lErr := optionalThreshold(0)
 		if lErr != nil {
 			return nil, nil, lErr

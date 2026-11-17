@@ -1837,6 +1837,190 @@ if err != nil {
 }
 ```
 
+## Outcome Markets
+
+Requires node v2.6.8 (migration 063).
+
+A market on an outcome action (ids 13 to 16) always ends. Each action answers
+YES, NO or INVALID. When the print the market waits for has not arrived by block
+time `timestamp + window`, the market settles INVALID and is refunded: every YES
+and NO share is paid $0.50, every open bid is refunded at its locked price, and
+no fee is taken.
+
+| ID | Action | Args, in order | YES when |
+|----|--------|----------------|----------|
+| 13 | `index_change_in_range_v2` | data_provider, stream_id, timestamp, window, tolerance, time_interval, min_change, max_change | `min_change <= change % < max_change` |
+| 14 | `price_above_threshold_v2` | data_provider, stream_id, timestamp, window, tolerance, threshold | `value > threshold` |
+| 15 | `price_below_threshold_v2` | data_provider, stream_id, timestamp, window, tolerance, threshold | `value < threshold` |
+| 16 | `value_in_range_v2` | data_provider, stream_id, timestamp, window, tolerance, min_value, max_value | `min_value <= value < max_value` |
+
+These actions take no `frozen_at` and no `base_time`. A nil bound on 13 or 16 is
+an open tail; both nil is refused. Unlike `value_in_range` (id 8), the range of
+`value_in_range_v2` is half-open, so a set of buckets tiles the line and exactly
+one settles YES.
+
+Which records are read:
+
+- 14, 15 and 16 read the latest record stamped in `[timestamp - tolerance, timestamp]`.
+- 13 reads the first record stamped in `[timestamp, timestamp + tolerance]` as the
+  current value, and the record nearest `current - time_interval`, at most
+  `tolerance` away, as the prior. A zero prior is INVALID.
+- Before block time `timestamp` a capture waits. With no record it keeps waiting
+  until block time `timestamp + window`, then answers INVALID.
+- Only primitive streams can be read; `create_market` refuses a composed stream.
+
+### Bounds
+
+`Validate()` on each input type applies the node's checks, and never stricter
+ones:
+
+| Field | Rule |
+|-------|------|
+| `DataProvider` | `0x` (or `0X`) and 40 hex characters; the builders lowercase it |
+| `StreamID` | exactly 32 characters |
+| `Timestamp` | `>= 0`. The node also refuses one more than 10 years past the block time, which only it can check |
+| `Window` | `0 < Window <= types.OutcomeMaxSpanSeconds` (315360000, 10 years) |
+| `Tolerance` | `0 <= Tolerance <= types.OutcomeMaxToleranceSeconds` (3888000, 45 days), and `Window >= Tolerance` |
+| `TimeInterval` (13) | `0 < TimeInterval <= types.OutcomeMaxSpanSeconds` and `2 * Tolerance < TimeInterval` |
+| `Threshold` (14, 15) | required, a number; `NaN` is refused |
+| bounds (13, 16) | not both nil; `""` is refused (use nil for an open tail); `NaN` is refused; `min < max`, compared as NUMERIC(36,18), so `"2.0"` and `"2"` are equal |
+
+### Defaults
+
+| Series | Actions | `timestamp` | `tolerance` | `window` | `time_interval` |
+|--------|---------|-------------|-------------|----------|-----------------|
+| Month-start series (CPI, PCE), year over year | 13 | the data month start | 172800 (2 days) | 7776000 (90 days) | 31536000 |
+| Daily ladders | 14 to 16 | the market's reference time | 86400 (1 day) | 259200 (3 days) | |
+| EPS level markets | 14 to 16 | after the stamp (the settle time) | 1728000 (20 days) | 1728000 | |
+
+Strike every bucket of a ladder with `value_in_range_v2`, the two outer ones
+with open tails. A top bucket on `price_above_threshold_v2` would pay nothing
+when the value lands exactly on its strike: the bucket below it stops short of
+the strike, and the top one needs a value above it.
+
+### Creating a market
+
+Each action has a create method on `*contractsapi.OrderBook` and a builder that
+returns the `query_components` without sending anything:
+
+```go
+func (o *OrderBook) CreateIndexChangeInRangeV2Market(ctx context.Context, input CreateIndexChangeInRangeV2MarketInput, opts ...kwilClientType.TxOpt) (kwiltypes.Hash, error)
+func (o *OrderBook) CreatePriceAboveThresholdV2Market(ctx context.Context, input CreatePriceAboveThresholdV2MarketInput, opts ...kwilClientType.TxOpt) (kwiltypes.Hash, error)
+func (o *OrderBook) CreatePriceBelowThresholdV2Market(ctx context.Context, input CreatePriceBelowThresholdV2MarketInput, opts ...kwilClientType.TxOpt) (kwiltypes.Hash, error)
+func (o *OrderBook) CreateValueInRangeV2Market(ctx context.Context, input CreateValueInRangeV2MarketInput, opts ...kwilClientType.TxOpt) (kwiltypes.Hash, error)
+
+func BuildIndexChangeInRangeV2QueryComponents(input types.IndexChangeInRangeV2Input) ([]byte, error)
+func BuildPriceAboveThresholdV2QueryComponents(input types.PriceAboveThresholdV2Input) ([]byte, error)
+func BuildPriceBelowThresholdV2QueryComponents(input types.PriceBelowThresholdV2Input) ([]byte, error)
+func BuildValueInRangeV2QueryComponents(input types.ValueInRangeV2Input) ([]byte, error)
+```
+
+The create inputs carry the query fields (`DataProvider`, `StreamID`,
+`Timestamp`, `Window`, `Tolerance`, then `TimeInterval`, `MinChange`,
+`MaxChange` for 13, `Threshold` for 14 and 15, `MinValue`, `MaxValue` for 16)
+and the market fields (`Bridge`, `SettleTime`, `MaxSpread`, `MinOrderSize`).
+
+The args are encoded as the action declares them: INT8 for the four time
+fields, NUMERIC(36,18) for thresholds and bounds, and NULL for an open tail. The
+data provider is lowercased in the args, as every SDK does for these actions, so
+one question has one market hash. `core/contractsapi/testdata/outcome_v2_golden.json`
+holds the exact bytes of one example per action.
+
+**Example:** the buckets of a year-over-year CPI ladder.
+
+```go
+orderBook, err := client.LoadOrderBook()
+if err != nil {
+    log.Fatal(err)
+}
+// The create helpers hang off the concrete type.
+book := orderBook.(*contractsapi.OrderBook)
+
+// The current data month. Its print is due in the middle of next month, and
+// create_market refuses a settle time that has already passed.
+now := time.Now().UTC()
+monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+settleTime := monthStart.AddDate(0, 1, 17).Unix() // the 18th of next month
+
+ptr := func(s string) *string { return &s }
+strikes := []*string{nil, ptr("2"), ptr("2.5"), ptr("3"), nil}
+for i := 0; i+1 < len(strikes); i++ {
+    txHash, err := book.CreateIndexChangeInRangeV2Market(ctx,
+        contractsapi.CreateIndexChangeInRangeV2MarketInput{
+            DataProvider: dataProvider, // the stream owner's 0x address
+            StreamID:     "stcpiyoy000000000000000000000000",
+            Timestamp:    monthStart.Unix(), // the data month start
+            Window:       7776000,
+            Tolerance:    172800,
+            TimeInterval: 31536000,
+            MinChange:    strikes[i],   // nil: open below
+            MaxChange:    strikes[i+1], // nil: open above
+            Bridge:       "eth_usdc",
+            SettleTime:   settleTime, // after the month's print is due
+            MaxSpread:    5,
+            MinOrderSize: 20,
+        })
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(txHash)
+}
+```
+
+### Reading the result: `ParseOutcomeResult`
+
+```go
+func ParseOutcomeResult(payload []byte) (outcome int, actionID uint16, err error)
+```
+
+Reads a signed attestation of an outcome action (the canonical payload, without
+the 65-byte signature). The result is one row whose value is `1e18`, `0` or
+`-1e18`; `outcome` is `contractsapi.OutcomeYes` (1), `contractsapi.OutcomeNo`
+(0) or `contractsapi.OutcomeInvalid` (-1). Any other value, any number of rows
+other than one, and any action id other than 13 to 16 is an error.
+
+`ParseBooleanResult` refuses ids 13 to 16, since a boolean cannot carry
+INVALID. `ParseAttestationPayload` reads them like any numeric result: the value
+column is `"1"`, `"0"` or `"-1"`.
+
+```go
+outcome, actionID, err := contractsapi.ParseOutcomeResult(canonicalPayload)
+if err != nil {
+    log.Fatal(err)
+}
+switch outcome {
+case contractsapi.OutcomeYes:
+    fmt.Println(actionID, "YES")
+case contractsapi.OutcomeNo:
+    fmt.Println(actionID, "NO")
+case contractsapi.OutcomeInvalid:
+    fmt.Println(actionID, "INVALID: the market is refunded")
+}
+```
+
+### Refunded markets
+
+A market that settled with no winner has `Settled == true` and
+`WinningOutcome == nil`. `MarketInfo.Refunded()` and `MarketSummary.Refunded()`
+report exactly that. `WinningOutcome == nil` alone does not mean unsettled.
+A refunded market pays no fees, so `GetDistributionSummary` returns nil for it
+for good.
+
+| `Settled` | `WinningOutcome` | Meaning |
+|-----------|------------------|---------|
+| `false` | `nil` | not settled |
+| `true` | `true` / `false` | YES / NO won |
+| `true` | `nil` | refunded: every share paid $0.50, open bids refunded at their locked price |
+
+### Registry
+
+`types.IsOutcomeAction(name)` and `types.IsOutcomeActionID(id)` report the
+outcome actions, and `ActionInfo.IsOutcome` marks them in `ActionRegistry`. They
+have `IsBinary == false`, so `IsBinaryAction` and `IsBinaryActionID` keep
+answering for ids 6 to 9 and 12 only.
+
+---
+
 ## Prediction Market Data Decoding
 
 The `contractsapi` package provides high-level utilities for decoding prediction market query components. This is essential for extracting market types (above, below, between) and threshold values from `marketInfo.QueryComponents`.
@@ -1901,24 +2085,44 @@ type MarketData struct {
     DataProvider string   `json:"data_provider"`
     StreamID     string   `json:"stream_id"`
     ActionID     string   `json:"action_id"`
-    Type         string   `json:"type"`       // "above", "below", "between", "equals", "change_between" or "unknown"
+    Type         string   `json:"type"`       // "above", "below", "between", "equals", "change_between", "range" or "unknown"
     Thresholds   []string `json:"thresholds"` // Formatted numeric values as strings
     Timestamp    *int64   `json:"timestamp"`  // Query observation time, unix seconds
     FrozenAt     *int64   `json:"frozen_at"`  // Pinned block height; nil means latest
-    BaseTime     *int64   `json:"base_time"`     // "change_between" only; nil means the stream's default base
+    BaseTime     *int64   `json:"base_time"`     // index_change_in_range only; nil means the stream's default base
     TimeInterval *int64   `json:"time_interval"` // "change_between" only, seconds; e.g. 31536000 for YoY
+    Window       *int64   `json:"window"`        // outcome actions (ids 13-16) only, seconds
+    Tolerance    *int64   `json:"tolerance"`     // outcome actions (ids 13-16) only, seconds
 }
 ```
 
 `Thresholds` holds one entry per strike slot the action declares, in order. A
-`"change_between"` market may strike an open tail, which reads back as an **empty
-string in place** rather than as a shorter slice — so `["", "2.000000000000000000"]`
-is "below 2%", and dropping the empty entry would slide the surviving bound into
-the wrong slot.
+`"change_between"` or `"range"` market may strike an open tail, which reads back
+as an **empty string in place** rather than as a shorter slice — so
+`["", "2.000000000000000000"]` is "below 2%", and dropping the empty entry would
+slide the surviving bound into the wrong slot.
 
 `BaseTime` and `TimeInterval` are `nil` for every type except `"change_between"`,
 which is the only action carrying arguments that change the question without
-changing a strike.
+changing a strike. `index_change_in_range_v2` has no base time, so its
+`BaseTime` is `nil`.
+
+The outcome actions (see [Outcome Markets](#outcome-markets)) reuse the types
+whose rule they share, and `ActionID` tells them apart from the v1 actions:
+
+| Action | `Type` | `Thresholds` |
+|--------|--------|--------------|
+| `price_above_threshold_v2` (14) | `"above"` | `[threshold]` |
+| `price_below_threshold_v2` (15) | `"below"` | `[threshold]` |
+| `value_in_range_v2` (16) | `"range"` | `[min_value, max_value]`, `""` for an open tail |
+| `index_change_in_range_v2` (13) | `"change_between"` | `[min_change, max_change]`, `""` for an open tail |
+
+`"range"` is new because its bounds are half-open and may be open, while
+`"between"` (id 8) is inclusive at both ends and always has two numbers. For
+these actions `Window` and `Tolerance` are set, `FrozenAt` and `BaseTime` are
+`nil`, and `TimeInterval` is set for id 13. For every other action `Window` and
+`Tolerance` are `nil`. A market whose args are not exactly the count its action
+declares decodes with `Timestamp`, `Window`, `Tolerance` and `Thresholds` empty.
 
 ---
 
@@ -2256,7 +2460,7 @@ have its bucket counted twice, and mixing two markets would normalise unrelated
 probabilities into a single distribution — both are rejected rather than
 warned about. Buckets of one market differ only in their strike, so the identity
 compared is `(data_provider, stream_id, bridge, settle_time, timestamp,
-frozen_at, base_time, time_interval)`.
+frozen_at, base_time, time_interval, window, tolerance)`.
 
 The query's own time is included because two markets can settle at the same
 moment while observing the stream at different points. The bridge is included
@@ -2265,6 +2469,9 @@ collateralised two ways. And `base_time` / `time_interval` are included because 
 `"change_between"` market measures over an interval: a year-over-year set and a
 month-over-month set can otherwise match on every other field, and a
 percent-change bucket could join a set struck in the stream's own units.
+`window` and `tolerance` are included because only the outcome actions carry
+them: they keep a v1 set and a v2 set on the same timestamp apart, and two v2
+sets that read the stream over different spans.
 
 The **action id is deliberately not** part of the identity — a complete set tiles
 the line with one `price_below_threshold` bucket, one `price_above_threshold`,
@@ -2320,8 +2527,8 @@ for _, w := range f.Warnings {
 
 Converts decoded market data into the bucket's half-open `[lower, upper)`
 bounds. A `nil` bound means open-ended, which is how the outer two buckets are
-always struck. Handles the `below`, `above`, `between` and `equals` market
-types.
+always struck. Handles the `below`, `above`, `between`, `equals`,
+`change_between` and `range` market types.
 
 **Signature:**
 ```go
@@ -2851,6 +3058,10 @@ type DecodedRow struct {
 **For attestation results:**
 - `Values[0]`: Unix timestamp as string (e.g., "1704067200")
 - `Values[1]`: 18-decimal fixed-point value as string (e.g., "77.051806494788211665")
+
+For an outcome action (ids 13 to 16) there is one row and `Values[1]` is `"1"`
+(YES), `"0"` (NO) or `"-1"` (INVALID); `ParseOutcomeResult` reads it with those
+checks. See [Outcome Markets](#outcome-markets).
 
 ---
 

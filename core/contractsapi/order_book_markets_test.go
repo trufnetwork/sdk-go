@@ -428,6 +428,35 @@ func TestDecodeMarketData(t *testing.T) {
 			expectType:   "change_between",
 			expectThresh: []string{"", "3"},
 		},
+		{
+			// The outcome actions: window and tolerance at 3 and 4, no frozen_at.
+			name:         "Price Above v2",
+			actionID:     "price_above_threshold_v2",
+			args:         []any{"0x...", "stream", int64(123), int64(10), int64(0), "100000"},
+			expectType:   "above",
+			expectThresh: []string{"100000"},
+		},
+		{
+			name:         "Price Below v2",
+			actionID:     "price_below_threshold_v2",
+			args:         []any{"0x...", "stream", int64(123), int64(10), int64(0), "4.5"},
+			expectType:   "below",
+			expectThresh: []string{"4.5"},
+		},
+		{
+			name:         "Value In Range v2 with an open top tail",
+			actionID:     "value_in_range_v2",
+			args:         []any{"0x...", "stream", int64(123), int64(10), int64(0), "90000", nil},
+			expectType:   "range",
+			expectThresh: []string{"90000", ""},
+		},
+		{
+			name:         "Index Change In Range v2",
+			actionID:     "index_change_in_range_v2",
+			args:         []any{"0x...", "stream", int64(123), int64(10), int64(0), int64(31536000), "2", "3"},
+			expectType:   "change_between",
+			expectThresh: []string{"2", "3"},
+		},
 	}
 
 	for _, tt := range tests {

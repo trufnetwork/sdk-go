@@ -724,6 +724,9 @@ for i, row := range parsed.Result {
 | Request attestation | `attestationActions.RequestAttestation(ctx, input)` |
 | Get signed attestation | `attestationActions.GetSignedAttestation(ctx, input)` |
 | Parse attestation payload | `contractsapi.ParseAttestationPayload(payload)` |
+| Create a market that settles YES, NO or refunded | `book.CreateValueInRangeV2Market(ctx, input)` ([Outcome Markets](./docs/api-reference.md#outcome-markets)) |
+| Read an outcome attestation | `contractsapi.ParseOutcomeResult(payload)` |
+| Check whether a settled market was refunded | `marketInfo.Refunded()` |
 
 ### Safe Operation Patterns
 
