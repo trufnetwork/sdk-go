@@ -33,6 +33,15 @@ import (
 // with the problem reported in the forecast's Warnings rather than returned as
 // an error.
 //
+// The outcome actions (ids 13-16) price differently. An INVALID settlement pays
+// $0.50 on every YES and NO share, so a v2 bucket's YES price is about
+// P(YES) + 0.5 x P(INVALID). The forecast reads YES midpoints as probabilities
+// and normalises them, so for a v2 set its probabilities, and the value and band
+// read off them, include that refund value and are not a distribution over the
+// valid outcomes only. The estimator is shared with sdk-py, sdk-js and upstream
+// and is not adjusted for this; instead, when any bucket is an outcome action,
+// ForecastOutcomeRefundWarning is added to the forecast's Warnings.
+//
 // Returns a nil forecast, and no error, when no bucket has a usable quote.
 func (o *OrderBook) GetMarketForecast(ctx context.Context, input types.GetMarketForecastInput) (
 	*forecast.MarketForecast, error,
@@ -42,6 +51,7 @@ func (o *OrderBook) GetMarketForecast(ctx context.Context, input types.GetMarket
 	}
 
 	books := make([]forecast.BucketDepth, 0, len(input.QueryIDs))
+	markets := make([]*MarketData, 0, len(input.QueryIDs))
 	identity := ""
 	for i, queryID := range input.QueryIDs {
 		info, err := o.GetMarketInfo(ctx, types.GetMarketInfoInput{QueryID: queryID})
@@ -61,6 +71,7 @@ func (o *OrderBook) GetMarketForecast(ctx context.Context, input types.GetMarket
 		if err := requireQueryTime(queryID, market); err != nil {
 			return nil, errors.WithStack(err)
 		}
+		markets = append(markets, market)
 
 		// Buckets of one market differ only in their strike: they share a data
 		// provider, a stream, a bridge, a settlement time and the query time
@@ -105,16 +116,34 @@ func (o *OrderBook) GetMarketForecast(ctx context.Context, input types.GetMarket
 		})
 	}
 
-	return forecastFromBooks(books), nil
+	return forecastFromBooks(books, hasOutcomeAction(markets)), nil
+}
+
+// ForecastOutcomeRefundWarning is added to a forecast's Warnings when any of
+// its buckets is an outcome action (ids 13-16). See GetMarketForecast.
+const ForecastOutcomeRefundWarning = "v2 outcome markets: each YES price includes " +
+	"the $0.50 per share an INVALID result pays, so these probabilities include " +
+	"that refund value and are not a distribution over valid outcomes only"
+
+// hasOutcomeAction reports whether any bucket of a set is an outcome action
+// (ids 13-16), whose YES price carries the INVALID refund.
+func hasOutcomeAction(markets []*MarketData) bool {
+	for _, market := range markets {
+		if types.IsOutcomeAction(market.ActionID) {
+			return true
+		}
+	}
+	return false
 }
 
 // forecastFromBooks orders a market's bucket books and forecasts from them,
-// prepending any problem with the bucket layout to the warnings.
+// prepending any problem with the bucket layout to the warnings and appending
+// ForecastOutcomeRefundWarning when outcomeSet is true.
 //
 // Split out from GetMarketForecast so the ordering and layout checks can be
 // tested without a node: everything above this point is network I/O, everything
 // below is a pure function of the books.
-func forecastFromBooks(books []forecast.BucketDepth) *forecast.MarketForecast {
+func forecastFromBooks(books []forecast.BucketDepth, outcomeSet bool) *forecast.MarketForecast {
 	if len(books) == 0 {
 		return nil
 	}
@@ -152,6 +181,9 @@ func forecastFromBooks(books []forecast.BucketDepth) *forecast.MarketForecast {
 		return nil
 	}
 	result.Warnings = append(layout, result.Warnings...)
+	if outcomeSet {
+		result.Warnings = append(result.Warnings, ForecastOutcomeRefundWarning)
+	}
 	return result
 }
 

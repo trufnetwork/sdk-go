@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	kwiltypes "github.com/trufnetwork/kwil-db/core/types"
+	"github.com/trufnetwork/sdk-go/core/forecast"
 	"github.com/trufnetwork/sdk-go/core/types"
 )
 
@@ -581,6 +582,103 @@ func TestOutcomeIdentity_SeparatesSetsByWindowAndTolerance(t *testing.T) {
 	above, err := DecodeMarketData(encoded)
 	require.NoError(t, err)
 	assert.Equal(t, want, marketIdentity(above, "eth_usdc", outcomeTimestamp))
+}
+
+// forecastSet decodes each bucket's query components and forecasts the set the
+// way GetMarketForecast does, with one two-sided YES quote per bucket.
+func forecastSet(t *testing.T, components [][]byte) *forecast.MarketForecast {
+	t.Helper()
+	quotes := [][2]int{{8, 14}, {20, 28}, {44, 52}, {12, 20}, {4, 10}}
+	require.LessOrEqual(t, len(components), len(quotes))
+	books := make([]forecast.BucketDepth, 0, len(components))
+	markets := make([]*MarketData, 0, len(components))
+	for i, encoded := range components {
+		market, err := DecodeMarketData(encoded)
+		require.NoError(t, err)
+		require.NoError(t, requireQueryTime(i, market))
+		markets = append(markets, market)
+
+		lower, upper, err := BucketBoundsFromMarketData(market)
+		require.NoError(t, err)
+		bids, asks := laddersFromEntries([]types.OrderBookEntry{
+			{Price: -quotes[i][0], Amount: 1000},
+			{Price: quotes[i][1], Amount: 1000},
+		})
+		id := i + 1
+		books = append(books, forecast.BucketDepth{
+			Lower: lower, Upper: upper, YesBids: bids, YesAsks: asks, QueryID: &id,
+		})
+	}
+	f := forecastFromBooks(books, hasOutcomeAction(markets))
+	require.NotNil(t, f)
+	return f
+}
+
+func TestOutcomeForecast_V2SetWarnsThatPricesIncludeTheRefund(t *testing.T) {
+	const want = "v2 outcome markets: each YES price includes the $0.50 per share an " +
+		"INVALID result pays, so these probabilities include that refund value and " +
+		"are not a distribution over valid outcomes only"
+	assert.Equal(t, want, ForecastOutcomeRefundWarning)
+
+	// A v2 ladder: below 90000, [90000, 100000), [100000, 110000), above 110000.
+	below := validBelowV2()
+	below.Threshold = "90000"
+	low := validRangeV2()
+	low.MinValue, low.MaxValue = strPtr("90000"), strPtr("100000")
+	high := validRangeV2()
+	high.MinValue, high.MaxValue = strPtr("100000"), strPtr("110000")
+	above := validAboveV2()
+	above.Threshold = "110000"
+	var v2 [][]byte
+	for _, build := range []func() ([]byte, error){
+		func() ([]byte, error) { return BuildPriceBelowThresholdV2QueryComponents(below) },
+		func() ([]byte, error) { return BuildValueInRangeV2QueryComponents(low) },
+		func() ([]byte, error) { return BuildValueInRangeV2QueryComponents(high) },
+		func() ([]byte, error) { return BuildPriceAboveThresholdV2QueryComponents(above) },
+	} {
+		encoded, err := build()
+		require.NoError(t, err)
+		v2 = append(v2, encoded)
+	}
+	f := forecastSet(t, v2)
+	assert.Contains(t, f.Warnings, ForecastOutcomeRefundWarning)
+	count := 0
+	for _, w := range f.Warnings {
+		if w == ForecastOutcomeRefundWarning {
+			count++
+		}
+	}
+	assert.Equal(t, 1, count, "the warning is added once per set, not per bucket")
+
+	// The same ladder on the v1 actions carries no such warning.
+	var v1 [][]byte
+	for _, bucket := range []struct {
+		action string
+		bounds []any
+	}{
+		{"price_below_threshold", []any{"90000"}},
+		{"value_in_range", []any{"90000", "100000"}},
+		{"value_in_range", []any{"100000", "110000"}},
+		{"price_above_threshold", []any{"110000"}},
+	} {
+		args := append([]any{outcomeProviderLower, outcomeStream, outcomeTimestamp}, bucket.bounds...)
+		args = append(args, nil)
+		encodedArgs, err := EncodeActionArgs(args)
+		require.NoError(t, err)
+		encoded, err := EncodeQueryComponents(outcomeProviderLower, outcomeStream, bucket.action, encodedArgs)
+		require.NoError(t, err)
+		v1 = append(v1, encoded)
+	}
+	f = forecastSet(t, v1)
+	assert.NotContains(t, f.Warnings, ForecastOutcomeRefundWarning)
+	assert.False(t, hasWarning(f, "v2 outcome markets"))
+
+	// Every outcome action counts, index_change_in_range_v2 (id 13) included.
+	encoded, err := BuildIndexChangeInRangeV2QueryComponents(validChangeV2())
+	require.NoError(t, err)
+	change, err := DecodeMarketData(encoded)
+	require.NoError(t, err)
+	assert.True(t, hasOutcomeAction([]*MarketData{change}))
 }
 
 // ═══════════════════════════════════════════════════════════════

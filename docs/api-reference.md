@@ -2580,6 +2580,21 @@ means it was read between real strikes with no shape assumption.
 **Read `Warnings`.** Unquoted or one-sided buckets, crossed books, and
 dutch-book deviations are reported rather than silently smoothed over.
 
+**v2 outcome markets price in the refund.** An outcome market (action ids 13-16,
+see [Outcome Markets](#outcome-markets)) that settles INVALID pays $0.50 on every
+YES and NO share, so a v2 bucket's YES price is about
+`P(YES) + 0.5 × P(INVALID)`. The forecast reads YES midpoints as probabilities
+and normalises them, so for a v2 set the bucket probabilities, and the value and
+band read off them, include that refund value. They are not a distribution over
+the valid outcomes only. The estimator is the same in every SDK and is not
+adjusted for this. Instead, when any bucket of the set is an outcome action,
+`GetMarketForecast` adds `contractsapi.ForecastOutcomeRefundWarning` to
+`Warnings`:
+
+```text
+v2 outcome markets: each YES price includes the $0.50 per share an INVALID result pays, so these probabilities include that refund value and are not a distribution over valid outcomes only
+```
+
 ### Finding a market's query IDs
 
 Each bucket is a **separate market** with its own query ID, so a "market" is a
@@ -2671,6 +2686,10 @@ f = forecast.FromBuckets([]forecast.BucketBook{
 Buckets must span the whole line, with the first open below (`Lower: nil`) and
 the last open above (`Upper: nil`). Both entry points return `nil` when the
 books carry no usable information at all.
+
+These functions see only books, not action ids, so they never add
+`ForecastOutcomeRefundWarning`. For a v2 outcome set the result includes the
+INVALID refund value as described above.
 
 ---
 
