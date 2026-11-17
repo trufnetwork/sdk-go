@@ -146,12 +146,12 @@ type MarketData struct {
 	DataProvider string `json:"data_provider"`
 	StreamID     string `json:"stream_id"`
 	ActionID     string `json:"action_id"`
-	Type         string `json:"type"` // "above", "below", "between", "equals", "change_between"
+	Type         string `json:"type"` // "above", "below", "between", "equals", "change_between", "range"
 	// Thresholds holds the market's strike values in the order the action
-	// declares them, one entry per slot. A "change_between" market may strike an
-	// open tail, which reads back as an empty string in place rather than a
-	// shorter slice -- dropping it would slide the remaining bound into the wrong
-	// position.
+	// declares them, one entry per slot. A "change_between" or "range" market
+	// may strike an open tail, which reads back as an empty string in place
+	// rather than a shorter slice -- dropping it would slide the remaining bound
+	// into the wrong position.
 	Thresholds []string `json:"thresholds"`
 	// Timestamp is the point in the stream the query observes, in unix seconds.
 	// Every bucket of one market shares it; nil only when the arguments could
@@ -159,12 +159,13 @@ type MarketData struct {
 	Timestamp *int64 `json:"timestamp"`
 	// FrozenAt is the block height the data is pinned to. It is encoded as NULL
 	// to mean "latest", so nil is a real value rather than a decode failure.
+	// The outcome actions (ids 13-16) have no frozen_at, so it is nil for them.
 	FrozenAt *int64 `json:"frozen_at"`
 	// BaseTime is the index base date the query measures against, in unix
 	// seconds, or nil for the stream's own default.
 	//
-	// Only a "change_between" market carries one; it is nil for every other
-	// type, which has no such argument.
+	// Only an index_change_in_range market carries one; it is nil for every
+	// other action, index_change_in_range_v2 included.
 	BaseTime *int64 `json:"base_time"`
 	// TimeInterval is how far back the query looks for its comparison value, in
 	// seconds -- e.g. 31536000 for year-over-year.
@@ -174,6 +175,13 @@ type MarketData struct {
 	// different questions, so this is part of a market's identity rather than
 	// presentation.
 	TimeInterval *int64 `json:"time_interval"`
+	// Window is how long after Timestamp an outcome action (ids 13-16) waits
+	// for the print, in seconds, before the market settles INVALID. nil for
+	// every other action.
+	Window *int64 `json:"window"`
+	// Tolerance is how far from Timestamp an outcome action (ids 13-16) accepts
+	// a record's stamp, in seconds. nil for every other action.
+	Tolerance *int64 `json:"tolerance"`
 }
 
 // readQueryTime fills in a market's query time, but only when the whole
@@ -191,6 +199,20 @@ func readQueryTime(market *MarketData, args []any, frozenAtIndex int) {
 	}
 	market.Timestamp = argInt64(args, 2)
 	market.FrozenAt = argInt64(args, frozenAtIndex)
+}
+
+// readOutcomeQuery fills in an outcome action's (ids 13-16) timestamp, window
+// and tolerance at args 2, 3 and 4, and reports whether the args are complete.
+// The node takes exactly argCount args for these actions, so any other count
+// is a market it would not have created and is left unread.
+func readOutcomeQuery(market *MarketData, args []any, argCount int) bool {
+	if len(args) != argCount {
+		return false
+	}
+	market.Timestamp = argInt64(args, 2)
+	market.Window = argInt64(args, 3)
+	market.Tolerance = argInt64(args, 4)
+	return true
 }
 
 // argInt64 pulls an INT8 argument out of the decoded args.
@@ -264,14 +286,19 @@ func DecodeMarketData(encoded []byte) (*MarketData, error) {
 	}
 
 	// Map action_id to market type and thresholds
-	// Based on 040-binary-attestation-actions.sql and
-	// 055-index-change-attestation-action.sql
+	// Based on 040-binary-attestation-actions.sql,
+	// 055-index-change-attestation-action.sql and
+	// 063-outcome-attestation-actions.sql
 	//
 	// Every binary action takes ($data_provider, $stream_id, $timestamp, ...,
 	// $frozen_at), so the timestamp is always argument 2 and frozen_at is always
 	// last. Only the arguments in between change shape, and they are not all
 	// thresholds: index_change_in_range carries $base_time and $time_interval
 	// ahead of its two bounds.
+	//
+	// The outcome actions (_v2) take ($data_provider, $stream_id, $timestamp,
+	// $window, $tolerance, ...) with no frozen_at, and an exact arg count. They
+	// reuse the v1 types where the rule is the same; ActionID tells them apart.
 	switch actionID {
 	case "price_above_threshold":
 		market.Type = "above"
@@ -311,6 +338,28 @@ func DecodeMarketData(encoded []byte) (*MarketData, error) {
 			market.TimeInterval = argInt64(args, 4)
 		}
 		readQueryTime(market, args, 7)
+	case "price_above_threshold_v2":
+		market.Type = "above"
+		if readOutcomeQuery(market, args, 6) {
+			market.Thresholds = append(market.Thresholds, formatArg(args[5]))
+		}
+	case "price_below_threshold_v2":
+		market.Type = "below"
+		if readOutcomeQuery(market, args, 6) {
+			market.Thresholds = append(market.Thresholds, formatArg(args[5]))
+		}
+	case "value_in_range_v2":
+		// Not "between": these bounds are half-open and either may be NULL.
+		market.Type = "range"
+		if readOutcomeQuery(market, args, 7) {
+			market.Thresholds = append(market.Thresholds, formatArg(args[5]), formatArg(args[6]))
+		}
+	case "index_change_in_range_v2":
+		market.Type = "change_between"
+		if readOutcomeQuery(market, args, 8) {
+			market.TimeInterval = argInt64(args, 5)
+			market.Thresholds = append(market.Thresholds, formatArg(args[6]), formatArg(args[7]))
+		}
 	default:
 		market.Type = "unknown"
 	}

@@ -613,6 +613,35 @@ func TestActionRegistry(t *testing.T) {
 		require.Equal(t, uint16(12), GetActionID("index_change_in_range"))
 	})
 
+	t.Run("Outcome actions are registered as outcome, not binary", func(t *testing.T) {
+		names := map[uint16]string{
+			13: "index_change_in_range_v2",
+			14: "price_above_threshold_v2",
+			15: "price_below_threshold_v2",
+			16: "value_in_range_v2",
+		}
+		for id, name := range names {
+			info := GetActionInfo(name)
+			require.NotNil(t, info, name)
+			require.Equal(t, id, info.ID)
+			require.False(t, info.IsBinary, name)
+			require.True(t, info.IsOutcome, name)
+			require.Equal(t, name, GetActionName(id))
+			require.Equal(t, id, GetActionID(name))
+			require.False(t, IsBinaryAction(name), name)
+			require.False(t, IsBinaryActionID(id), "id %d", id)
+			require.True(t, IsOutcomeAction(name), name)
+			require.True(t, IsOutcomeActionID(id), "id %d", id)
+		}
+		for _, id := range []uint16{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17} {
+			require.False(t, IsOutcomeActionID(id), "id %d", id)
+		}
+		require.False(t, IsOutcomeAction("index_change_in_range"))
+		require.False(t, IsOutcomeAction("unknown"))
+		require.Len(t, ActionRegistry, 14)
+		require.Len(t, ActionByID, 14)
+	})
+
 	t.Run("GetActionID", func(t *testing.T) {
 		require.Equal(t, uint16(1), GetActionID("get_record"))
 		require.Equal(t, uint16(6), GetActionID("price_above_threshold"))
@@ -624,4 +653,17 @@ func TestActionRegistry(t *testing.T) {
 		require.Equal(t, "price_above_threshold", GetActionName(6))
 		require.Equal(t, "", GetActionName(100))
 	})
+}
+
+func TestMarketRefunded(t *testing.T) {
+	yes, no := true, false
+
+	require.False(t, MarketInfo{}.Refunded(), "not settled")
+	require.False(t, MarketInfo{Settled: true, WinningOutcome: &yes}.Refunded())
+	require.False(t, MarketInfo{Settled: true, WinningOutcome: &no}.Refunded())
+	require.True(t, MarketInfo{Settled: true}.Refunded(), "settled with no winner")
+
+	require.False(t, MarketSummary{}.Refunded(), "not settled")
+	require.False(t, MarketSummary{Settled: true, WinningOutcome: &no}.Refunded())
+	require.True(t, MarketSummary{Settled: true}.Refunded(), "settled with no winner")
 }

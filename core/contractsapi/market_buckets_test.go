@@ -215,7 +215,7 @@ func hasWarning(f *forecast.MarketForecast, substring string) bool {
 func TestAssembly_MatchesADirectCall(t *testing.T) {
 	// Assembly must not change the answer: same books in, same number out.
 	books := booksFor(t, allQueryIDs(), nil)
-	assembled := forecastFromBooks(books)
+	assembled := forecastFromBooks(books, false)
 	require.NotNil(t, assembled)
 
 	direct := forecast.FromDepth(booksFor(t, allQueryIDs(), nil))
@@ -232,7 +232,7 @@ func TestAssembly_MatchesADirectCall(t *testing.T) {
 func TestAssembly_LandsInsideTheLeadingBucket(t *testing.T) {
 	// The live MSFT book: the tight 44-56 bucket leads, so the value belongs
 	// inside it.
-	f := forecastFromBooks(booksFor(t, allQueryIDs(), nil))
+	f := forecastFromBooks(booksFor(t, allQueryIDs(), nil), false)
 	require.NotNil(t, f)
 
 	top := 0.0
@@ -248,13 +248,13 @@ func TestAssembly_NoSideLiquidityIsConsolidatedIntoTheEstimate(t *testing.T) {
 	// A resting BUY NO at p is hittable by a BUY YES at 100-p, so NO depth is
 	// executable YES depth. Adding a NO bid must therefore supply the missing
 	// YES ask and stop the bucket reading as one-sided.
-	bare := forecastFromBooks(booksFor(t, allQueryIDs(), nil))
+	bare := forecastFromBooks(booksFor(t, allQueryIDs(), nil), false)
 	require.NotNil(t, bare)
 
 	// A NO bid at 84 mirrors to a YES ask at 16 on the open bottom bucket.
 	withNo := forecastFromBooks(booksFor(t, allQueryIDs(), map[int][]types.OrderBookEntry{
 		101: {{Price: -84, Amount: testSize}},
-	}))
+	}), false)
 	require.NotNil(t, withNo)
 
 	assert.True(t, bare.Buckets[0].OneSided)
@@ -265,8 +265,8 @@ func TestAssembly_NoSideLiquidityIsConsolidatedIntoTheEstimate(t *testing.T) {
 func TestAssembly_QueryIDsMayBeGivenInAnyOrder(t *testing.T) {
 	// Buckets are sorted by bound here, so callers need not track which query_id
 	// is the bottom of the line.
-	ordered := forecastFromBooks(booksFor(t, []int{101, 102, 103, 104, 105}, nil))
-	shuffled := forecastFromBooks(booksFor(t, []int{103, 105, 101, 104, 102}, nil))
+	ordered := forecastFromBooks(booksFor(t, []int{101, 102, 103, 104, 105}, nil), false)
+	shuffled := forecastFromBooks(booksFor(t, []int{103, 105, 101, 104, 102}, nil), false)
 	require.NotNil(t, ordered)
 	require.NotNil(t, shuffled)
 
@@ -282,7 +282,7 @@ func TestAssembly_QueryIDsMayBeGivenInAnyOrder(t *testing.T) {
 func TestAssembly_GapInTheBucketLayoutIsReportedNotHidden(t *testing.T) {
 	// A market missing an interior bucket still gets an estimate, but the caller
 	// must be able to see that the line was not fully tiled.
-	f := forecastFromBooks(booksFor(t, []int{101, 102, 104, 105}, nil))
+	f := forecastFromBooks(booksFor(t, []int{101, 102, 104, 105}, nil), false)
 	require.NotNil(t, f)
 	assert.True(t, hasWarning(f, "gap"))
 }
@@ -290,7 +290,7 @@ func TestAssembly_GapInTheBucketLayoutIsReportedNotHidden(t *testing.T) {
 func TestAssembly_LayoutWarningWhenTheLineIsNotOpenEnded(t *testing.T) {
 	// Interior buckets only: nothing covers the tails, so the mass beyond them
 	// is unrepresented and the caller should know.
-	f := forecastFromBooks(booksFor(t, []int{102, 103, 104}, nil))
+	f := forecastFromBooks(booksFor(t, []int{102, 103, 104}, nil), false)
 	require.NotNil(t, f)
 	assert.True(t, hasWarning(f, "not open below"))
 	assert.True(t, hasWarning(f, "not open above"))
@@ -302,7 +302,7 @@ func TestAssembly_UnquotedMarketYieldsNoForecast(t *testing.T) {
 		dead[i].YesBids, dead[i].YesAsks = nil, nil
 		dead[i].NoBids, dead[i].NoAsks = nil, nil
 	}
-	assert.Nil(t, forecastFromBooks(dead))
+	assert.Nil(t, forecastFromBooks(dead, false))
 }
 
 // ═══════════════════════════════════════════════════════════════

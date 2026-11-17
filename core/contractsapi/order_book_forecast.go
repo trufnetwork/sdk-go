@@ -33,6 +33,17 @@ import (
 // with the problem reported in the forecast's Warnings rather than returned as
 // an error.
 //
+// The outcome actions (ids 13-16) price differently. An INVALID settlement pays
+// $0.50 on every YES and NO share, so a v2 bucket's YES price is about
+// P(YES) + 0.5 x P(INVALID). The forecast prices each bucket from its full YES
+// and NO books, weighted by committed notional, and a NO price read as YES
+// (1 minus the NO price) carries the same refund share. It normalises those
+// bucket prices, so for a v2 set its probabilities, and the value and band
+// read off them, include that refund value and are not a distribution over the
+// valid outcomes only. The estimator is shared with sdk-py, sdk-js and upstream
+// and is not adjusted for this; instead, when any bucket is an outcome action,
+// ForecastOutcomeRefundWarning is added to the forecast's Warnings.
+//
 // Returns a nil forecast, and no error, when no bucket has a usable quote.
 func (o *OrderBook) GetMarketForecast(ctx context.Context, input types.GetMarketForecastInput) (
 	*forecast.MarketForecast, error,
@@ -42,6 +53,7 @@ func (o *OrderBook) GetMarketForecast(ctx context.Context, input types.GetMarket
 	}
 
 	books := make([]forecast.BucketDepth, 0, len(input.QueryIDs))
+	markets := make([]*MarketData, 0, len(input.QueryIDs))
 	identity := ""
 	for i, queryID := range input.QueryIDs {
 		info, err := o.GetMarketInfo(ctx, types.GetMarketInfoInput{QueryID: queryID})
@@ -61,6 +73,7 @@ func (o *OrderBook) GetMarketForecast(ctx context.Context, input types.GetMarket
 		if err := requireQueryTime(queryID, market); err != nil {
 			return nil, errors.WithStack(err)
 		}
+		markets = append(markets, market)
 
 		// Buckets of one market differ only in their strike: they share a data
 		// provider, a stream, a bridge, a settlement time and the query time
@@ -74,7 +87,7 @@ func (o *OrderBook) GetMarketForecast(ctx context.Context, input types.GetMarket
 			return nil, errors.Errorf(
 				"market %d belongs to a different event than the first bucket: "+
 					"(data_provider, stream_id, bridge, settle_time, timestamp, frozen_at, "+
-					"base_time, time_interval) is %s against %s. "+
+					"base_time, time_interval, window, tolerance) is %s against %s. "+
 					"One forecast covers the buckets of ONE market.",
 				queryID, thisIdentity, identity)
 		}
@@ -105,16 +118,34 @@ func (o *OrderBook) GetMarketForecast(ctx context.Context, input types.GetMarket
 		})
 	}
 
-	return forecastFromBooks(books), nil
+	return forecastFromBooks(books, hasOutcomeAction(markets)), nil
+}
+
+// ForecastOutcomeRefundWarning is added to a forecast's Warnings when any of
+// its buckets is an outcome action (ids 13-16). See GetMarketForecast.
+const ForecastOutcomeRefundWarning = "v2 outcome markets: each YES price includes " +
+	"the $0.50 per share an INVALID result pays, so these probabilities include " +
+	"that refund value and are not a distribution over valid outcomes only"
+
+// hasOutcomeAction reports whether any bucket of a set is an outcome action
+// (ids 13-16), whose YES price carries the INVALID refund.
+func hasOutcomeAction(markets []*MarketData) bool {
+	for _, market := range markets {
+		if types.IsOutcomeAction(market.ActionID) {
+			return true
+		}
+	}
+	return false
 }
 
 // forecastFromBooks orders a market's bucket books and forecasts from them,
-// prepending any problem with the bucket layout to the warnings.
+// prepending any problem with the bucket layout to the warnings and appending
+// ForecastOutcomeRefundWarning when outcomeSet is true.
 //
 // Split out from GetMarketForecast so the ordering and layout checks can be
 // tested without a node: everything above this point is network I/O, everything
 // below is a pure function of the books.
-func forecastFromBooks(books []forecast.BucketDepth) *forecast.MarketForecast {
+func forecastFromBooks(books []forecast.BucketDepth, outcomeSet bool) *forecast.MarketForecast {
 	if len(books) == 0 {
 		return nil
 	}
@@ -152,6 +183,9 @@ func forecastFromBooks(books []forecast.BucketDepth) *forecast.MarketForecast {
 		return nil
 	}
 	result.Warnings = append(layout, result.Warnings...)
+	if outcomeSet {
+		result.Warnings = append(result.Warnings, ForecastOutcomeRefundWarning)
+	}
 	return result
 }
 
@@ -180,16 +214,21 @@ func forecastFromBooks(books []forecast.BucketDepth) *forecast.MarketForecast {
 // value_in_range sets that observe at their own settle time exactly as the new
 // ones do. Bounds around 335 would be normalised against bounds around 2.5.
 //
+// window and tolerance are nil for every action except the outcome actions
+// (ids 13-16). They keep a v1 set and a v2 set on the same timestamp apart, and
+// two v2 sets that read the stream over different spans.
+//
 // The action id is deliberately NOT here: a complete set tiles the line with one
 // price_below_threshold bucket, one price_above_threshold, and value_in_range
 // between, so three different actions is the normal shape of ONE market.
 //
 // Kept as a pure function so the comparison can be tested without a node.
 func marketIdentity(market *MarketData, bridge string, settleTime int64) string {
-	return fmt.Sprintf("%s|%s|%s|%d|%s|%s|%s|%s",
+	return fmt.Sprintf("%s|%s|%s|%d|%s|%s|%s|%s|%s|%s",
 		market.DataProvider, market.StreamID, bridge, settleTime,
 		formatOptionalInt64(market.Timestamp), formatOptionalInt64(market.FrozenAt),
-		formatOptionalInt64(market.BaseTime), formatOptionalInt64(market.TimeInterval))
+		formatOptionalInt64(market.BaseTime), formatOptionalInt64(market.TimeInterval),
+		formatOptionalInt64(market.Window), formatOptionalInt64(market.Tolerance))
 }
 
 // requireQueryTime rejects a market whose query timestamp could not be read.

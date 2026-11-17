@@ -29,6 +29,11 @@ import (
 // 3. Parses outcome from attestation result
 // 4. Updates market: settled=true, winning_outcome, settled_at
 // 5. Calls process_settlement() to distribute funds and fees
+//
+// A market on an outcome action (ids 13-16) reads its result through
+// parse_attestation_outcome. On INVALID it settles with winning_outcome NULL
+// (MarketInfo.Refunded): every YES and NO share is paid $0.50, every open bid
+// is refunded at its locked price, and no fee is taken.
 func (o *OrderBook) SettleMarket(ctx context.Context, input types.SettleMarketInput,
 	opts ...kwilClientType.TxOpt) (kwiltypes.Hash, error) {
 	if err := input.Validate(); err != nil {
@@ -80,7 +85,11 @@ func (o *OrderBook) SampleLPRewards(ctx context.Context, input types.SampleLPRew
 // Migration: 036-order-book-audit.sql:107-147
 //
 // Returns: Summary of fee distribution for a settled market
-// Returns nil if market not settled or no distribution yet
+// Returns nil when the market has no distribution: it has not settled yet, or
+// it settled with nothing to distribute. The second case is permanent. It
+// covers a market with no fees and every refunded market (MarketInfo.Refunded()),
+// since an INVALID settlement pays no fees. Check Settled and Refunded() to tell
+// the cases apart.
 func (o *OrderBook) GetDistributionSummary(ctx context.Context, input types.GetDistributionSummaryInput) (*types.DistributionSummary, error) {
 	if err := input.Validate(); err != nil {
 		return nil, errors.WithStack(err)
@@ -93,7 +102,7 @@ func (o *OrderBook) GetDistributionSummary(ctx context.Context, input types.GetD
 	}
 
 	if len(result.Values) == 0 {
-		// No distribution yet (market may not be settled)
+		// Not settled yet, or settled with no fees or refunded (never a row)
 		return nil, nil
 	}
 

@@ -200,6 +200,8 @@ type IOrderBook interface {
 	// GetDistributionSummary retrieves fee distribution summary for a market
 	// Maps to: get_distribution_summary($query_id)
 	// Migration: 036-order-book-audit.sql:107-147
+	// Returns nil when there is no distribution: not settled yet, or for good
+	// when the market had no fees or was refunded (MarketInfo.Refunded()).
 	GetDistributionSummary(ctx context.Context, input GetDistributionSummaryInput) (*DistributionSummary, error)
 
 	// GetDistributionDetails retrieves per-LP reward details
@@ -791,7 +793,7 @@ type MarketInfo struct {
 	Bridge          string  // Bridge namespace (TEXT) - only from get_market_info
 	SettleTime      int64   // Unix timestamp (INT8)
 	Settled         bool    // Settlement status (BOOL)
-	WinningOutcome  *bool   // TRUE=YES won, FALSE=NO won, nil=not settled (BOOL nullable)
+	WinningOutcome  *bool   // TRUE=YES won, FALSE=NO won; nil=not settled, or refunded when Settled (BOOL nullable)
 	SettledAt       *int64  // Settlement timestamp, nil if not settled (INT8 nullable)
 	MaxSpread       int     // LP reward spread (1-50 cents) (INT)
 	MinOrderSize    int64   // LP reward minimum (INT8)
@@ -805,10 +807,24 @@ type MarketSummary struct {
 	Hash           []byte  // 32-byte query hash
 	SettleTime     int64   // Unix timestamp
 	Settled        bool    // Settlement status
-	WinningOutcome *bool   // Winner if settled
+	WinningOutcome *bool   // Winner if settled; nil=not settled, or refunded when Settled
 	MaxSpread      int     // LP reward spread
 	MinOrderSize   int64   // LP reward minimum
 	CreatedAt      int64   // Creation block
+}
+
+// Refunded reports whether the market settled with no winner (INVALID): every
+// YES and NO share was paid $0.50 and every open bid refunded at its locked price.
+// An outcome action (ids 13-16) settles this way when its print never arrives.
+func (m MarketInfo) Refunded() bool {
+	return m.Settled && m.WinningOutcome == nil
+}
+
+// Refunded reports whether the market settled with no winner (INVALID): every
+// YES and NO share was paid $0.50 and every open bid refunded at its locked price.
+// An outcome action (ids 13-16) settles this way when its print never arrives.
+func (m MarketSummary) Refunded() bool {
+	return m.Settled && m.WinningOutcome == nil
 }
 
 // MarketValidation contains market collateral validation results
