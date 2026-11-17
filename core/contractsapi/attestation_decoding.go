@@ -702,11 +702,13 @@ func ParseOutcomeResult(payload []byte) (outcome int, actionID uint16, err error
 		if offset+4 > len(payload) {
 			return 0, 0, fmt.Errorf("payload too short for %s length", field)
 		}
-		fieldLen := int(readUint32BE(payload, offset))
-		if fieldLen > len(payload)-offset-4 {
+		// Compare the unsigned length before converting it: on a 32-bit
+		// build a prefix at or above 0x80000000 would turn negative.
+		fieldLen := readUint32BE(payload, offset)
+		if uint64(fieldLen) > uint64(len(payload)-offset-4) {
 			return 0, 0, fmt.Errorf("payload too short for %s content", field)
 		}
-		offset += 4 + fieldLen
+		offset += 4 + int(fieldLen)
 	}
 
 	// Action ID (2 bytes)
@@ -724,23 +726,23 @@ func ParseOutcomeResult(payload []byte) (outcome int, actionID uint16, err error
 	if offset+4 > len(payload) {
 		return 0, actionID, fmt.Errorf("payload too short for arguments length")
 	}
-	argsLen := int(readUint32BE(payload, offset))
-	if argsLen > len(payload)-offset-4 {
+	argsLen := readUint32BE(payload, offset)
+	if uint64(argsLen) > uint64(len(payload)-offset-4) {
 		return 0, actionID, fmt.Errorf("payload too short for arguments content")
 	}
-	offset += 4 + argsLen
+	offset += 4 + int(argsLen)
 
 	// Result (length-prefixed)
 	if offset+4 > len(payload) {
 		return 0, actionID, fmt.Errorf("payload too short for result length")
 	}
-	resultLen := int(readUint32BE(payload, offset))
+	resultLen := readUint32BE(payload, offset)
 	offset += 4
-	if resultLen > len(payload)-offset {
+	if uint64(resultLen) > uint64(len(payload)-offset) {
 		return 0, actionID, fmt.Errorf("payload too short for result")
 	}
 
-	outcome, err = decodeABIOutcome(payload[offset : offset+resultLen])
+	outcome, err = decodeABIOutcome(payload[offset : offset+int(resultLen)])
 	if err != nil {
 		return 0, actionID, fmt.Errorf("failed to decode outcome result: %w", err)
 	}

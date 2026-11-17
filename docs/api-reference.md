@@ -1842,10 +1842,12 @@ if err != nil {
 Requires node v2.6.8 (migration 063).
 
 A market on an outcome action (ids 13 to 16) always ends. Each action answers
-YES, NO or INVALID. When the print the market waits for has not arrived by block
-time `timestamp + window`, the market settles INVALID and is refunded: every YES
-and NO share is paid $0.50, every open bid is refunded at its locked price, and
-no fee is taken.
+YES, NO or INVALID. A capture taken at or after block time `timestamp + window`
+that finds no qualifying record answers INVALID, and the market is refunded:
+every YES and NO share is paid $0.50, every open bid is refunded at its locked
+price, and no fee is taken. The rule applies at capture time: a record written
+after the deadline but before the first capture still decides the market, so a
+late print does not guarantee a refund.
 
 | ID | Action | Args, in order | YES when |
 |----|--------|----------------|----------|
@@ -1866,7 +1868,8 @@ Which records are read:
   current value, and the record nearest `current - time_interval`, at most
   `tolerance` away, as the prior. A zero prior is INVALID.
 - Before block time `timestamp` a capture waits. With no record it keeps waiting
-  until block time `timestamp + window`, then answers INVALID.
+  until block time `timestamp + window`; a capture from then on that still finds
+  no record answers INVALID.
 - Only primitive streams can be read; `create_market` refuses a composed stream.
 
 ### Bounds

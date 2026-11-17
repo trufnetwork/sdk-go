@@ -10,8 +10,10 @@ import (
 // ═══════════════════════════════════════════════════════════════
 // OUTCOME ACTION INPUT TYPES (ids 13-16, node migration 063)
 // Each action answers 1 (YES), 0 (NO) or -1 (INVALID). A market on one
-// always settles: when the print has not arrived by Timestamp + Window it
-// settles INVALID and refunds every position.
+// always settles: a capture at or after block time Timestamp + Window that
+// finds no qualifying record answers INVALID and the market refunds every
+// position. A record written after that deadline but before the first
+// capture still decides the market.
 // ═══════════════════════════════════════════════════════════════
 
 // Node bounds on the outcome action arguments, in seconds.

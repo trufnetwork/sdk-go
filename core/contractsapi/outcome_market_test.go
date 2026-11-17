@@ -6,6 +6,7 @@ package contractsapi
 
 import (
 	"context"
+	"encoding/binary"
 	"math/big"
 	"strings"
 	"testing"
@@ -660,6 +661,17 @@ func TestParseOutcomeResult_RefusesAnythingElse(t *testing.T) {
 	for _, cut := range []int{0, 5, 20, 60, len(full) - 1} {
 		_, _, err := ParseOutcomeResult(full[:cut])
 		assert.Error(t, err, "payload cut to %d bytes", cut)
+	}
+
+	// A length prefix at or above 0x80000000 is refused, not converted to a
+	// negative int (which would move the offset backward on a 32-bit build).
+	for _, prefix := range []uint32{0x80000000, 0xFFFFFFFF} {
+		huge := make([]byte, 10, 10+4)
+		huge = binary.BigEndian.AppendUint32(huge, prefix)
+		assert.NotPanics(t, func() {
+			_, _, err := ParseOutcomeResult(huge)
+			assert.Error(t, err, "length prefix %#x", prefix)
+		})
 	}
 }
 
